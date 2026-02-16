@@ -342,31 +342,65 @@
     //  OVERWORLD UI
     // ================================================================
 
+    // Zone definitions: bg, separator, name, nameColor
+    var ZONES = {
+      apartment: { bg: '#100e14', sep: '#2a2040', name: 'APARTMENT', nameColor: '#8878aa' },
+      work:      { bg: '#0a1210', sep: '#1a3028', name: 'WORK STATION', nameColor: '#68a878' },
+      cafe:      { bg: '#14100a', sep: '#302518', name: 'CAFE', nameColor: '#c8a060' },
+      garden:    { bg: '#0a120a', sep: '#1a3018', name: 'GARDEN', nameColor: '#6aaa5a' },
+      streets:   { bg: '#0e0e10', sep: '#222228', name: 'STREETS', nameColor: '#7a7a88' },
+      system:    { bg: '#10080a', sep: '#301820', name: 'SYSTEM ACCESS', nameColor: '#f08040' }
+    };
+
+    function detectZone(tile, map, px, py) {
+      if (tile === 6) return 'apartment';
+      if (tile === 7) return 'work';
+      if (tile === 3) return 'garden';
+      if (tile === 8) return 'system';
+      if (tile === 9) return 'cafe';
+      // Check adjacent tiles for context
+      var dirs = [[0,-1],[0,1],[-1,0],[1,0]];
+      for (var d = 0; d < dirs.length; d++) {
+        var nx = px + dirs[d][0], ny = py + dirs[d][1];
+        if (ny >= 0 && ny < map.length && nx >= 0 && nx < map[0].length) {
+          var adj = map[ny][nx];
+          if (adj === 6) return 'apartment';
+          if (adj === 9) return 'cafe';
+          if (adj === 3) return 'garden';
+          if (adj === 7) return 'work';
+          if (adj === 8) return 'system';
+        }
+      }
+      if (tile === 2) return 'apartment'; // indoor floor
+      return 'streets';
+    }
+
     FA.addLayer('overworldUI', function() {
       var state = FA.getState();
       if (state.screen !== 'overworld') return;
       var timeCfg = FA.lookup('config', 'time');
       var ctx = FA.getCtx();
 
-      // Warm background — distinct from cold system HUD
-      FA.draw.rect(0, uiY, W, H - uiY, '#12100a');
-      // Thin separator line
-      FA.draw.rect(0, uiY, W, 1, '#2a2518');
+      var tile = state.owMap[state.owPlayer.y] ? state.owMap[state.owPlayer.y][state.owPlayer.x] : 0;
+      var zone = ZONES[detectZone(tile, state.owMap, state.owPlayer.x, state.owPlayer.y)];
 
-      // --- Row 1: Day + Period + Time bar + Credits ---
+      // Zone-colored background + separator
+      FA.draw.rect(0, uiY, W, H - uiY, zone.bg);
+      FA.draw.rect(0, uiY, W, 1, zone.sep);
+
+      // --- Row 1: Zone name | Day + Period | Time bar | Credits ---
+      FA.draw.text(zone.name, 8, uiY + 6, { color: zone.nameColor, size: 11, bold: true });
+
       var period = state.timeOfDay < 33 ? 'MORNING' : state.timeOfDay < 66 ? 'MIDDAY' : 'EVENING';
       var periodColor = state.timeOfDay < 33 ? '#d8b060' : state.timeOfDay < 66 ? '#e0a030' : '#c06030';
       var timeRatio = state.timeOfDay / timeCfg.turnsPerDay;
       if (timeRatio > 0.95) { period = 'CURFEW'; periodColor = '#f44'; }
 
-      FA.draw.text('DAY ' + state.day, 8, uiY + 6, { color: '#c8b898', size: 12, bold: true });
-      FA.draw.text(period, 60, uiY + 6, { color: periodColor, size: 11, bold: true });
+      FA.draw.text('DAY ' + state.day + ' ' + period, 130, uiY + 6, { color: periodColor, size: 11 });
 
-      // Time bar (warm tones)
       var timeColor = timeRatio > 0.95 ? '#f44' : timeRatio > 0.75 ? '#e08030' : '#c8a050';
-      FA.draw.bar(140, uiY + 7, 80, 8, 1 - timeRatio, timeColor, '#1a1610');
+      FA.draw.bar(310, uiY + 7, 70, 8, 1 - timeRatio, timeColor, '#1a1610');
 
-      // Credits + Rent (right-aligned cluster)
       FA.draw.text(state.credits + ' cr', W - 120, uiY + 6, { color: colors.credits, size: 11, bold: true });
       FA.draw.text('-' + state.rent + '/night', W - 65, uiY + 6, { color: '#a65', size: 10 });
 
@@ -378,30 +412,24 @@
         if (npc.x < 0) continue;
         var nd = Math.abs(npc.x - state.owPlayer.x) + Math.abs(npc.y - state.owPlayer.y);
         if (nd > 10) continue;
-        var label = npc.name;
-        var tagColor = npc.color;
         var dimmed = nd > 5;
-        // Dot + name
         ctx.save();
         ctx.globalAlpha = dimmed ? 0.4 : 0.9;
-        FA.draw.rect(tagX, uiY + 20, 4, 4, tagColor);
-        FA.draw.text(label, tagX + 7, uiY + 19, { color: dimmed ? '#665' : '#aa9', size: 10 });
+        FA.draw.rect(tagX, uiY + 20, 4, 4, npc.color);
+        FA.draw.text(npc.name, tagX + 7, uiY + 19, { color: dimmed ? '#665' : '#aa9', size: 10 });
         ctx.restore();
-        tagX += ctx.measureText(label).width + 18;
+        tagX += ctx.measureText(npc.name).width + 18;
       }
 
-      // System visits (right side, row 2)
       if (state.systemVisits > 0) {
         FA.draw.text('DIVES: ' + state.systemVisits, W - 80, uiY + 19, { color: '#664', size: 10 });
       }
 
-      // --- Row 3: Context action ---
-      var tile = state.owMap[state.owPlayer.y] ? state.owMap[state.owPlayer.y][state.owPlayer.x] : 0;
+      // --- Row 3: Context actions ---
       var actions = [];
-      if (tile === 6) actions.push({ key: 'SPACE', label: 'Sleep', color: '#8888cc' });
+      if (tile === 6) actions.push({ key: 'SPACE', label: 'Sleep', color: '#8878cc' });
       else if (tile === 7) actions.push({ key: 'SPACE', label: state.workedToday ? 'Shift done' : 'Work', color: state.workedToday ? '#443' : '#88aa66' });
       else if (tile === 8 && state.systemRevealed) actions.push({ key: 'SPACE', label: 'Enter System', color: '#f80' });
-      // Adjacent NPC
       var dirs = [[0,-1],[0,1],[-1,0],[1,0]];
       for (var d = 0; d < dirs.length; d++) {
         var nx = state.owPlayer.x + dirs[d][0], ny = state.owPlayer.y + dirs[d][1];
