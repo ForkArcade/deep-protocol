@@ -184,76 +184,56 @@
     //  OVERWORLD MAP (cached)
     // ================================================================
 
-    var OW_COLORS = {
-      0: '#14120f', 1: null, 2: '#1a1814', 3: '#1c1a18',
-      6: '#1a1828', 7: '#0a1a1a', 8: '#14120f', 9: '#1e1610'
-    };
-
     function renderOverworldMap(oc, owMap, state) {
-      oc.clearRect(0, 0, _owCanvas.width, _owCanvas.height);
+      // Build a base map for the dungeon renderer (special tiles → floor)
+      var baseMap = [];
+      for (var by = 0; by < owMap.length; by++) {
+        baseMap[by] = [];
+        for (var bx = 0; bx < owMap[by].length; bx++) {
+          var bt = owMap[by][bx];
+          baseMap[by][bx] = (bt === 1 || bt === 9) ? 1 : 0;
+        }
+      }
+      // Render using dungeon renderer (depth 1 palette)
+      renderMapToCanvas(oc, baseMap, 1);
+
+      // Overlay special tiles
       var revealed = state.systemRevealed;
       for (var y = 0; y < cfg.rows && y < owMap.length; y++) {
         for (var x = 0; x < cfg.cols && x < owMap[y].length; x++) {
           var tile = owMap[y][x];
           var px = x * ts, py = y * ts;
-
-          if (tile === 1) {
-            // Wall
-            var below = y + 1 < owMap.length ? owMap[y + 1][x] : 1;
-            if (below !== 1) {
-              oc.fillStyle = '#322a22'; oc.fillRect(px, py, ts, Math.floor(ts * 0.35));
-              oc.fillStyle = '#2a2520'; oc.fillRect(px, py + Math.floor(ts * 0.35), ts, ts - Math.floor(ts * 0.35));
-            } else {
-              oc.fillStyle = '#1a1610'; oc.fillRect(px, py, ts, ts);
+          if (tile === 3) {
+            // Garden — green on floor
+            oc.fillStyle = '#0a2010'; oc.fillRect(px, py, ts, ts);
+            if ((x + y) % 2 === 0) {
+              oc.fillStyle = '#1a4020'; oc.fillRect(px + 3, py + 3, ts - 6, ts - 6);
             }
-          } else if (tile === 9) {
-            // Café table
-            oc.fillStyle = '#1e1610'; oc.fillRect(px, py, ts, ts);
-            oc.fillStyle = '#2a2018'; oc.fillRect(px + 3, py + 3, ts - 6, ts - 6);
-            oc.fillStyle = '#332a20'; oc.fillRect(px + 5, py + 5, ts - 10, ts - 10);
+            if ((x * 3 + y * 7) % 5 === 0) {
+              oc.fillStyle = '#2a6030'; oc.fillRect(px + ts / 2 - 1, py + ts / 2 - 1, 3, 3);
+            }
           } else if (tile === 6) {
             // Bed
-            oc.fillStyle = '#1a1828'; oc.fillRect(px, py, ts, ts);
-            oc.fillStyle = '#2a2848'; oc.fillRect(px + 2, py + 4, ts - 4, ts - 6);
-            oc.fillStyle = '#3a3868'; oc.fillRect(px + 3, py + 5, 6, 4);
+            oc.fillStyle = '#1a1838'; oc.fillRect(px + 2, py + 4, ts - 4, ts - 6);
+            oc.fillStyle = '#2a2858'; oc.fillRect(px + 3, py + 5, 6, 4);
           } else if (tile === 7) {
-            // Work terminal
-            oc.fillStyle = '#0a1a1a'; oc.fillRect(px, py, ts, ts);
-            oc.fillStyle = '#0a2a2a'; oc.fillRect(px + 3, py + 2, ts - 6, ts - 4);
-            oc.fillStyle = '#0ff'; oc.fillRect(px + 4, py + 3, ts - 8, 2);
-            oc.fillStyle = '#0ff'; oc.fillRect(px + 4, py + ts - 4, ts - 8, 2);
-            oc.font = 'bold 10px monospace'; oc.textAlign = 'center'; oc.textBaseline = 'middle';
+            // Work terminal (same as dungeon terminal)
+            oc.fillStyle = '#0a2a2a'; oc.fillRect(px + 2, py + 2, ts - 4, ts - 4);
+            oc.fillStyle = '#0ff'; oc.fillRect(px + 3, py + 3, ts - 6, 2);
+            oc.fillRect(px + 3, py + ts - 5, ts - 6, 2);
+            oc.fillStyle = '#0ff'; oc.font = 'bold 11px monospace'; oc.textAlign = 'center'; oc.textBaseline = 'middle';
             oc.fillText('T', px + ts / 2, py + ts / 2);
-          } else if (tile === 8) {
+          } else if (tile === 8 && revealed) {
             // System entrance
-            oc.fillStyle = '#14120f'; oc.fillRect(px, py, ts, ts);
-            if (revealed) {
-              oc.fillStyle = '#1a0a00'; oc.fillRect(px + 2, py + 2, ts - 4, ts - 4);
-              oc.fillStyle = '#f80'; oc.fillRect(px + 3, py + 3, ts - 6, 2);
-              oc.fillStyle = '#f80'; oc.fillRect(px + 3, py + ts - 5, ts - 6, 2);
-              oc.font = 'bold 10px monospace'; oc.textAlign = 'center'; oc.textBaseline = 'middle';
-              oc.fillText('v', px + ts / 2, py + ts / 2);
-            }
-          } else if (tile === 3) {
-            // Street / pavement
-            oc.fillStyle = '#1c1a18'; oc.fillRect(px, py, ts, ts);
-            // Subtle grid lines (concrete slabs)
-            oc.fillStyle = '#222018'; oc.fillRect(px, py, ts, 1);
-            oc.fillStyle = '#222018'; oc.fillRect(px, py, 1, ts);
-            // Occasional crack
-            if ((x * 7 + y * 13) % 11 === 0) {
-              oc.fillStyle = '#161410'; oc.fillRect(px + 4, py + ts / 2, ts - 8, 1);
-            }
-          } else {
-            // Path (0) or indoor floor (2)
-            var col = OW_COLORS[tile] || '#14120f';
-            oc.fillStyle = col; oc.fillRect(px, py, ts, ts);
-            if (tile === 2) {
-              // Indoor floor — subtle warm wood pattern
-              if ((x + y) % 3 === 0) {
-                oc.fillStyle = '#1e1a14'; oc.fillRect(px + 2, py + ts / 2, ts - 4, 1);
-              }
-            }
+            oc.fillStyle = '#1a0a00'; oc.fillRect(px + 2, py + 2, ts - 4, ts - 4);
+            oc.fillStyle = '#f80'; oc.fillRect(px + 3, py + 3, ts - 6, 2);
+            oc.fillRect(px + 3, py + ts - 5, ts - 6, 2);
+            oc.fillStyle = '#f80'; oc.font = 'bold 11px monospace'; oc.textAlign = 'center'; oc.textBaseline = 'middle';
+            oc.fillText('v', px + ts / 2, py + ts / 2);
+          } else if (tile === 9) {
+            // Café table — warm wood on wall base
+            oc.fillStyle = '#2a2018'; oc.fillRect(px + 3, py + 3, ts - 6, ts - 6);
+            oc.fillStyle = '#332a20'; oc.fillRect(px + 5, py + 5, ts - 10, ts - 10);
           }
         }
       }
