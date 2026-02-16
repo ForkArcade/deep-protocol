@@ -10,7 +10,7 @@
   ],
   "slug": "deep-protocol",
   "title": "Deep Protocol",
-  "currentVersion": 2,
+  "currentVersion": 3,
   "versions": [
     {
       "version": 1,
@@ -23,6 +23,12 @@
       "date": "2026-02-16",
       "issue": null,
       "description": "Overworld with warm palette, corridors, terminal, NPC positions"
+    },
+    {
+      "version": 3,
+      "date": "2026-02-16",
+      "issue": null,
+      "description": "Unified rot.js engine — ROT.Map.Digger, ROT.Path.AStar, ROT.FOV.PreciseShadowcasting"
     }
   ],
   "sdkVersion": 1,
