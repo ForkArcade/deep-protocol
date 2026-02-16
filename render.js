@@ -447,7 +447,7 @@
 
     FA.addLayer('map', function() {
       var state = FA.getState();
-      if (state.screen !== 'playing' && state.screen !== 'victory' && state.screen !== 'shutdown') return;
+      if (state.screen !== 'playing' && state.screen !== 'victory' && state.screen !== 'shutdown' && state.screen !== 'dream') return;
       if (!state.map) return;
       var mv = state.mapVersion || 0;
       if (mv !== _mapVersion) {
@@ -456,6 +456,64 @@
       }
       FA.getCtx().drawImage(_mapCanvas, 0, 0);
     }, 1);
+
+    // ================================================================
+    //  DREAM OVERLAY (system snapshot while sleeping)
+    // ================================================================
+
+    FA.addLayer('dreamOverlay', function() {
+      var state = FA.getState();
+      if (state.screen !== 'dream') return;
+      var ctx = FA.getCtx();
+      var t = state.dreamTimer || 0;
+      var pulse = 0.5 + 0.15 * Math.sin(t * 0.002);
+
+      // Dark blue/purple tint
+      ctx.save(); ctx.globalAlpha = 0.55 * pulse;
+      ctx.fillStyle = '#080420'; ctx.fillRect(0, 0, W, H);
+      ctx.restore();
+
+      // Scan lines
+      ctx.save(); ctx.fillStyle = '#000'; ctx.globalAlpha = 0.12;
+      for (var sy = 0; sy < H; sy += 3) ctx.fillRect(0, sy, W, 1);
+      ctx.restore();
+
+      // Vignette (darken edges)
+      ctx.save(); ctx.globalAlpha = 0.6;
+      var vg = ctx.createRadialGradient(W / 2, H / 2, W * 0.2, W / 2, H / 2, W * 0.6);
+      vg.addColorStop(0, 'rgba(0,0,0,0)');
+      vg.addColorStop(1, 'rgba(0,0,0,1)');
+      ctx.fillStyle = vg; ctx.fillRect(0, 0, W, H);
+      ctx.restore();
+
+      // Occasional static flicker
+      if (Math.random() > 0.93) {
+        ctx.save(); ctx.globalAlpha = 0.03; ctx.fillStyle = '#4ef';
+        ctx.fillRect(0, 0, W, H); ctx.restore();
+      }
+
+      // Dream text at top
+      if (state.dreamText) {
+        ctx.save(); ctx.globalAlpha = 0.7 * pulse;
+        TextFX.render(ctx, state.dreamText, t, 20, 12, {
+          color: '#4ef', dimColor: '#0a2a2a', size: 11, duration: 80, charDelay: 8, flicker: 40
+        }); ctx.restore();
+      }
+
+      // Bottom flavor text
+      ctx.save(); ctx.globalAlpha = 0.3 * pulse;
+      FA.draw.text('You dream of corridors that shouldn\'t exist.', W / 2, H - 50, {
+        color: '#446', size: 10, align: 'center', baseline: 'middle'
+      }); ctx.restore();
+
+      // [SPACE] hint
+      var now = Date.now();
+      if (t > 1500 && Math.floor(now / 600) % 2 === 0) {
+        FA.draw.text('[ SPACE ]', W / 2, H - 30, {
+          color: '#335', size: 12, align: 'center', baseline: 'middle'
+        });
+      }
+    }, 55);
 
     // ================================================================
     //  SYSTEM ENTITIES WITH GLOW

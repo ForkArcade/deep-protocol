@@ -34,6 +34,12 @@
       return;
     }
 
+    // Dream — Space to dismiss
+    if (state.screen === 'dream' && data.action === 'start') {
+      Game.dismissDream();
+      return;
+    }
+
     // Game over screens
     if ((state.screen === 'victory' || state.screen === 'shutdown') && data.action === 'restart') {
       Game.start();
@@ -126,6 +132,10 @@
       while (state.thoughts.length > 0 && state.thoughts[0].done && state.thoughts[0].life <= 0) {
         state.thoughts.shift();
       }
+    }
+    // Dream timer
+    if (state.screen === 'dream') {
+      state.dreamTimer = (state.dreamTimer || 0) + dt;
     }
     // Screen shake decay
     if (state.shake > 0) {

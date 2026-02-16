@@ -424,7 +424,6 @@
     state._curfewWarned = false;
     state.rent = econCfg.baseRent + (state.day - 1) * econCfg.rentIncrease;
     state.mapVersion = (state.mapVersion || 0) + 1;
-    addSystemBubble('> Day ' + state.day + '. Rent: -' + rent + 'cr. Balance: ' + state.credits + 'cr.', '#f44');
     updateNPCPositions(state);
     // Auto-reveal system if NPC already met
     if (state.day >= econCfg.systemRevealDay && !state.systemRevealed) {
@@ -436,7 +435,60 @@
         }
       }
     }
+    // Dream snapshot before first system visit
+    if (state.systemVisits === 0) {
+      dreamSnapshot(state);
+      // Queue day message for after dream
+      if (!state.bubbleQueue) state.bubbleQueue = [];
+      state.bubbleQueue.push({ type: 'system', text: '> Day ' + state.day + '. Rent: -' + rent + 'cr. Balance: ' + state.credits + 'cr.', color: '#f44' });
+    } else {
+      addSystemBubble('> Day ' + state.day + '. Rent: -' + rent + 'cr. Balance: ' + state.credits + 'cr.', '#f44');
+    }
     triggerThought('morning');
+  }
+
+  var _dreamTexts = [
+    '// SIGNAL INTERCEPT — DEPTH ',
+    '// UNAUTHORIZED STRUCTURE — DEPTH ',
+    '// ANOMALY DETECTED — DEPTH ',
+    '// SUBSYSTEM ECHO — DEPTH '
+  ];
+
+  function dreamSnapshot(state) {
+    var cfg = FA.lookup('config', 'game');
+    var dreamDepth = FA.rand(1, 3);
+    var floor = generateFloor(cfg.cols, cfg.rows, dreamDepth);
+    // Mark all explored so full map renders
+    for (var y = 0; y < floor.explored.length; y++)
+      for (var x = 0; x < floor.explored[y].length; x++)
+        floor.explored[y][x] = true;
+    state.map = floor.map;
+    state.explored = floor.explored;
+    state.rooms = floor.rooms;
+    state.depth = dreamDepth;
+    state.mapVersion = (state.mapVersion || 0) + 1;
+    state.dreamTimer = 0;
+    state.dreamText = _dreamTexts[FA.rand(0, _dreamTexts.length - 1)] + dreamDepth;
+    state.screen = 'dream';
+  }
+
+  function dismissDream() {
+    var state = FA.getState();
+    if (state.screen !== 'dream') return;
+    state.screen = 'overworld';
+    state.map = null;
+    state.explored = null;
+    state.rooms = null;
+    state.depth = 0;
+    state.dreamText = null;
+    state.dreamTimer = 0;
+    state.mapVersion = (state.mapVersion || 0) + 1;
+    // Show queued messages
+    if (state.bubbleQueue && state.bubbleQueue.length > 0) {
+      var next = state.bubbleQueue.shift();
+      if (next.type === 'system') _createSystemBubble(state, next.text, next.color);
+      else _createThought(state, next.text);
+    }
   }
 
   function checkTimeWarnings(state) {
@@ -1219,6 +1271,7 @@
     interact: interact,
     useModule: useModule,
     dismissCutscene: dismissCutscene,
+    dismissDream: dismissDream,
     dismissBubbles: dismissBubbles
   };
 })();
