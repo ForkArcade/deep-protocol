@@ -302,8 +302,8 @@
           { id: 'confidant', label: 'Confidant', type: 'state' }
         ],
         edges: [
-          { from: 'stranger', to: 'acquaintance' },
-          { from: 'acquaintance', to: 'confidant' }
+          { from: 'stranger', to: 'acquaintance', var: 'lena_interactions', gte: 1 },
+          { from: 'acquaintance', to: 'confidant', var: 'lena_interactions', gte: 3 }
         ]
       },
       quest_victor: {
@@ -314,8 +314,8 @@
           { id: 'confidant', label: 'Confidant', type: 'state' }
         ],
         edges: [
-          { from: 'stranger', to: 'acquaintance' },
-          { from: 'acquaintance', to: 'confidant' }
+          { from: 'stranger', to: 'acquaintance', var: 'victor_interactions', gte: 1 },
+          { from: 'acquaintance', to: 'confidant', var: 'victor_interactions', gte: 3 }
         ]
       },
       quest_marta: {
@@ -326,8 +326,8 @@
           { id: 'confidant', label: 'Confidant', type: 'state' }
         ],
         edges: [
-          { from: 'stranger', to: 'acquaintance' },
-          { from: 'acquaintance', to: 'confidant' }
+          { from: 'stranger', to: 'acquaintance', var: 'marta_interactions', gte: 1 },
+          { from: 'acquaintance', to: 'confidant', var: 'marta_interactions', gte: 3 }
         ]
       },
       quest_emil: {
@@ -338,8 +338,8 @@
           { id: 'confidant', label: 'Confidant', type: 'state' }
         ],
         edges: [
-          { from: 'stranger', to: 'acquaintance' },
-          { from: 'acquaintance', to: 'confidant' }
+          { from: 'stranger', to: 'acquaintance', var: 'emil_interactions', gte: 1 },
+          { from: 'acquaintance', to: 'confidant', var: 'emil_interactions', gte: 3 }
         ]
       }
     }

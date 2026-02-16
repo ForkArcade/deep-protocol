@@ -503,16 +503,6 @@
         FA.narrative.setVar(npc.id + '_met_today', true, 'Met ' + npc.name);
         var prev = FA.narrative.getVar(npc.id + '_interactions') || 0;
         FA.narrative.setVar(npc.id + '_interactions', prev + 1, 'Talked to ' + npc.name);
-        // Progress NPC quest graph
-        var questId = 'quest_' + npc.id;
-        var questNode = FA.narrative.getNode(questId);
-        if (questNode) {
-          if (questNode.id === 'stranger') {
-            FA.narrative.transition(questId, 'acquaintance', 'Met ' + npc.name);
-          } else if (questNode.id === 'acquaintance' && (prev + 1) >= 3) {
-            FA.narrative.transition(questId, 'confidant', npc.name + ' trusts you');
-          }
-        }
       }
       var econCfg = FA.lookup('config', 'economy');
       if (state.day >= econCfg.systemRevealDay && !state.systemRevealed) {

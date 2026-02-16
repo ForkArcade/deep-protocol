@@ -57,6 +57,7 @@
       if (this._events.length > 20) this._events.shift();
       this._sync();
       FA.emit('narrative:varChanged', { name: name, value: value, prev: prev, reason: reason });
+      this._evaluate();
     },
 
     getVar: function(name) {
@@ -74,6 +75,27 @@
 
     getEvents: function() {
       return this._events;
+    },
+
+    _evaluate: function() {
+      for (var gId in this.graphs) {
+        var g = this.graphs[gId];
+        if (!g.edges) continue;
+        for (var i = 0; i < g.edges.length; i++) {
+          var e = g.edges[i];
+          if (e.from !== g.currentNode) continue;
+          if (e.var === undefined) continue;
+          var val = this.variables[e.var];
+          var match = true;
+          if (e.eq !== undefined && val !== e.eq) match = false;
+          if (e.gte !== undefined && !(val >= e.gte)) match = false;
+          if (e.lte !== undefined && !(val <= e.lte)) match = false;
+          if (match) {
+            this.transition(gId, e.to, e.var + ' \u2192 ' + e.to);
+            return;
+          }
+        }
+      }
     },
 
     _sync: function() {
