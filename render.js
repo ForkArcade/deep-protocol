@@ -346,50 +346,80 @@
       var state = FA.getState();
       if (state.screen !== 'overworld') return;
       var timeCfg = FA.lookup('config', 'time');
+      var ctx = FA.getCtx();
 
-      FA.draw.rect(0, uiY, W, H - uiY, '#0c1018');
+      // Warm background — distinct from cold system HUD
+      FA.draw.rect(0, uiY, W, H - uiY, '#12100a');
+      // Thin separator line
+      FA.draw.rect(0, uiY, W, 1, '#2a2518');
 
-      // Line 1: Day + Credits + Rent
-      FA.draw.text('DAY ' + state.day, 8, uiY + 6, { color: colors.text, size: 12, bold: true });
-      FA.draw.text('CREDITS: ' + state.credits, 80, uiY + 6, { color: colors.credits, size: 11 });
-      FA.draw.text('RENT: ' + state.rent + '/day', 210, uiY + 6, { color: colors.rent, size: 11 });
-
-      // Time bar
+      // --- Row 1: Day + Period + Time bar + Credits ---
+      var period = state.timeOfDay < 33 ? 'MORNING' : state.timeOfDay < 66 ? 'MIDDAY' : 'EVENING';
+      var periodColor = state.timeOfDay < 33 ? '#d8b060' : state.timeOfDay < 66 ? '#e0a030' : '#c06030';
       var timeRatio = state.timeOfDay / timeCfg.turnsPerDay;
-      var timeColor = timeRatio > 0.95 ? '#f44' : timeRatio > 0.75 ? '#fa4' : '#8af';
-      FA.draw.text('TIME', 340, uiY + 6, { color: colors.dim, size: 11 });
-      FA.draw.bar(375, uiY + 6, 100, 10, 1 - timeRatio, timeColor, '#1a0a0a');
-      FA.draw.text(Math.floor(timeCfg.turnsPerDay - state.timeOfDay), 480, uiY + 6, { color: timeColor, size: 11 });
+      if (timeRatio > 0.95) { period = 'CURFEW'; periodColor = '#f44'; }
 
-      // System visits
-      if (state.systemVisits > 0) {
-        FA.draw.text('DEPTH: ' + state.systemVisits + '/' + cfg.maxDepth, 530, uiY + 6, { color: '#f80', size: 11 });
+      FA.draw.text('DAY ' + state.day, 8, uiY + 6, { color: '#c8b898', size: 12, bold: true });
+      FA.draw.text(period, 60, uiY + 6, { color: periodColor, size: 11, bold: true });
+
+      // Time bar (warm tones)
+      var timeColor = timeRatio > 0.95 ? '#f44' : timeRatio > 0.75 ? '#e08030' : '#c8a050';
+      FA.draw.bar(140, uiY + 7, 80, 8, 1 - timeRatio, timeColor, '#1a1610');
+
+      // Credits + Rent (right-aligned cluster)
+      FA.draw.text(state.credits + ' cr', W - 120, uiY + 6, { color: colors.credits, size: 11, bold: true });
+      FA.draw.text('-' + state.rent + '/night', W - 65, uiY + 6, { color: '#a65', size: 10 });
+
+      // --- Row 2: Nearby NPCs as colored tags ---
+      var tagX = 8;
+      for (var ni = 0; ni < state.npcs.length; ni++) {
+        var npc = state.npcs[ni];
+        if (state.day < npc.appearsDay) continue;
+        if (npc.x < 0) continue;
+        var nd = Math.abs(npc.x - state.owPlayer.x) + Math.abs(npc.y - state.owPlayer.y);
+        if (nd > 10) continue;
+        var label = npc.name;
+        var tagColor = npc.color;
+        var dimmed = nd > 5;
+        // Dot + name
+        ctx.save();
+        ctx.globalAlpha = dimmed ? 0.4 : 0.9;
+        FA.draw.rect(tagX, uiY + 20, 4, 4, tagColor);
+        FA.draw.text(label, tagX + 7, uiY + 19, { color: dimmed ? '#665' : '#aa9', size: 10 });
+        ctx.restore();
+        tagX += ctx.measureText(label).width + 18;
       }
 
-      // Line 2: Hints
+      // System visits (right side, row 2)
+      if (state.systemVisits > 0) {
+        FA.draw.text('DIVES: ' + state.systemVisits, W - 80, uiY + 19, { color: '#664', size: 10 });
+      }
+
+      // --- Row 3: Context action ---
       var tile = state.owMap[state.owPlayer.y] ? state.owMap[state.owPlayer.y][state.owPlayer.x] : 0;
-      var hint = '';
-      if (tile === 6) hint = '[SPACE] Sleep';
-      else if (tile === 7) hint = state.workedToday ? 'Shift done' : '[SPACE] Work';
-      else if (tile === 8 && state.systemRevealed) hint = '[SPACE] Enter System';
-      var adjNPC = false;
+      var actions = [];
+      if (tile === 6) actions.push({ key: 'SPACE', label: 'Sleep', color: '#8888cc' });
+      else if (tile === 7) actions.push({ key: 'SPACE', label: state.workedToday ? 'Shift done' : 'Work', color: state.workedToday ? '#443' : '#88aa66' });
+      else if (tile === 8 && state.systemRevealed) actions.push({ key: 'SPACE', label: 'Enter System', color: '#f80' });
+      // Adjacent NPC
       var dirs = [[0,-1],[0,1],[-1,0],[1,0]];
       for (var d = 0; d < dirs.length; d++) {
         var nx = state.owPlayer.x + dirs[d][0], ny = state.owPlayer.y + dirs[d][1];
-        for (var ni = 0; ni < state.npcs.length; ni++) {
-          if (state.day >= state.npcs[ni].appearsDay && state.npcs[ni].x === nx && state.npcs[ni].y === ny) {
-            hint = '[SPACE] Talk to ' + state.npcs[ni].name;
-            adjNPC = true; break;
+        for (var nj = 0; nj < state.npcs.length; nj++) {
+          if (state.day >= state.npcs[nj].appearsDay && state.npcs[nj].x === nx && state.npcs[nj].y === ny) {
+            actions.push({ key: 'SPACE', label: 'Talk to ' + state.npcs[nj].name, color: state.npcs[nj].color });
+            break;
           }
         }
-        if (adjNPC) break;
       }
-      if (hint) {
-        FA.draw.text(hint, 8, uiY + 21, { color: '#556', size: 11 });
+      var ax = 8;
+      for (var ai = 0; ai < actions.length; ai++) {
+        var act = actions[ai];
+        FA.draw.text('[' + act.key + ']', ax, uiY + 34, { color: '#554', size: 10 });
+        ax += ctx.measureText('[' + act.key + ']').width + 4;
+        FA.draw.text(act.label, ax, uiY + 34, { color: act.color, size: 10 });
+        ax += ctx.measureText(act.label).width + 12;
       }
-
-      // Line 3: Stats
-      FA.draw.text('Kills:' + (state.totalKills || 0) + '  Visits:' + (state.systemVisits || 0), 8, uiY + 36, { color: colors.dim, size: 11 });
     }, 31);
 
     // ================================================================
@@ -805,23 +835,40 @@
       if (state.screen !== 'playing' && state.screen !== 'victory' && state.screen !== 'shutdown') return;
       if (!state.player) return;
       var p = state.player;
-      FA.draw.rect(0, uiY, W, H - uiY, '#0c1018');
-      FA.draw.text('HULL', 8, uiY + 6, { color: colors.text, size: 11 });
-      FA.draw.bar(38, uiY + 6, 90, 10, p.hp / p.maxHp, '#4f4', '#1a0a0a');
-      FA.draw.text(p.hp + '/' + p.maxHp, 132, uiY + 6, { color: colors.text, size: 11 });
-      FA.draw.text('ATK:' + p.atk + '  DEF:' + p.def, 195, uiY + 6, { color: colors.dim, size: 11 });
-      FA.draw.text('LVL:' + (state.depth || 1) + '/' + cfg.maxDepth, 310, uiY + 6, { color: colors.stairsDown, size: 11, bold: true });
-      var buffX = 380;
+
+      // Cold tech background — contrasts with warm overworld
+      FA.draw.rect(0, uiY, W, H - uiY, '#080c14');
+      // Cyan separator line
+      FA.draw.rect(0, uiY, W, 1, '#1a3040');
+
+      // --- Row 1: Hull + Stats + Depth + Buffs ---
+      FA.draw.text('HULL', 8, uiY + 6, { color: '#4a6a7a', size: 11 });
+      var hpColor = p.hp / p.maxHp > 0.5 ? '#4f4' : p.hp / p.maxHp > 0.25 ? '#fa4' : '#f44';
+      FA.draw.bar(38, uiY + 7, 90, 8, p.hp / p.maxHp, hpColor, '#0a1a0a');
+      FA.draw.text(p.hp + '/' + p.maxHp, 132, uiY + 6, { color: '#6a8a9a', size: 11 });
+      FA.draw.text('ATK:' + p.atk + '  DEF:' + p.def, 195, uiY + 6, { color: '#4a5a6a', size: 11 });
+      FA.draw.text('DEPTH ' + (state.depth || 1) + '/' + cfg.maxDepth, 310, uiY + 6, { color: colors.stairsDown, size: 11, bold: true });
+      var buffX = 420;
       if (p.cloakTurns > 0) { FA.draw.text('CLOAK:' + p.cloakTurns, buffX, uiY + 6, { color: '#88f', size: 11, bold: true }); buffX += 65; }
       if (p.overclockActive) { FA.draw.text('OC:RDY', buffX, uiY + 6, { color: '#f44', size: 11, bold: true }); buffX += 55; }
       if (p.firewallHp > 0) { FA.draw.text('FW:' + p.firewallHp, buffX, uiY + 6, { color: '#4f4', size: 11, bold: true }); }
+
+      // --- Row 2: Module slots ---
       var mods = p.modules || [];
       for (var m = 0; m < 3; m++) {
-        var mx = 8 + m * 120;
-        if (m < mods.length) FA.draw.text('[' + (m + 1) + '] ' + mods[m].name, mx, uiY + 21, { color: mods[m].color, size: 11, bold: true });
-        else FA.draw.text('[' + (m + 1) + '] ---', mx, uiY + 21, { color: '#223', size: 11 });
+        var mx = 8 + m * 130;
+        if (m < mods.length) {
+          FA.draw.text('[' + (m + 1) + ']', mx, uiY + 21, { color: '#3a5060', size: 11 });
+          FA.draw.text(mods[m].name, mx + 22, uiY + 21, { color: mods[m].color, size: 11, bold: true });
+        } else {
+          FA.draw.text('[' + (m + 1) + '] ---', mx, uiY + 21, { color: '#1a2530', size: 11 });
+        }
       }
-      FA.draw.text('Data:' + p.gold + '  Kills:' + p.kills + '  Turn:' + (state.systemTurn || 0), 8, uiY + 36, { color: colors.dim, size: 11 });
+
+      // --- Row 3: Data + Kills + Turn ---
+      FA.draw.text('DATA:' + p.gold, 8, uiY + 36, { color: '#0aa', size: 10 });
+      FA.draw.text('KILLS:' + p.kills, 80, uiY + 36, { color: '#a44', size: 10 });
+      FA.draw.text('T:' + (state.systemTurn || 0), 160, uiY + 36, { color: '#3a4a5a', size: 10 });
     }, 30);
 
     // ================================================================
