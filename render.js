@@ -12,7 +12,8 @@
     var uiY = cfg.rows * ts;
 
     // Depth palettes for system dungeon
-    var PALETTES = [null,
+    var PALETTES = [
+      { wCap:'#322a22', wFace:'#2a2520', wPanel:'#3a3228', wSide:'#241e18', wInner:'#1a1610', wLine:'#3a3025', fA:'#1a1814', fB:'#1c1a16', fDot:'#22201a' },
       { wCap:'#181d30', wFace:'#252b42', wPanel:'#2e3550', wSide:'#1f2538', wInner:'#10141f', wLine:'#333c55', fA:'#161a28', fB:'#181c2a', fDot:'#1e2335' },
       { wCap:'#1d1d2e', wFace:'#2d2b3e', wPanel:'#383545', wSide:'#272536', wInner:'#15141e', wLine:'#3e3c50', fA:'#1b1a27', fB:'#1d1c29', fDot:'#252333' },
       { wCap:'#261d18', wFace:'#3b2b20', wPanel:'#4a3528', wSide:'#30251c', wInner:'#1a1410', wLine:'#4a3c30', fA:'#221a16', fB:'#241c18', fDot:'#2e231e' },
@@ -194,8 +195,8 @@
           baseMap[by][bx] = (bt === 1 || bt === 9) ? 1 : 0;
         }
       }
-      // Render using dungeon renderer (depth 1 palette)
-      renderMapToCanvas(oc, baseMap, 1);
+      // Render using dungeon renderer (depth 0 = warm overworld palette)
+      renderMapToCanvas(oc, baseMap, 0);
 
       // Overlay special tiles
       var revealed = state.systemRevealed;
