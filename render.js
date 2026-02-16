@@ -727,10 +727,10 @@
           color: sb.color, dimColor: '#1a3030', size: 11, duration: 60, charDelay: 6, flicker: 25
         }); ctx.restore();
       }
-      // [SPACE] hint when text is done
+      // [SPACE] hint below the box
       if (sb.done && sb.life > 1500) {
         ctx.save(); ctx.globalAlpha = 0.3 * alpha;
-        FA.draw.text('[SPACE]', bx + tw - 48, by + th - 12, { color: sb.color, size: 8 }); ctx.restore();
+        FA.draw.text('[SPACE]', bx + tw - 48, by + th + 4, { color: sb.color, size: 8 }); ctx.restore();
       }
       ctx.save(); ctx.globalAlpha = 0.04 * alpha; ctx.fillStyle = '#000';
       for (var sl = by; sl < by + th; sl += 2) ctx.fillRect(bx, sl, tw, 1);
@@ -789,7 +789,7 @@
       }); ctx.restore();
       if (thought.done && thought.life > 1500) {
         ctx.save(); ctx.globalAlpha = 0.3 * alpha;
-        FA.draw.text('[SPACE]', bx + tw - 48, by + th - 12, { color: '#4ef', size: 8 }); ctx.restore();
+        FA.draw.text('[SPACE]', bx + tw - 48, by + th + 4, { color: '#4ef', size: 8 }); ctx.restore();
       }
       ctx.save(); ctx.globalAlpha = 0.04 * alpha; ctx.fillStyle = '#000';
       for (var sl = by; sl < by + th; sl += 2) ctx.fillRect(bx, sl, tw, 1);
