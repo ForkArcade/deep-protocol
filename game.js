@@ -218,7 +218,10 @@
         schedule: def.schedule, appearsDay: def.appearsDay,
         systemDialogue: def.systemDialogue, met: false,
         goal: 'home', talkedToday: false,
-        wantsToTalk: true, followTurns: 0
+        wantsToTalk: true, followTurns: 0,
+        pace: npcIds[i] === 'victor' ? 2 : npcIds[i] === 'emil' ? 3 : 1,
+        turnCounter: i,  // stagger start so NPCs don't all move on turn 0
+        idleTimer: 0
       });
     }
     return npcs;
@@ -322,6 +325,10 @@
     if (npc.x < 0 || npc.y < 0) return;
     if (state.day < npc.appearsDay) return;
 
+    // Pace: NPC only moves every N player turns
+    npc.turnCounter = (npc.turnCounter || 0) + 1;
+    if (npc.goal !== 'player' && npc.turnCounter % npc.pace !== 0) return;
+
     // Follow player for max 3 turns, then give up
     if (npc.goal === 'player') {
       npc.followTurns = (npc.followTurns || 0) + 1;
@@ -335,9 +342,14 @@
     }
 
     var goalPos = resolveNPCGoalPos(npc, state);
-    // If at goal, pick a new one
+    // If at goal, idle before picking a new one
     if (goalPos && npc.x === goalPos.x && npc.y === goalPos.y) {
+      if (npc.idleTimer > 0) {
+        npc.idleTimer--;
+        return;
+      }
       selectNPCGoal(npc, state);
+      npc.idleTimer = FA.rand(2, 6);  // linger 2-6 turns at each destination
       goalPos = resolveNPCGoalPos(npc, state);
     }
 
