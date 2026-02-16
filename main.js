@@ -42,8 +42,8 @@
 
     // Playing
     if (state.screen !== 'playing') return;
-    if (data.action === 'start' && state.thoughts && state.thoughts.length > 0) {
-      Game.dismissThought();
+    if (data.action === 'start' && ((state.thoughts && state.thoughts.length > 0) || state.systemBubble)) {
+      Game.dismissBubbles();
       return;
     }
     switch (data.action) {
@@ -68,10 +68,20 @@
   FA.setUpdate(function(dt) {
     FA.updateEffects(dt);
     FA.updateFloats(dt);
-    // Narrative message timer
+    // System bubble timer
     var state = FA.getState();
-    if (state.narrativeMessage && state.narrativeMessage.life > 0) {
-      state.narrativeMessage.life -= dt;
+    if (state.systemBubble) {
+      var sb = state.systemBubble;
+      if (!sb.done) {
+        sb.timer += dt;
+        var sbLD = 200;
+        var sbLastIdx = sb.lines.length - 1;
+        var sbEnd = sbLastIdx * sbLD + TextFX.totalTime(sb.lines[sbLastIdx]);
+        if (sb.timer >= sbEnd) sb.done = true;
+      } else {
+        sb.life -= dt;
+        if (sb.life <= 0) state.systemBubble = null;
+      }
     }
     // Cutscene scramble timing
     if (state.screen === 'cutscene' && state.cutscene && !state.cutscene.done) {

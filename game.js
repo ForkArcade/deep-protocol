@@ -268,8 +268,7 @@
       directorMsgShown: {},
       dpNumber: dpNumber,
       mapVersion: 1,
-      messages: [],
-      narrativeMessage: null,
+      systemBubble: null,
       turn: 0,
       shake: 0, particles: [], soundWaves: [],
       thoughts: [], lastThoughtTurn: -10
@@ -378,7 +377,8 @@
     }
 
     FA.clearEffects();
-    addMessage(direction === 'down' ? '> Accessing sub-level ' + newDepth + '...' : '> Returning to level ' + newDepth + '...');
+    var fts = cfg.tileSize;
+    FA.addFloat(state.player.x * fts + fts / 2, state.player.y * fts, 'LVL ' + newDepth, '#f80', 1000);
     FA.narrative.setVar('depth_reached', state.maxDepthReached, 'Reached level ' + state.maxDepthReached);
 
     triggerThought('floor_enter', newDepth);
@@ -397,8 +397,7 @@
     FA.narrative.transition(nodeId);
     var narText = FA.lookup('narrativeText', nodeId);
     if (narText) {
-      FA.getState().narrativeMessage = { text: narText.text, color: narText.color, life: 4000, maxLife: 4000 };
-      addMessage(narText.text);
+      addSystemBubble(narText.text, narText.color);
     }
 
     // Full-screen cutscene if defined
@@ -450,25 +449,25 @@
     var cfg = FA.lookup('config', 'game');
     var ts = cfg.tileSize;
 
+    var px = state.player.x * ts + ts / 2, py = state.player.y * ts;
+
     switch (mod.type) {
       case 'emp':
-        var stunned = 0;
         for (var i = 0; i < state.enemies.length; i++) {
           var e = state.enemies[i];
           var dist = Math.abs(e.x - state.player.x) + Math.abs(e.y - state.player.y);
           if (dist <= 5) {
             e.stunTurns = (e.stunTurns || 0) + 3;
-            stunned++;
             FA.addFloat(e.x * ts + ts / 2, e.y * ts, 'STUN', '#ff0', 800);
           }
         }
-        addMessage('> EMP PULSE — ' + stunned + ' drones disabled.');
+        FA.addFloat(px, py, 'EMP', '#ff0', 800);
         propagateSound(state, state.player.x, state.player.y, 12);
         break;
 
       case 'cloak':
         state.player.cloakTurns = 6;
-        addMessage('> CLOAK ACTIVE — 6 turns of invisibility.');
+        FA.addFloat(px, py, 'CLOAK', '#88f', 800);
         break;
 
       case 'scanner':
@@ -477,17 +476,17 @@
             state.explored[sy][sx] = true;
           }
         }
-        addMessage('> DEEP SCAN — Floor schematic downloaded.');
+        FA.addFloat(px, py, 'SCAN', '#0ff', 800);
         break;
 
       case 'overclock':
         state.player.overclockActive = true;
-        addMessage('> OVERCLOCK — Next attack: 3x damage.');
+        FA.addFloat(px, py, 'OC!', '#f44', 800);
         break;
 
       case 'firewall':
         state.player.firewallHp = 12;
-        addMessage('> FIREWALL — Absorbing next 12 damage.');
+        FA.addFloat(px, py, 'SHIELD', '#4f4', 800);
         break;
     }
 
@@ -517,8 +516,7 @@
       var dirMsg = depthMsgs[state.directorMsgShown[depth]];
       state.directorMsgShown[depth]++;
       if (dirMsg !== '...') {
-        state.narrativeMessage = { text: '> "' + dirMsg + '" \u2014 DIRECTOR', color: '#f80', life: 6000, maxLife: 6000 };
-        addMessage('> DIRECTOR: ' + dirMsg);
+        addSystemBubble('> "' + dirMsg + '" \u2014 DIRECTOR', '#f80');
       }
     }
 
@@ -532,7 +530,6 @@
         state.dp6TracesFound = (state.dp6TracesFound || 0) + 1;
         var trace = dp6cfg.traces[traceIdx % dp6cfg.traces.length];
         showNarrative('dp6_trace');
-        addMessage('> DP-6 LOG: ' + trace);
         FA.addFloat(x * ts + ts / 2, y * ts, 'DP-6', '#88f', 1200);
         addThought('DP-6 was here before me.');
         return; // DP-6 trace IS the terminal reward
@@ -550,13 +547,12 @@
         var modDef = FA.lookup('modules', modType);
         if (state.player.modules.length < 3) {
           state.player.modules.push({ type: modType, name: modDef.name, color: modDef.color });
-          addMessage('> HACK: ' + modDef.name + ' extracted [' + state.player.modules.length + '/3]');
           FA.addFloat(x * ts + ts / 2, y * ts, modDef.name, modDef.color, 1000);
           FA.narrative.setVar('modules_found', state.player.modules.length, 'Found ' + modDef.name);
           if (state.player.modules.length === 1) showNarrative('hardware_upgrade');
           if (state.player.modules.length === 3) showNarrative('full_arsenal');
         } else {
-          addMessage('> HACK: Module found but slots full [3/3]. Data lost.');
+          FA.addFloat(x * ts + ts / 2, y * ts, 'FULL', '#f44', 800);
         }
         break;
 
@@ -566,7 +562,6 @@
             state.explored[ry][rx] = true;
           }
         }
-        addMessage('> HACK: Floor schematic downloaded.');
         FA.addFloat(x * ts + ts / 2, y * ts, 'MAP', '#0ff', 1000);
         break;
 
@@ -574,17 +569,13 @@
         for (var si = 0; si < state.enemies.length; si++) {
           state.enemies[si].stunTurns = (state.enemies[si].stunTurns || 0) + 3;
         }
-        addMessage('> HACK: Security disrupted. All hostiles stunned.');
         FA.addFloat(x * ts + ts / 2, y * ts, 'DISRUPT', '#ff0', 1000);
         break;
 
       case 'intel':
         var intelList = FA.lookup('config', 'terminals').intel;
         var intel = FA.pick(intelList);
-        addMessage('> ' + intel);
-        if (!state.narrativeMessage || state.narrativeMessage.life <= 0) {
-          state.narrativeMessage = { text: '> ' + intel, color: '#0ff', life: 5000, maxLife: 5000 };
-        }
+        addSystemBubble('> ' + intel, '#0ff');
         break;
     }
   }
@@ -597,7 +588,6 @@
       var absorbed = Math.min(dmg, state.player.firewallHp);
       state.player.firewallHp -= absorbed;
       dmg -= absorbed;
-      if (absorbed > 0) addMessage('Firewall absorbs ' + absorbed + '.');
       if (dmg <= 0) return;
     }
 
@@ -608,7 +598,6 @@
     var cfg = FA.lookup('config', 'game');
     var ts = cfg.tileSize;
     FA.addFloat(state.player.x * ts + ts / 2, state.player.y * ts, '-' + dmg, '#f84', 800);
-    addMessage(sourceName + ' deals ' + dmg + ' damage!');
 
     if (state.player.hp <= 0) {
       showNarrative('shutdown');
@@ -687,9 +676,8 @@
     target.hp -= dmg;
     FA.emit('entity:damaged', { entity: target, damage: dmg });
 
-    var label = multiplier > 1 ? 'OVERCLOCK -' + dmg : '-' + dmg;
+    var label = multiplier > 1 ? 'OC -' + dmg : '-' + dmg;
     var color = multiplier > 1 ? '#f80' : '#f44';
-    addMessage(multiplier > 1 ? 'OVERCLOCK STRIKE! ' + dmg + ' to ' + target.name + '!' : 'You deal ' + dmg + ' to ' + target.name + '.');
 
     var cfg = FA.lookup('config', 'game');
     var ts = cfg.tileSize;
@@ -710,7 +698,6 @@
           life: 500, maxLife: 500, color: target.color
         });
       }
-      addMessage(target.name + ' destroyed.');
       FA.narrative.setVar('drones_destroyed', state.player.kills, 'Destroyed ' + target.name);
 
       if (state.player.kills === 1) showNarrative('first_contact');
@@ -742,17 +729,22 @@
 
     // Module: check capacity before pickup
     if (item.type === 'module' && state.player.modules.length >= 3) {
-      addMessage('Module slots full [3/3]. ' + item.name + ' left on ground.');
+      var cfg2 = FA.lookup('config', 'game');
+      var ts2 = cfg2.tileSize;
+      FA.addFloat(item.x * ts2 + ts2 / 2, item.y * ts2, 'FULL', '#f44', 600);
       return;
     }
 
     state.items.splice(idx, 1);
     FA.emit('item:pickup', { item: item });
 
+    var pcfg = FA.lookup('config', 'game');
+    var pts = pcfg.tileSize;
+
     if (item.type === 'gold') {
       var wasZero = state.player.gold === 0;
       state.player.gold += item.value;
-      addMessage('+' + item.value + ' data');
+      FA.addFloat(state.player.x * pts + pts / 2, state.player.y * pts, '+' + item.value, '#0ff', 600);
       FA.narrative.setVar('cores_found', state.player.gold, 'Recovered data core');
       if (wasZero) showNarrative('first_core');
       checkPath(state);
@@ -760,10 +752,10 @@
     } else if (item.type === 'potion') {
       var heal = Math.min(item.healAmount, state.player.maxHp - state.player.hp);
       state.player.hp += heal;
-      addMessage('+' + heal + ' hull repaired');
+      FA.addFloat(state.player.x * pts + pts / 2, state.player.y * pts, '+' + heal, '#4f4', 600);
     } else if (item.type === 'module') {
       state.player.modules.push({ type: item.moduleType, name: item.name, color: item.color });
-      addMessage('MODULE: ' + item.name + ' [' + state.player.modules.length + '/3]');
+      FA.addFloat(state.player.x * pts + pts / 2, state.player.y * pts, item.name, item.color, 800);
       FA.narrative.setVar('modules_found', state.player.modules.length, 'Found ' + item.name);
       if (state.player.modules.length === 1) showNarrative('hardware_upgrade');
       if (state.player.modules.length === 3) showNarrative('full_arsenal');
@@ -1015,17 +1007,23 @@
     FA.emit('game:over', { victory: victory, score: state.score });
   }
 
-  function addMessage(text) {
-    var color = '#556';
-    if (text.indexOf('> HACK') === 0) color = '#0ff';
-    else if (text.indexOf('OVERCLOCK STRIKE') >= 0) color = '#f80';
-    else if (text.indexOf('destroyed') >= 0 || text.indexOf('deals') >= 0 || text.indexOf('damage') >= 0 || text.indexOf('absorbs') >= 0) color = '#f44';
-    else if (text.charAt(0) === '+') color = '#4f4';
-    else if (text.indexOf('MODULE') >= 0 || text.indexOf('Module') >= 0) color = '#ff0';
-    else if (text.charAt(0) === '>') color = '#8af';
-    var msgs = FA.getState().messages;
-    msgs.push({ text: text, color: color });
-    if (msgs.length > 6) msgs.shift();
+  function addSystemBubble(text, color) {
+    var state = FA.getState();
+    var maxChars = 90;
+    var words = text.split(' ');
+    var lines = [];
+    var line = '';
+    for (var i = 0; i < words.length; i++) {
+      var test = line ? line + ' ' + words[i] : words[i];
+      if (test.length > maxChars && line.length > 0) {
+        lines.push(line);
+        line = words[i];
+      } else {
+        line = test;
+      }
+    }
+    if (line) lines.push(line);
+    state.systemBubble = { lines: lines, color: color || '#4ef', timer: 0, done: false, life: 8000 };
   }
 
   // === THOUGHT SYSTEM ===
@@ -1069,8 +1067,10 @@
     };
   }
 
-  function dismissThought() {
-    FA.getState().thoughts = [];
+  function dismissBubbles() {
+    var state = FA.getState();
+    state.thoughts = [];
+    state.systemBubble = null;
   }
 
   window.Game = {
@@ -1079,6 +1079,6 @@
     movePlayer: movePlayer,
     useModule: useModule,
     dismissCutscene: dismissCutscene,
-    dismissThought: dismissThought
+    dismissBubbles: dismissBubbles
   };
 })();

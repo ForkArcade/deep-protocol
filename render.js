@@ -586,27 +586,67 @@
       FA.drawFloats();
     }, 20);
 
-    // === NARRATIVE BAR ===
-    FA.addLayer('narrative', function() {
+    // === SYSTEM BUBBLE (Director / narrative / intel) ===
+    FA.addLayer('systemBubble', function() {
       var state = FA.getState();
       if (state.screen !== 'playing') return;
-      var nm = state.narrativeMessage;
-      if (!nm || nm.life <= 0) return;
-
-      var alpha = nm.life < 1000 ? nm.life / 1000 : 1;
-      var nmElapsed = nm.maxLife - nm.life; // time since message appeared
-
-      FA.draw.pushAlpha(alpha * 0.85);
-      FA.draw.rect(0, 0, W, 28, '#0a0f1a');
-      FA.draw.popAlpha();
+      var sb = state.systemBubble;
+      if (!sb) return;
 
       var ctx = FA.getCtx();
+      var alpha = 1;
+      if (sb.done && sb.life < 1500) alpha = sb.life / 1500;
+
+      var lines = sb.lines;
+      var lineH = 16;
+      var lineDelay = 200;
+      var charW = 6.5;
+
+      // Compute bubble size
+      var maxLineLen = 0;
+      for (var mi = 0; mi < lines.length; mi++) {
+        if (lines[mi].length > maxLineLen) maxLineLen = lines[mi].length;
+      }
+      var tw = Math.min(W - 40, Math.max(140, maxLineLen * charW + 24));
+      var th = lines.length * lineH + 12;
+      var bx = W / 2 - tw / 2;
+      var by = 8;
+
+      // Background
       ctx.save();
-      ctx.globalAlpha = alpha;
-      TextFX.render(ctx, nm.text, nmElapsed, W / 2, 8, {
-        color: nm.color, dimColor: '#1a3a3a', size: 13, align: 'center',
-        duration: 60, charDelay: 6, flicker: 25
-      });
+      ctx.globalAlpha = 0.82 * alpha;
+      ctx.fillStyle = '#060a12';
+      ctx.fillRect(bx, by, tw, th);
+      ctx.restore();
+
+      // Border
+      ctx.save();
+      ctx.globalAlpha = 0.3 * alpha;
+      ctx.strokeStyle = sb.color;
+      ctx.lineWidth = 1;
+      ctx.strokeRect(bx + 0.5, by + 0.5, tw - 1, th - 1);
+      ctx.restore();
+
+      // Text lines — staggered scramble
+      for (var li = 0; li < lines.length; li++) {
+        var lineElapsed = sb.timer - li * lineDelay;
+        if (lineElapsed <= 0) continue;
+        ctx.save();
+        ctx.globalAlpha = 0.9 * alpha;
+        TextFX.render(ctx, lines[li], lineElapsed, bx + 12, by + 6 + li * lineH, {
+          color: sb.color, dimColor: '#1a3030', size: 11,
+          duration: 60, charDelay: 6, flicker: 25
+        });
+        ctx.restore();
+      }
+
+      // Scan lines
+      ctx.save();
+      ctx.globalAlpha = 0.04 * alpha;
+      ctx.fillStyle = '#000';
+      for (var sl = by; sl < by + th; sl += 2) {
+        ctx.fillRect(bx, sl, tw, 1);
+      }
       ctx.restore();
     }, 25);
 
@@ -747,13 +787,6 @@
 
       // Line 3: Stats
       FA.draw.text('Data:' + p.gold + '  Kills:' + p.kills + '  Turn:' + state.turn, 8, uiY + 36, { color: colors.dim, size: 11 });
-
-      // Messages (color-coded)
-      var msgs = state.messages;
-      for (var i = 0; i < msgs.length; i++) {
-        var msg = msgs[i];
-        FA.draw.text(msg.text || msg, 8, uiY + 50 + i * 10, { color: msg.color || colors.dim, size: 10 });
-      }
     }, 30);
 
     // === GAME OVER SCREEN ===
