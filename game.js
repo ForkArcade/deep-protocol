@@ -267,6 +267,7 @@
       dp6TracesFound: 0,
       directorMsgShown: {},
       dpNumber: dpNumber,
+      mapVersion: 1,
       messages: [],
       narrativeMessage: null,
       turn: 0,
@@ -365,6 +366,7 @@
     state.items = target.items;
     state.explored = target.explored;
     state.depth = newDepth;
+    state.mapVersion = (state.mapVersion || 0) + 1;
     if (newDepth > state.maxDepthReached) state.maxDepthReached = newDepth;
 
     if (direction === 'down' && target.stairsUp) {
@@ -496,6 +498,7 @@
 
   function hackTerminal(x, y, state) {
     state.map[y][x] = 5; // Mark as used
+    state.mapVersion = (state.mapVersion || 0) + 1;
     state.terminalsHacked = (state.terminalsHacked || 0) + 1;
     FA.narrative.setVar('terminals_hacked', state.terminalsHacked, 'Hacked terminal');
 

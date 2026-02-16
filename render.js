@@ -46,6 +46,12 @@
     var _enemyOuterR = Math.floor(ts * 1.2);
     var _playerOuterR = Math.floor(ts * 1.3);
 
+    // --- Performance: offscreen map cache ---
+    var _mapCanvas = document.createElement('canvas');
+    _mapCanvas.width = W; _mapCanvas.height = cfg.rows * ts;
+    var _mapCtx = _mapCanvas.getContext('2d');
+    var _mapVersion = -1;
+
     // --- Performance: offscreen lighting cache ---
     var _lightCanvas = document.createElement('canvas');
     _lightCanvas.width = W; _lightCanvas.height = cfg.rows * ts;
@@ -212,18 +218,14 @@
       ctx.restore();
     }, 0);
 
-    // === MAP WITH WALL AUTOTILING ===
-    FA.addLayer('map', function() {
-      var state = FA.getState();
-      if (state.screen !== 'playing' && state.screen !== 'victory' && state.screen !== 'shutdown') return;
-      if (!state.map) return;
-      var ctx = FA.getCtx();
-      var map = state.map;
-      var depth = state.depth || 1;
+    // === MAP WITH WALL AUTOTILING (cached to offscreen canvas) ===
+    function renderMapToCanvas(oc, map, depth) {
       var pal = PALETTES[depth] || PALETTES[1];
-      var WALL_CAP = pal.wCap, WALL_FACE = pal.wFace, WALL_PANEL = pal.wPanel;
-      var WALL_SIDE = pal.wSide, WALL_INNER = pal.wInner, WALL_LINE = pal.wLine;
-      var FLOOR_A = pal.fA, FLOOR_B = pal.fB, FLOOR_DOT = pal.fDot;
+      var WC = pal.wCap, WF = pal.wFace, WP = pal.wPanel;
+      var WS = pal.wSide, WI = pal.wInner, WL = pal.wLine;
+      var FA_ = pal.fA, FB = pal.fB, FD = pal.fDot;
+
+      oc.clearRect(0, 0, _mapCanvas.width, _mapCanvas.height);
 
       for (var y = 0; y < cfg.rows; y++) {
         for (var x = 0; x < cfg.cols; x++) {
@@ -231,106 +233,72 @@
           var px = x * ts, py = y * ts;
 
           if (tile === 0) {
-            // Floor — subtle grid
-            ctx.fillStyle = (x + y) % 2 === 0 ? FLOOR_A : FLOOR_B;
-            ctx.fillRect(px, py, ts, ts);
-            if ((x + y) % 3 === 0) {
-              ctx.fillStyle = FLOOR_DOT;
-              ctx.fillRect(px + ts / 2, py + ts / 2, 1, 1);
-            }
-            // Cable traces on deep floors
-            if (depth >= 3 && (x * 7 + y * 3) % 19 === 0) {
-              ctx.fillStyle = WALL_LINE;
-              ctx.fillRect(px, py + ts / 2, ts, 1);
-            }
+            oc.fillStyle = (x + y) % 2 === 0 ? FA_ : FB;
+            oc.fillRect(px, py, ts, ts);
+            if ((x + y) % 3 === 0) { oc.fillStyle = FD; oc.fillRect(px + ts / 2, py + ts / 2, 1, 1); }
+            if (depth >= 3 && (x * 7 + y * 3) % 19 === 0) { oc.fillStyle = WL; oc.fillRect(px, py + ts / 2, ts, 1); }
           } else if (tile === 2) {
-            // Access down
-            ctx.fillStyle = '#1a1000';
-            ctx.fillRect(px, py, ts, ts);
-            ctx.fillStyle = colors.stairsDown;
-            ctx.fillRect(px + 2, py + 2, ts - 4, ts - 4);
-            FA.draw.text('v', px + ts / 2, py + ts / 2, { color: '#fff', size: 12, bold: true, align: 'center', baseline: 'middle' });
+            oc.fillStyle = '#1a1000'; oc.fillRect(px, py, ts, ts);
+            oc.fillStyle = colors.stairsDown; oc.fillRect(px + 2, py + 2, ts - 4, ts - 4);
+            oc.fillStyle = '#fff'; oc.font = 'bold 12px monospace'; oc.textAlign = 'center'; oc.textBaseline = 'middle';
+            oc.fillText('v', px + ts / 2, py + ts / 2);
           } else if (tile === 3) {
-            // Access up
-            ctx.fillStyle = '#001a1a';
-            ctx.fillRect(px, py, ts, ts);
-            ctx.fillStyle = colors.stairsUp;
-            ctx.fillRect(px + 2, py + 2, ts - 4, ts - 4);
-            FA.draw.text('^', px + ts / 2, py + ts / 2, { color: '#fff', size: 12, bold: true, align: 'center', baseline: 'middle' });
+            oc.fillStyle = '#001a1a'; oc.fillRect(px, py, ts, ts);
+            oc.fillStyle = colors.stairsUp; oc.fillRect(px + 2, py + 2, ts - 4, ts - 4);
+            oc.fillStyle = '#fff'; oc.font = 'bold 12px monospace'; oc.textAlign = 'center'; oc.textBaseline = 'middle';
+            oc.fillText('^', px + ts / 2, py + ts / 2);
           } else if (tile === 4) {
-            // Active terminal
-            ctx.fillStyle = FLOOR_A;
-            ctx.fillRect(px, py, ts, ts);
-            ctx.fillStyle = '#0a2a2a';
-            ctx.fillRect(px + 2, py + 2, ts - 4, ts - 4);
-            ctx.fillStyle = '#0ff';
-            ctx.fillRect(px + 3, py + 3, ts - 6, 2);
-            ctx.fillRect(px + 3, py + ts - 5, ts - 6, 2);
-            FA.draw.text('T', px + ts / 2, py + ts / 2, { color: '#0ff', size: 11, bold: true, align: 'center', baseline: 'middle' });
+            oc.fillStyle = FA_; oc.fillRect(px, py, ts, ts);
+            oc.fillStyle = '#0a2a2a'; oc.fillRect(px + 2, py + 2, ts - 4, ts - 4);
+            oc.fillStyle = '#0ff'; oc.fillRect(px + 3, py + 3, ts - 6, 2); oc.fillRect(px + 3, py + ts - 5, ts - 6, 2);
+            oc.font = 'bold 11px monospace'; oc.textAlign = 'center'; oc.textBaseline = 'middle';
+            oc.fillText('T', px + ts / 2, py + ts / 2);
           } else if (tile === 5) {
-            // Used terminal
-            ctx.fillStyle = FLOOR_A;
-            ctx.fillRect(px, py, ts, ts);
-            ctx.fillStyle = '#0a1515';
-            ctx.fillRect(px + 2, py + 2, ts - 4, ts - 4);
-            FA.draw.text('T', px + ts / 2, py + ts / 2, { color: '#223', size: 11, align: 'center', baseline: 'middle' });
+            oc.fillStyle = FA_; oc.fillRect(px, py, ts, ts);
+            oc.fillStyle = '#0a1515'; oc.fillRect(px + 2, py + 2, ts - 4, ts - 4);
+            oc.fillStyle = '#223'; oc.font = '11px monospace'; oc.textAlign = 'center'; oc.textBaseline = 'middle';
+            oc.fillText('T', px + ts / 2, py + ts / 2);
           } else {
-            // Wall autotiling
-            var openS = isOpen(map, x, y + 1);
-            var openN = isOpen(map, x, y - 1);
-            var openE = isOpen(map, x + 1, y);
-            var openW = isOpen(map, x - 1, y);
-
-            // Base fill
-            if (openS) {
+            var oS = isOpen(map, x, y + 1), oN = isOpen(map, x, y - 1);
+            var oE = isOpen(map, x + 1, y), oW = isOpen(map, x - 1, y);
+            if (oS) {
               var capH = Math.floor(ts * 0.35);
-              ctx.fillStyle = WALL_CAP;
-              ctx.fillRect(px, py, ts, capH);
-              ctx.fillStyle = WALL_FACE;
-              ctx.fillRect(px, py + capH, ts, ts - capH);
-              ctx.fillStyle = WALL_LINE;
-              ctx.fillRect(px, py + capH, ts, 1);
-              ctx.fillStyle = WALL_PANEL;
-              ctx.fillRect(px, py + ts - 1, ts, 1);
-              if (x % 3 === 0) {
-                ctx.fillStyle = WALL_SIDE;
-                ctx.fillRect(px + ts / 2, py + capH + 2, 1, ts - capH - 3);
-              }
-            } else if (openN) {
-              ctx.fillStyle = WALL_INNER;
-              ctx.fillRect(px, py, ts, ts);
-              ctx.fillStyle = WALL_SIDE;
-              ctx.fillRect(px, py, ts, 2);
-              if (x % 4 === 0) {
-                ctx.fillStyle = WALL_LINE;
-                ctx.fillRect(px + ts / 2, py + 3, 1, ts - 4);
-              }
+              oc.fillStyle = WC; oc.fillRect(px, py, ts, capH);
+              oc.fillStyle = WF; oc.fillRect(px, py + capH, ts, ts - capH);
+              oc.fillStyle = WL; oc.fillRect(px, py + capH, ts, 1);
+              oc.fillStyle = WP; oc.fillRect(px, py + ts - 1, ts, 1);
+              if (x % 3 === 0) { oc.fillStyle = WS; oc.fillRect(px + ts / 2, py + capH + 2, 1, ts - capH - 3); }
+            } else if (oN) {
+              oc.fillStyle = WI; oc.fillRect(px, py, ts, ts);
+              oc.fillStyle = WS; oc.fillRect(px, py, ts, 2);
+              if (x % 4 === 0) { oc.fillStyle = WL; oc.fillRect(px + ts / 2, py + 3, 1, ts - 4); }
             } else {
-              ctx.fillStyle = WALL_INNER;
-              ctx.fillRect(px, py, ts, ts);
+              oc.fillStyle = WI; oc.fillRect(px, py, ts, ts);
             }
-
-            // Side accents — always on top
-            if (openE) {
-              ctx.fillStyle = WALL_SIDE;
-              ctx.fillRect(px + ts - 2, py, 2, ts);
-            }
-            if (openW) {
-              ctx.fillStyle = WALL_SIDE;
-              ctx.fillRect(px, py, 2, ts);
-            }
-            if (!openS && !openN && (openE || openW) && y % 3 === 0) {
-              ctx.fillStyle = WALL_LINE;
-              ctx.fillRect(px + 2, py + ts / 2, ts - 4, 1);
-            }
-            // Damage marks on deep walls
-            if (depth >= 3 && openS && (x * 11 + y * 7) % 13 === 0) {
-              ctx.fillStyle = depth >= 4 ? '#2a1010' : '#1a1828';
-              ctx.fillRect(px + 3 + (x % 4) * 3, py + ts - 4, 2, 2);
+            if (oE) { oc.fillStyle = WS; oc.fillRect(px + ts - 2, py, 2, ts); }
+            if (oW) { oc.fillStyle = WS; oc.fillRect(px, py, 2, ts); }
+            if (!oS && !oN && (oE || oW) && y % 3 === 0) { oc.fillStyle = WL; oc.fillRect(px + 2, py + ts / 2, ts - 4, 1); }
+            if (depth >= 3 && oS && (x * 11 + y * 7) % 13 === 0) {
+              oc.fillStyle = depth >= 4 ? '#2a1010' : '#1a1828';
+              oc.fillRect(px + 3 + (x % 4) * 3, py + ts - 4, 2, 2);
             }
           }
         }
       }
+    }
+
+    FA.addLayer('map', function() {
+      var state = FA.getState();
+      if (state.screen !== 'playing' && state.screen !== 'victory' && state.screen !== 'shutdown') return;
+      if (!state.map) return;
+
+      var mv = state.mapVersion || 0;
+      if (mv !== _mapVersion) {
+        _mapVersion = mv;
+        renderMapToCanvas(_mapCtx, state.map, state.depth || 1);
+      }
+
+      FA.getCtx().drawImage(_mapCanvas, 0, 0);
     }, 1);
 
     // === ENTITIES WITH GLOW ===
