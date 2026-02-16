@@ -213,6 +213,23 @@
             if ((x * 3 + y * 7) % 5 === 0) {
               oc.fillStyle = '#2a6030'; oc.fillRect(px + ts / 2 - 1, py + ts / 2 - 1, 3, 3);
             }
+          } else if (tile === 5) {
+            // Sidewalk — lighter warm pavement with lane markings
+            oc.fillStyle = '#1e1a14'; oc.fillRect(px, py, ts, ts);
+            // Subtle lane marking
+            if ((x + y) % 4 === 0) {
+              oc.fillStyle = '#2a2620';
+              oc.fillRect(px + ts / 2 - 1, py + 1, 2, ts - 2);
+            }
+            // Edge detail
+            oc.fillStyle = '#14120e';
+            oc.fillRect(px, py, 1, ts);
+            oc.fillRect(px + ts - 1, py, 1, ts);
+            // Occasional marking dot
+            if ((x * 3 + y * 5) % 7 === 0) {
+              oc.fillStyle = '#2a2418';
+              oc.fillRect(px + ts / 2, py + ts / 2, 2, 2);
+            }
           } else if (tile === 6) {
             // Bed
             oc.fillStyle = '#1a1838'; oc.fillRect(px + 2, py + 4, ts - 4, ts - 6);

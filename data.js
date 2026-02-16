@@ -60,27 +60,28 @@
   // === OVERWORLD MAP (40x25) ===
   // 1=wall  0=path  2=indoor floor  6=bed  7=work terminal
   // 8=system entrance (hidden until day 3)  9=café table
+  // Tiles: 0=floor 1=wall 3=garden 5=sidewalk 6=bed 7=terminal 8=system 9=table
   FA.register('config', 'overworld', {
-    playerStart: { x: 19, y: 8 },
+    playerStart: { x: 19, y: 3 },
     map: [
       '1111111111111111111111111111111111111111',
       '1111111111111111111111111111111111111111',
+      '1111111111111111100000011111111111111111',
+      '1111111111111111160000011111111111111111',
+      '1111111111111111100000011111111111111111',
+      '1111111111111111111551111111111111111111',
+      '1111111111111111111551111111009011111111',
+      '1111111133300005555555550000000011111111',
+      '1111111133300005555755500000090011111111',
+      '1111111133300005555555550000000011111111',
+      '1111111111111111111551111111009011111111',
+      '1111111111111111111551111111111111111111',
+      '1111111111111111111551111111111111111111',
+      '1111111100005555500000055555000011111111',
+      '1111111100005555500800055555000011111111',
+      '1111111100005555500000055555000011111111',
       '1111111111111111111111111111111111111111',
       '1111111111111111111111111111111111111111',
-      '1111111111111111111111111111111111111111',
-      '1111111111111111111111111111111111111111',
-      '1111111111111111111111111111111111111111',
-      '1111111111111111110000011111111111111111',
-      '1111111111111111116000011111111111111111',
-      '1111111111111111110000011111111111111111',
-      '1111111111111111111001111111111111111111',
-      '1111111111113330000000000090111111111111',
-      '1111111111113330000070000090111111111111',
-      '1111111111113330000000000090111111111111',
-      '1111111111111111111001111111111111111111',
-      '1111111111111111110000011111111111111111',
-      '1111111111111111118000011111111111111111',
-      '1111111111111111110000011111111111111111',
       '1111111111111111111111111111111111111111',
       '1111111111111111111111111111111111111111',
       '1111111111111111111111111111111111111111',
@@ -89,7 +90,6 @@
       '1111111111111111111111111111111111111111',
       '1111111111111111111111111111111111111111'
     ],
-    // Tile walkability (not walkable: 1=wall, 9=café table)
     blocked: { '1': true, '9': true }
   });
 
@@ -98,8 +98,10 @@
 
   FA.register('npcs', 'lena', {
     name: 'Lena', char: '@', color: '#f8d',
-    homePos: { x: 21, y: 9 },
-    cafePos: { x: 24, y: 11 },
+    homePos: { x: 21, y: 3 },
+    cafePos: { x: 28, y: 7 },
+    terminalPos: { x: 19, y: 8 },
+    gardenPos: { x: 9, y: 7 },
     schedule: { morning: 'home', midday: 'cafe', evening: 'home' },
     appearsDay: 1,
     dialogue: {
@@ -117,8 +119,10 @@
 
   FA.register('npcs', 'victor', {
     name: 'Victor', char: '@', color: '#fa4',
-    homePos: { x: 16, y: 13 },
-    cafePos: { x: 24, y: 12 },
+    homePos: { x: 9, y: 14 },
+    cafePos: { x: 29, y: 8 },
+    terminalPos: { x: 21, y: 8 },
+    gardenPos: { x: 10, y: 8 },
     schedule: { morning: 'wander', midday: 'cafe', evening: 'cafe' },
     appearsDay: 2,
     dialogue: {
@@ -135,8 +139,10 @@
 
   FA.register('npcs', 'marta', {
     name: 'Marta', char: '@', color: '#8cf',
-    homePos: { x: 22, y: 11 },
-    cafePos: { x: 24, y: 13 },
+    homePos: { x: 29, y: 14 },
+    cafePos: { x: 28, y: 9 },
+    terminalPos: { x: 20, y: 7 },
+    gardenPos: { x: 8, y: 9 },
     schedule: { morning: 'home', midday: 'home', evening: 'cafe' },
     appearsDay: 1,
     dialogue: {
@@ -154,8 +160,10 @@
 
   FA.register('npcs', 'emil', {
     name: 'Emil', char: '@', color: '#a8f',
-    homePos: { x: 19, y: 15 },
-    cafePos: { x: 26, y: 12 },
+    homePos: { x: 20, y: 14 },
+    cafePos: { x: 31, y: 8 },
+    terminalPos: { x: 20, y: 9 },
+    gardenPos: { x: 10, y: 9 },
     schedule: { morning: 'wander', midday: 'wander', evening: 'cafe' },
     appearsDay: 3,
     dialogue: {
@@ -242,7 +250,14 @@
   // === NARRATIVE (minimal — for engine compatibility) ===
   FA.register('config', 'narrative', {
     startNode: 'start',
-    variables: { day: 1, system_visits: 0, credits: 0 },
+    variables: {
+      day: 1, system_visits: 0, credits: 0, time_period: 'morning',
+      lena_met_today: false, victor_met_today: false,
+      marta_met_today: false, emil_met_today: false,
+      lena_interactions: 0, victor_interactions: 0,
+      marta_interactions: 0, emil_interactions: 0,
+      system_revealed: false, curfew_active: false
+    },
     graph: {
       nodes: [
         { id: 'start', label: 'Start', type: 'scene' },

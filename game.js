@@ -233,8 +233,10 @@
         x: def.homePos.x, y: def.homePos.y,
         allegiance: roles[i],
         homePos: def.homePos, cafePos: def.cafePos,
+        terminalPos: def.terminalPos, gardenPos: def.gardenPos,
         schedule: def.schedule, appearsDay: def.appearsDay,
-        dialogue: def.dialogue, met: false
+        dialogue: def.dialogue, met: false,
+        goal: 'home', talkedToday: false
       });
     }
     return npcs;
@@ -246,15 +248,134 @@
     return 'evening';
   }
 
-  function updateNPCPositions(state) {
-    var period = getTimePeriod(state.timeOfDay);
+  // --- NPC AI: overworld pathfinding (mirrors enemy drone AI) ---
+
+  function canStepOverworld(npc, nx, ny, state) {
+    if (!isOverworldWalkable(state.owMap, nx, ny)) return false;
+    if (state.owPlayer && nx === state.owPlayer.x && ny === state.owPlayer.y) return false;
     for (var i = 0; i < state.npcs.length; i++) {
-      var npc = state.npcs[i];
-      if (state.day < npc.appearsDay) { npc.x = -1; npc.y = -1; continue; }
-      var loc = npc.schedule[period];
-      if (loc === 'home') { npc.x = npc.homePos.x; npc.y = npc.homePos.y; }
-      else if (loc === 'cafe') { npc.x = npc.cafePos.x; npc.y = npc.cafePos.y; }
-      else { if (npc.x < 0) { npc.x = 10 + i * 5; npc.y = 6; } }
+      var other = state.npcs[i];
+      if (other === npc) continue;
+      if (state.day < other.appearsDay) continue;
+      if (other.x === nx && other.y === ny) return false;
+    }
+    return true;
+  }
+
+  function moveNPCToward(npc, tx, ty, state) {
+    var dx = tx - npc.x, dy = ty - npc.y;
+    if (dx === 0 && dy === 0) return false;
+    var sx = dx > 0 ? 1 : dx < 0 ? -1 : 0;
+    var sy = dy > 0 ? 1 : dy < 0 ? -1 : 0;
+    var moves;
+    if (Math.abs(dx) >= Math.abs(dy)) {
+      moves = [{dx: sx, dy: 0}, {dx: 0, dy: sy || 1}, {dx: 0, dy: -(sy || 1)}];
+    } else {
+      moves = [{dx: 0, dy: sy}, {dx: sx || 1, dy: 0}, {dx: -(sx || 1), dy: 0}];
+    }
+    for (var i = 0; i < moves.length; i++) {
+      if (moves[i].dx === 0 && moves[i].dy === 0) continue;
+      var nx = npc.x + moves[i].dx, ny = npc.y + moves[i].dy;
+      if (canStepOverworld(npc, nx, ny, state)) {
+        npc.x = nx; npc.y = ny;
+        return true;
+      }
+    }
+    return false;
+  }
+
+  function randomStepOverworld(npc, state) {
+    var dirs = [[1,0],[-1,0],[0,1],[0,-1]];
+    for (var i = dirs.length - 1; i > 0; i--) {
+      var j = Math.floor(Math.random() * (i + 1));
+      var t = dirs[i]; dirs[i] = dirs[j]; dirs[j] = t;
+    }
+    for (var d = 0; d < dirs.length; d++) {
+      var nx = npc.x + dirs[d][0], ny = npc.y + dirs[d][1];
+      if (canStepOverworld(npc, nx, ny, state)) {
+        npc.x = nx; npc.y = ny;
+        return;
+      }
+    }
+  }
+
+  function resolveNPCGoalPos(npc, state) {
+    var g = npc.goal;
+    if (g === 'home') return npc.homePos;
+    if (g === 'cafe') return npc.cafePos;
+    if (g === 'terminal') return npc.terminalPos;
+    if (g === 'garden') return npc.gardenPos;
+    if (g === 'player' && state.owPlayer) return { x: state.owPlayer.x, y: state.owPlayer.y };
+    return null; // wander
+  }
+
+  function selectNPCGoal(npc, state) {
+    if (state.day < npc.appearsDay) {
+      npc.goal = 'hidden'; npc.x = -1; npc.y = -1;
+      return;
+    }
+    var period = getTimePeriod(state.timeOfDay);
+    var dist = state.owPlayer ? Math.abs(npc.x - state.owPlayer.x) + Math.abs(npc.y - state.owPlayer.y) : 99;
+    var hasDialogue = npc.dialogue[state.day] && !npc.talkedToday;
+
+    // Priority: approach player if they have undelivered dialogue and player is nearby
+    if (hasDialogue && dist < 8) { npc.goal = 'player'; return; }
+
+    // NPC-specific personality
+    switch (npc.id) {
+      case 'lena':
+        if (period === 'midday') npc.goal = dist < 6 ? 'player' : 'cafe';
+        else if (period === 'morning') npc.goal = 'home';
+        else npc.goal = 'home';
+        break;
+      case 'victor':
+        if (period === 'midday') npc.goal = Math.random() < 0.7 ? 'cafe' : 'garden';
+        else if (period === 'evening') npc.goal = 'cafe';
+        else npc.goal = 'wander';
+        break;
+      case 'marta':
+        if (period === 'morning') npc.goal = 'terminal';
+        else if (period === 'midday') npc.goal = 'home';
+        else npc.goal = 'cafe';
+        break;
+      case 'emil':
+        if (period === 'evening') npc.goal = state.systemRevealed ? 'cafe' : 'wander';
+        else npc.goal = 'wander';
+        break;
+      default:
+        npc.goal = 'wander';
+    }
+  }
+
+  function npcOverworldStep(npc, state) {
+    if (npc.x < 0 || npc.y < 0) return;
+    if (state.day < npc.appearsDay) return;
+
+    var goalPos = resolveNPCGoalPos(npc, state);
+    // If at goal, pick a new one
+    if (goalPos && npc.x === goalPos.x && npc.y === goalPos.y) {
+      selectNPCGoal(npc, state);
+      goalPos = resolveNPCGoalPos(npc, state);
+    }
+
+    if (goalPos) {
+      moveNPCToward(npc, goalPos.x, goalPos.y, state);
+    } else {
+      // Wander: only move sometimes
+      if (Math.random() < 0.4) randomStepOverworld(npc, state);
+    }
+  }
+
+  function npcOverworldTurn(state) {
+    for (var i = 0; i < state.npcs.length; i++) {
+      npcOverworldStep(state.npcs[i], state);
+    }
+  }
+
+  function updateNPCPositions(state) {
+    // Called on period change or day start: re-evaluate all NPC goals
+    for (var i = 0; i < state.npcs.length; i++) {
+      selectNPCGoal(state.npcs[i], state);
     }
   }
 
@@ -317,6 +438,28 @@
     FA.clearEffects();
     var narCfg = FA.lookup('config', 'narrative');
     if (narCfg) FA.narrative.init(narCfg);
+
+    // Reactive NPC behavior via narrative events
+    FA.on('narrative:varChanged', function(data) {
+      var s = FA.getState();
+      if (!s.npcs || s.screen !== 'overworld') return;
+      // When NPC met today, they stop approaching player
+      if (data.name.indexOf('_met_today') > -1 && data.value) {
+        var npcId = data.name.replace('_met_today', '');
+        for (var j = 0; j < s.npcs.length; j++) {
+          if (s.npcs[j].id === npcId && s.npcs[j].goal === 'player') {
+            selectNPCGoal(s.npcs[j], s);
+          }
+        }
+      }
+      // When system revealed, Emil re-evaluates
+      if (data.name === 'system_revealed' && data.value) {
+        for (var k = 0; k < s.npcs.length; k++) {
+          if (s.npcs[k].id === 'emil') selectNPCGoal(s.npcs[k], s);
+        }
+      }
+    });
+
     updateNPCPositions(FA.getState());
     showNarrative('wake');
     triggerThought('morning');
@@ -349,7 +492,11 @@
     state.timeOfDay++;
     state.turn++;
     var newPeriod = getTimePeriod(state.timeOfDay);
-    if (oldPeriod !== newPeriod) updateNPCPositions(state);
+    if (oldPeriod !== newPeriod) {
+      updateNPCPositions(state);
+      if (FA.narrative && FA.narrative.setVar) FA.narrative.setVar('time_period', newPeriod, 'Period: ' + newPeriod);
+    }
+    npcOverworldTurn(state);
     checkTimeWarnings(state);
     checkOverworldThoughts(state);
   }
@@ -368,15 +515,25 @@
     var npc = getAdjacentNPC(state, state.owPlayer.x, state.owPlayer.y);
     if (npc) {
       npc.met = true;
+      npc.talkedToday = true;
       var text = npc.dialogue[state.day] || npc.dialogue._default;
       addSystemBubble(npc.name + ': "' + text + '"', npc.color);
+      // Narrative tracking
+      if (FA.narrative && FA.narrative.setVar) {
+        FA.narrative.setVar(npc.id + '_met_today', true, 'Met ' + npc.name);
+        var prev = FA.narrative.getVar(npc.id + '_interactions') || 0;
+        FA.narrative.setVar(npc.id + '_interactions', prev + 1, 'Talked to ' + npc.name);
+      }
       var econCfg = FA.lookup('config', 'economy');
       if (state.day >= econCfg.systemRevealDay && !state.systemRevealed) {
         if (npc.id === 'victor' || npc.id === 'lena') {
           state.systemRevealed = true;
           state.mapVersion = (state.mapVersion || 0) + 1;
+          if (FA.narrative && FA.narrative.setVar) FA.narrative.setVar('system_revealed', true, 'System revealed');
         }
       }
+      // NPC re-evaluates goal after being talked to
+      selectNPCGoal(npc, state);
       state.timeOfDay += 2;
       state.turn += 2;
       checkTimeWarnings(state);
@@ -422,6 +579,19 @@
     state.workedToday = false;
     state._timeWarned = false;
     state._curfewWarned = false;
+    // Reset NPC daily state
+    for (var ni = 0; ni < state.npcs.length; ni++) {
+      state.npcs[ni].talkedToday = false;
+    }
+    // Narrative day tracking
+    if (FA.narrative && FA.narrative.setVar) {
+      FA.narrative.setVar('day', state.day, 'New day');
+      FA.narrative.setVar('curfew_active', false, 'Day reset');
+      FA.narrative.setVar('lena_met_today', false, 'Day reset');
+      FA.narrative.setVar('victor_met_today', false, 'Day reset');
+      FA.narrative.setVar('marta_met_today', false, 'Day reset');
+      FA.narrative.setVar('emil_met_today', false, 'Day reset');
+    }
     state.rent = econCfg.baseRent + (state.day - 1) * econCfg.rentIncrease;
     state.mapVersion = (state.mapVersion || 0) + 1;
     updateNPCPositions(state);
@@ -500,6 +670,7 @@
     }
     if (state.timeOfDay >= timeCfg.curfewTime && !state._curfewWarned) {
       state._curfewWarned = true;
+      if (FA.narrative && FA.narrative.setVar) FA.narrative.setVar('curfew_active', true, 'Curfew approaching');
       addSystemBubble('> CURFEW APPROACHING. Return to quarters.', '#f44');
     } else if (state.timeOfDay >= timeCfg.warningTime && !state._timeWarned) {
       state._timeWarned = true;
@@ -512,7 +683,7 @@
     var period = getTimePeriod(state.timeOfDay);
     if (period === 'morning' && state.timeOfDay < 10) triggerThought('morning');
     else if (period === 'evening') triggerThought('evening');
-    if (Math.abs(state.owPlayer.x - 18) < 5 && Math.abs(state.owPlayer.y - 10) < 4) {
+    if (Math.abs(state.owPlayer.x - 29) < 5 && Math.abs(state.owPlayer.y - 8) < 4) {
       triggerThought('cafe');
     }
   }
@@ -576,8 +747,10 @@
     state.mapVersion = (state.mapVersion || 0) + 1;
 
     FA.clearEffects();
-    var narCfg = FA.lookup('config', 'narrative');
-    if (narCfg) FA.narrative.init(narCfg);
+    // Narrative: track system entry (don't re-init — preserves vars)
+    if (FA.narrative && FA.narrative.setVar) {
+      FA.narrative.setVar('system_visits', state.systemVisits, 'Entered system');
+    }
     triggerThought('system_enter');
   }
 
