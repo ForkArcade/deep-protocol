@@ -233,6 +233,7 @@
 
   function canStepOverworld(npc, nx, ny, state) {
     if (!isWalkable(state.owMap, nx, ny)) return false;
+    if (state.owPlayer && nx === state.owPlayer.x && ny === state.owPlayer.y) return false;
     for (var i = 0; i < state.npcs.length; i++) {
       var other = state.npcs[i];
       if (other === npc) continue;
@@ -455,6 +456,14 @@
     var nx = state.owPlayer.x + dx;
     var ny = state.owPlayer.y + dy;
     if (!isWalkable(state.owMap, nx, ny)) return;
+
+    // Swap positions with friendly NPC (no tile sharing)
+    var npc = getNPCAt(state, nx, ny);
+    if (npc) {
+      npc.x = state.owPlayer.x;
+      npc.y = state.owPlayer.y;
+    }
+
     state.owPlayer.x = nx;
     state.owPlayer.y = ny;
     FA.playSound('step');
