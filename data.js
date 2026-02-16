@@ -97,7 +97,7 @@
   // allegiance is randomized at game start: 2 ally, 1 traitor, 1 neutral
 
   FA.register('npcs', 'lena', {
-    name: 'Lena', char: 'L', color: '#f8d',
+    name: 'Lena', char: '@', color: '#f8d',
     homePos: { x: 5, y: 2 },
     cafePos: { x: 16, y: 10 },
     schedule: { morning: 'home', midday: 'cafe', evening: 'home' },
@@ -116,7 +116,7 @@
   });
 
   FA.register('npcs', 'victor', {
-    name: 'Victor', char: 'V', color: '#fa4',
+    name: 'Victor', char: '@', color: '#fa4',
     homePos: { x: 30, y: 7 },
     cafePos: { x: 18, y: 11 },
     schedule: { morning: 'wander', midday: 'cafe', evening: 'cafe' },
@@ -134,7 +134,7 @@
   });
 
   FA.register('npcs', 'marta', {
-    name: 'Marta', char: 'M', color: '#8cf',
+    name: 'Marta', char: '@', color: '#8cf',
     homePos: { x: 33, y: 2 },
     cafePos: { x: 16, y: 11 },
     schedule: { morning: 'home', midday: 'home', evening: 'cafe' },
@@ -153,7 +153,7 @@
   });
 
   FA.register('npcs', 'emil', {
-    name: 'Emil', char: 'E', color: '#a8f',
+    name: 'Emil', char: '@', color: '#a8f',
     homePos: { x: 20, y: 22 },
     cafePos: { x: 18, y: 10 },
     schedule: { morning: 'wander', midday: 'wander', evening: 'cafe' },

@@ -307,7 +307,7 @@
       // Shared
       mapVersion: 1, turn: 0,
       systemBubble: null,
-      thoughts: [], lastThoughtTurn: -10,
+      thoughts: [], lastThoughtTurn: -10, bubbleQueue: [],
       shake: 0, shakeX: 0, shakeY: 0,
       particles: [], soundWaves: [],
       _pendingEnd: null, _timeWarned: false, _curfewWarned: false,
@@ -345,9 +345,11 @@
     state.owPlayer.x = nx;
     state.owPlayer.y = ny;
     FA.playSound('step');
+    var oldPeriod = getTimePeriod(state.timeOfDay);
     state.timeOfDay++;
     state.turn++;
-    if (state.timeOfDay % 10 === 0) updateNPCPositions(state);
+    var newPeriod = getTimePeriod(state.timeOfDay);
+    if (oldPeriod !== newPeriod) updateNPCPositions(state);
     checkTimeWarnings(state);
     checkOverworldThoughts(state);
   }
@@ -1108,8 +1110,7 @@
     }
   }
 
-  function addSystemBubble(text, color) {
-    var state = FA.getState();
+  function _createSystemBubble(state, text, color) {
     var maxChars = 90;
     var words = text.split(' ');
     var lines = []; var line = '';
@@ -1122,12 +1123,34 @@
     state.systemBubble = { lines: lines, color: color || '#4ef', timer: 0, done: false, life: 8000 };
   }
 
+  function _createThought(state, text) {
+    if (!state.thoughts) state.thoughts = [];
+    state.thoughts = [{ text: text, timer: 0, speed: 30, done: false, life: 8000 }];
+    state.lastThoughtTurn = state.turn;
+  }
+
+  function _isBubbleActive(state) {
+    return state.systemBubble || (state.thoughts && state.thoughts.length > 0);
+  }
+
+  function addSystemBubble(text, color) {
+    var state = FA.getState();
+    if (_isBubbleActive(state)) {
+      if (!state.bubbleQueue) state.bubbleQueue = [];
+      state.bubbleQueue.push({ type: 'system', text: text, color: color });
+      return;
+    }
+    _createSystemBubble(state, text, color);
+  }
+
   function addThought(text) {
     var state = FA.getState();
-    if (!state.thoughts) state.thoughts = [];
-    state.thoughts.push({ text: text, timer: 0, speed: 30, done: false, life: 8000 });
-    if (state.thoughts.length > 4) state.thoughts.shift();
-    state.lastThoughtTurn = state.turn;
+    if (_isBubbleActive(state)) {
+      if (!state.bubbleQueue) state.bubbleQueue = [];
+      state.bubbleQueue.push({ type: 'thought', text: text });
+      return;
+    }
+    _createThought(state, text);
   }
 
   function triggerThought(category, key) {
@@ -1144,6 +1167,12 @@
     var state = FA.getState();
     state.thoughts = [];
     state.systemBubble = null;
+    // Show next queued bubble
+    if (state.bubbleQueue && state.bubbleQueue.length > 0) {
+      var next = state.bubbleQueue.shift();
+      if (next.type === 'system') _createSystemBubble(state, next.text, next.color);
+      else _createThought(state, next.text);
+    }
   }
 
   // ============================================================

@@ -686,6 +686,11 @@
           color: sb.color, dimColor: '#1a3030', size: 11, duration: 60, charDelay: 6, flicker: 25
         }); ctx.restore();
       }
+      // [SPACE] hint when text is done
+      if (sb.done && sb.life > 1500) {
+        ctx.save(); ctx.globalAlpha = 0.3 * alpha;
+        FA.draw.text('[SPACE]', bx + tw - 48, by + th - 12, { color: sb.color, size: 8 }); ctx.restore();
+      }
       ctx.save(); ctx.globalAlpha = 0.04 * alpha; ctx.fillStyle = '#000';
       for (var sl = by; sl < by + th; sl += 2) ctx.fillRect(bx, sl, tw, 1);
       ctx.restore();
@@ -698,6 +703,7 @@
     FA.addLayer('terminal', function() {
       var state = FA.getState();
       if (state.screen !== 'playing' && state.screen !== 'overworld') return;
+      if (state.systemBubble) return; // don't show both at once
       if (!state.thoughts || state.thoughts.length === 0) return;
       var thought = null;
       for (var ti = state.thoughts.length - 1; ti >= 0; ti--) {
@@ -741,8 +747,8 @@
         color: '#4ef', dimColor: '#1a4040', size: 11, duration: 60, charDelay: 6, flicker: 25
       }); ctx.restore();
       if (thought.done && thought.life > 1500) {
-        ctx.save(); ctx.globalAlpha = 0.2 * alpha;
-        FA.draw.text('[SPC]', bx + tw - 35, by + 9, { color: '#4ef', size: 8 }); ctx.restore();
+        ctx.save(); ctx.globalAlpha = 0.3 * alpha;
+        FA.draw.text('[SPACE]', bx + tw - 48, by + th - 12, { color: '#4ef', size: 8 }); ctx.restore();
       }
       ctx.save(); ctx.globalAlpha = 0.04 * alpha; ctx.fillStyle = '#000';
       for (var sl = by; sl < by + th; sl += 2) ctx.fillRect(bx, sl, tw, 1);
