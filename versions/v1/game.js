@@ -258,8 +258,7 @@
       messages: [],
       narrativeMessage: null,
       turn: 0,
-      shake: 0, particles: [], soundWaves: [],
-      thoughts: [], lastThoughtTurn: -10
+      shake: 0, particles: [], soundWaves: []
     });
 
     FA.clearEffects();
@@ -359,7 +358,6 @@
     addMessage(direction === 'down' ? '> Accessing sub-level ' + newDepth + '...' : '> Returning to level ' + newDepth + '...');
     FA.narrative.setVar('depth_reached', state.maxDepthReached, 'Reached level ' + state.maxDepthReached);
 
-    triggerThought('floor_enter', newDepth);
     if (direction === 'down' && newDepth === 2) showNarrative('descent');
     if (direction === 'down' && newDepth === 4) showNarrative('core_sector');
     if (direction === 'down' && newDepth === 5) showNarrative('director');
@@ -916,12 +914,8 @@
     var state = FA.getState();
     if (state.screen !== 'playing') return;
     state.turn++;
-    if (state.turn === 1) {
-      showNarrative('scanning');
-      triggerThought('floor_enter', 1);
-    }
+    if (state.turn === 1) showNarrative('scanning');
     enemyTurn();
-    checkThoughts(state);
   }
 
   function endGame(victory, endingNode) {
@@ -946,47 +940,6 @@
     var msgs = FA.getState().messages;
     msgs.push({ text: text, color: color });
     if (msgs.length > 6) msgs.shift();
-  }
-
-  // === THOUGHT SYSTEM ===
-
-  function addThought(text) {
-    var state = FA.getState();
-    state.thoughts.push({ text: text, timer: 0, speed: 30, done: false, life: 8000 });
-    if (state.thoughts.length > 4) state.thoughts.shift();
-    state.lastThoughtTurn = state.turn;
-  }
-
-  function triggerThought(category, key) {
-    var state = FA.getState();
-    if (state.turn - (state.lastThoughtTurn || 0) < 5) return;
-    var thoughts = FA.lookup('config', 'thoughts');
-    if (!thoughts || !thoughts[category]) return;
-    var pool = key !== undefined ? thoughts[category][key] : thoughts[category];
-    if (!pool || !pool.length) return;
-    addThought(pool[Math.floor(Math.random() * pool.length)]);
-  }
-
-  function checkThoughts(state) {
-    var prev = state._prevThought || {};
-
-    if (state.depth !== prev.depth) triggerThought('floor_enter', state.depth);
-    if (state.player.kills > (prev.kills || 0)) triggerThought('combat');
-    if (state.player.hp < (prev.hp || state.player.maxHp)) {
-      if (state.player.hp < state.player.maxHp * 0.3) triggerThought('low_health');
-      else triggerThought('damage');
-    }
-    if (state.player.gold > (prev.gold || 0)) triggerThought('pickup_data');
-    if (state.player.modules.length > (prev.modules || 0)) triggerThought('pickup_module');
-    if ((state.terminalsHacked || 0) > (prev.terminals || 0)) triggerThought('terminal_hack');
-    if (state.path !== 'none' && state.path !== prev.path) triggerThought(state.path);
-    if (state.turn > 0 && state.turn % 20 === 0) triggerThought('ambient');
-
-    state._prevThought = {
-      depth: state.depth, kills: state.player.kills, hp: state.player.hp,
-      gold: state.player.gold, modules: state.player.modules.length,
-      path: state.path, terminals: state.terminalsHacked || 0
-    };
   }
 
   window.Game = {

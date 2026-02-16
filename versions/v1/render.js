@@ -11,14 +11,16 @@
     var H = cfg.canvasHeight;
     var uiY = cfg.rows * ts;
 
-    // Depth palettes: cool blue (1) → amber (3) → crimson (5)
-    var PALETTES = [null,
-      { wCap:'#181d30', wFace:'#252b42', wPanel:'#2e3550', wSide:'#1f2538', wInner:'#10141f', wLine:'#333c55', fA:'#161a28', fB:'#181c2a', fDot:'#1e2335' },
-      { wCap:'#1d1d2e', wFace:'#2d2b3e', wPanel:'#383545', wSide:'#272536', wInner:'#15141e', wLine:'#3e3c50', fA:'#1b1a27', fB:'#1d1c29', fDot:'#252333' },
-      { wCap:'#261d18', wFace:'#3b2b20', wPanel:'#4a3528', wSide:'#30251c', wInner:'#1a1410', wLine:'#4a3c30', fA:'#221a16', fB:'#241c18', fDot:'#2e231e' },
-      { wCap:'#2a1818', wFace:'#3e2222', wPanel:'#4c2b2b', wSide:'#331c1c', wInner:'#1c1010', wLine:'#4c3030', fA:'#261515', fB:'#281717', fDot:'#321e1e' },
-      { wCap:'#301414', wFace:'#451e1e', wPanel:'#552828', wSide:'#3a1818', wInner:'#200e0e', wLine:'#552a2a', fA:'#2a1212', fB:'#2c1414', fDot:'#381a1a' }
-    ];
+    // Sci-fi wall palette
+    var WALL_CAP = '#181d30';
+    var WALL_FACE = '#252b42';
+    var WALL_PANEL = '#2e3550';
+    var WALL_SIDE = '#1f2538';
+    var WALL_INNER = '#10141f';
+    var WALL_LINE = '#333c55';
+    var FLOOR_A = '#161a28';
+    var FLOOR_B = '#181c2a';
+    var FLOOR_DOT = '#1e2335';
 
     function isOpen(map, x, y) {
       if (x < 0 || x >= cfg.cols || y < 0 || y >= cfg.rows) return false;
@@ -51,11 +53,6 @@
       if (!state.map) return;
       var ctx = FA.getCtx();
       var map = state.map;
-      var depth = state.depth || 1;
-      var pal = PALETTES[depth] || PALETTES[1];
-      var WALL_CAP = pal.wCap, WALL_FACE = pal.wFace, WALL_PANEL = pal.wPanel;
-      var WALL_SIDE = pal.wSide, WALL_INNER = pal.wInner, WALL_LINE = pal.wLine;
-      var FLOOR_A = pal.fA, FLOOR_B = pal.fB, FLOOR_DOT = pal.fDot;
 
       for (var y = 0; y < cfg.rows; y++) {
         for (var x = 0; x < cfg.cols; x++) {
@@ -69,11 +66,6 @@
             if ((x + y) % 3 === 0) {
               ctx.fillStyle = FLOOR_DOT;
               ctx.fillRect(px + ts / 2, py + ts / 2, 1, 1);
-            }
-            // Cable traces on deep floors
-            if (depth >= 3 && (x * 7 + y * 3) % 19 === 0) {
-              ctx.fillStyle = WALL_LINE;
-              ctx.fillRect(px, py + ts / 2, ts, 1);
             }
           } else if (tile === 2) {
             // Access down
@@ -154,11 +146,6 @@
             if (!openS && !openN && (openE || openW) && y % 3 === 0) {
               ctx.fillStyle = WALL_LINE;
               ctx.fillRect(px + 2, py + ts / 2, ts - 4, 1);
-            }
-            // Damage marks on deep walls
-            if (depth >= 3 && openS && (x * 11 + y * 7) % 13 === 0) {
-              ctx.fillStyle = depth >= 4 ? '#2a1010' : '#1a1828';
-              ctx.fillRect(px + 3 + (x % 4) * 3, py + ts - 4, 2, 2);
             }
           }
         }
@@ -415,81 +402,6 @@
       FA.draw.text(nm.text, W / 2, 14, { color: nm.color, size: 13, align: 'center', baseline: 'middle' });
       FA.draw.popAlpha();
     }, 25);
-
-    // === DP-7 THOUGHT TERMINAL ===
-    FA.addLayer('terminal', function() {
-      var state = FA.getState();
-      if (state.screen !== 'playing') return;
-      if (!state.thoughts || state.thoughts.length === 0) return;
-      var ctx = FA.getCtx();
-      var tw = 230, tx = W - tw - 8, ty = 34;
-
-      // Collect visible thoughts
-      var visible = [];
-      for (var vi = 0; vi < state.thoughts.length; vi++) {
-        var vt = state.thoughts[vi];
-        if (vt.done && vt.life <= 0) continue;
-        visible.push(vt);
-      }
-      if (visible.length === 0) return;
-
-      var lineH = 18;
-      var th = visible.length * lineH + 22;
-
-      // Terminal background
-      ctx.save();
-      ctx.globalAlpha = 0.75;
-      ctx.fillStyle = '#060a12';
-      ctx.fillRect(tx, ty, tw, th);
-      ctx.restore();
-
-      // Border
-      ctx.save();
-      ctx.globalAlpha = 0.2;
-      ctx.strokeStyle = '#4ef';
-      ctx.lineWidth = 1;
-      ctx.strokeRect(tx + 0.5, ty + 0.5, tw - 1, th - 1);
-      ctx.restore();
-
-      // Header
-      ctx.save();
-      ctx.globalAlpha = 0.25;
-      FA.draw.text('// DP-7', tx + 6, ty + 3, { color: '#4ef', size: 8 });
-      ctx.restore();
-
-      // Thought lines
-      for (var i = 0; i < visible.length; i++) {
-        var thought = visible[i];
-        var chars = thought.done ? thought.text.length : Math.floor(thought.timer / thought.speed);
-        var text = thought.text.substring(0, Math.min(chars, thought.text.length));
-        var isLatest = i === visible.length - 1;
-        var alpha = isLatest ? 0.9 : 0.3;
-        if (thought.done && thought.life < 1500) alpha *= thought.life / 1500;
-
-        ctx.save();
-        ctx.globalAlpha = alpha;
-        FA.draw.text(text, tx + 8, ty + 15 + i * lineH, { color: '#4ef', size: 11 });
-        ctx.restore();
-
-        // Blinking cursor on latest thought
-        if (isLatest && !thought.done && Math.floor(Date.now() / 350) % 2 === 0) {
-          ctx.save();
-          ctx.globalAlpha = 0.6;
-          ctx.fillStyle = '#4ef';
-          ctx.fillRect(tx + 8 + chars * 6.2, ty + 15 + i * lineH, 5, 12);
-          ctx.restore();
-        }
-      }
-
-      // Scan lines
-      ctx.save();
-      ctx.globalAlpha = 0.04;
-      ctx.fillStyle = '#000';
-      for (var sl = ty; sl < ty + th; sl += 2) {
-        ctx.fillRect(tx, sl, tw, 1);
-      }
-      ctx.restore();
-    }, 26);
 
     // === UI PANEL ===
     FA.addLayer('ui', function() {

@@ -76,21 +76,6 @@
         state.cutscene.done = true;
       }
     }
-    // Thought typewriter
-    if (state.thoughts) {
-      for (var ti = state.thoughts.length - 1; ti >= 0; ti--) {
-        var th = state.thoughts[ti];
-        if (!th.done) {
-          th.timer += dt;
-          if (th.timer >= th.text.length * th.speed) th.done = true;
-        } else {
-          th.life -= dt;
-        }
-      }
-      while (state.thoughts.length > 0 && state.thoughts[0].done && state.thoughts[0].life <= 0) {
-        state.thoughts.shift();
-      }
-    }
     // Screen shake decay
     if (state.shake > 0) {
       state.shakeX = (Math.random() - 0.5) * state.shake;

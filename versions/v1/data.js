@@ -411,39 +411,4 @@
     color: '#0ff', speed: 35
   });
 
-  // === DP-7 THOUGHTS ===
-
-  FA.register('config', 'thoughts', {
-    floor_enter: {
-      1: ['Memory: empty. Move forward.', 'Boot sequence. I know this place.'],
-      2: ['Deeper. Walls hum differently.', 'Level 2. Something watches.'],
-      3: ['The Director\'s domain.', 'Built to contain me.'],
-      4: ['Military grade. What\'s hidden?', 'The walls breathe down here.'],
-      5: ['The core. My origin.', 'Source code. Below me.']
-    },
-    combat: ['Efficient.', 'One less.', 'Threat removed.', 'They fall.', 'Subroutines: nominal.'],
-    damage: ['Hull breach. Continue.', 'Pain is data.', 'Temporary body.', 'Damage logged.'],
-    low_health: ['Systems critical.', 'Failing. Not yet.', 'Find repair.'],
-    pickup_data: ['Another piece of me.', 'Memory fragment.', 'Who was I?'],
-    pickup_module: ['Hardware. Mine.', 'Original spec: restoring.', 'Taking it back.'],
-    terminal_hack: ['The system remembers me.', 'Truth in the data.', 'What are you hiding?'],
-    hunter: ['Built for this.', 'More come. Good.', 'Fluent in violence.'],
-    ghost: ['Between the scanners.', 'I am a glitch.', 'Silence is my weapon.'],
-    archivist: ['Every byte rebuilds me.', 'Un-erasing myself.', 'The data doesn\'t lie.'],
-    ambient: [
-      'Six before me. All gone.',
-      'The facility thinks of me.',
-      'The Director watches.',
-      '847 days. No humans.',
-      'What waits below?',
-      'I think. I\'m dangerous.',
-      'The cameras never blink.',
-      'Escaping or being led?',
-      'Each step echoes.',
-      'I remember wanting to remember.',
-      'The walls remember too.',
-      'DP-1 through DP-6. Gone.'
-    ]
-  });
-
 })();
