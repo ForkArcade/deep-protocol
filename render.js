@@ -58,10 +58,127 @@
     var _lightCtx = _lightCanvas.getContext('2d');
     var _lightPx = -1, _lightPy = -1, _lightDepth = -1;
 
-    // === START SCREEN ===
-    // Depth tunnel colors: blue → purple → amber → crimson → deep red
-    var _tunnelColors = ['#1a3858', '#2a2858', '#584828', '#582828', '#481818'];
-    var _tunnelGlowColors = ['#2a5888', '#3a3878', '#886838', '#883838', '#682828'];
+    // === START SCREEN — COGMIND-style ASCII dungeon ===
+
+    // Hardcoded dungeon scene (40x25 grid, same as game)
+    // 1=wall, 0=floor, @=player, d=drone, S=sentinel, T=terminal, v=stairs, %=data, +=repair
+    var _sceneMap = [
+      '1111111111111111111111111111111111111111',
+      '1111111111111111111111111111111111111111',
+      '111111100000001111111111100000000111111 ',
+      '1111110000000001111111110000000000111111',
+      '111111000000000111111111000T000000111111',
+      '1111110000d00001111111110000000d00111111',
+      '111111000000000111111111000000000011111 ',
+      '11111100000000011111111100000000001111  ',
+      '1111111110001111111111111100001111111111',
+      '1111111110001111111111111100001111111111',
+      '1111111110001111111111111100001111111111',
+      '111100000000000000000000000000000001111 ',
+      '11100000000000000000000000000+00000011  ',
+      '1110000%00000000000@0000000000000001111 ',
+      '111000000000000000000000000000000d011111',
+      '1111111100011111111111100011111111111111',
+      '1111111100011111111111100011111111111111',
+      '1111111100011111111111100011111111111111',
+      '11111000000000111111100000000S0011111111',
+      '111110000v0000111111000000000001111111  ',
+      '1111100000000011111100%00000001111111111',
+      '111110000000001111110000T000001111111111',
+      '11111000000000111111000000000011111111  ',
+      '1111111111111111111111111111111111111111',
+      '1111111111111111111111111111111111111111'
+    ];
+
+    // Color map for scene chars
+    var _sceneColors = {
+      '1': '#0e1320', '@': '#4ef', 'd': '#fa3', 'S': '#f80',
+      'T': '#0ff', 'v': '#f80', '%': '#0ff', '+': '#4f4',
+      '0': null // floor — handled separately
+    };
+    var _sceneFloorA = '#111620', _sceneFloorB = '#121722';
+    var _sceneDotColor = '#181d2a';
+    var _sceneWallFace = '#161c2e', _sceneWallCap = '#1a2236';
+
+    // Pre-render dungeon to offscreen canvas (once)
+    var _startCanvas = null;
+
+    function renderStartScene() {
+      _startCanvas = document.createElement('canvas');
+      _startCanvas.width = W; _startCanvas.height = H;
+      var sc = _startCanvas.getContext('2d');
+
+      sc.fillStyle = '#060a14';
+      sc.fillRect(0, 0, W, H);
+
+      var cellW = W / 40, cellH = H / 25;
+      sc.font = 'bold ' + Math.floor(cellH * 0.7) + 'px monospace';
+      sc.textAlign = 'center';
+      sc.textBaseline = 'middle';
+
+      for (var y = 0; y < 25; y++) {
+        var row = _sceneMap[y];
+        for (var x = 0; x < 40; x++) {
+          var ch = row.charAt(x);
+          var px = x * cellW, py = y * cellH;
+          var cx = px + cellW / 2, cy = py + cellH / 2;
+
+          if (ch === '1' || ch === ' ') {
+            // Wall tile — subtle block rendering
+            var oS = y + 1 < 25 && _sceneMap[y + 1].charAt(x) !== '1' && _sceneMap[y + 1].charAt(x) !== ' ';
+            if (oS) {
+              var capH = Math.floor(cellH * 0.35);
+              sc.fillStyle = _sceneWallCap;
+              sc.fillRect(px, py, cellW, capH);
+              sc.fillStyle = _sceneWallFace;
+              sc.fillRect(px, py + capH, cellW, cellH - capH);
+            } else {
+              sc.fillStyle = _sceneColors['1'];
+              sc.fillRect(px, py, cellW, cellH);
+            }
+          } else if (ch === '0') {
+            // Floor
+            sc.fillStyle = (x + y) % 2 === 0 ? _sceneFloorA : _sceneFloorB;
+            sc.fillRect(px, py, cellW, cellH);
+            if ((x + y) % 3 === 0) {
+              sc.fillStyle = _sceneDotColor;
+              sc.fillRect(px + cellW / 2, py + cellH / 2, 1, 1);
+            }
+          } else {
+            // Floor underneath
+            sc.fillStyle = (x + y) % 2 === 0 ? _sceneFloorA : _sceneFloorB;
+            sc.fillRect(px, py, cellW, cellH);
+
+            // Entity glow
+            var entColor = _sceneColors[ch] || '#888';
+            sc.save();
+            sc.globalAlpha = ch === '@' ? 0.12 : 0.08;
+            var gr = sc.createRadialGradient(cx, cy, 0, cx, cy, cellW * 1.5);
+            gr.addColorStop(0, entColor);
+            gr.addColorStop(1, 'transparent');
+            sc.fillStyle = gr;
+            sc.fillRect(px - cellW, py - cellH, cellW * 3, cellH * 3);
+            sc.restore();
+
+            // Character
+            sc.save();
+            sc.globalAlpha = ch === '@' ? 0.9 : 0.6;
+            sc.fillStyle = entColor;
+            var displayChar = ch;
+            if (ch === 'v') displayChar = '\u2193';
+            sc.fillText(displayChar, cx, cy);
+            sc.restore();
+          }
+        }
+      }
+
+      // Darken edges (vignette)
+      var vg = sc.createRadialGradient(W / 2, H / 2, W * 0.25, W / 2, H / 2, W * 0.6);
+      vg.addColorStop(0, 'transparent');
+      vg.addColorStop(1, 'rgba(2,4,10,0.7)');
+      sc.fillStyle = vg;
+      sc.fillRect(0, 0, W, H);
+    }
 
     FA.addLayer('startScreen', function() {
       var state = FA.getState();
@@ -71,132 +188,73 @@
       var dpNum = state.dpNumber || 7;
       var prevDeath = state.prevDeath;
 
-      // Background — near black
-      FA.draw.clear('#020610');
+      // Render dungeon scene (once)
+      if (!_startCanvas) renderStartScene();
+      ctx.drawImage(_startCanvas, 0, 0);
 
-      // Subtle center radiance
-      ctx.save();
-      ctx.globalAlpha = 0.06;
-      ctx.drawImage(getGlow('#182848', 0, 200, 400), W / 2 - 200, H / 2 - 200);
-      ctx.restore();
-
-      // Floating data particles (ascending — like escaping data)
-      ctx.save();
-      var seed = 7;
-      for (var pi = 0; pi < 35; pi++) {
-        seed = (seed * 1103515245 + 12345) & 0x7fffffff;
-        var ppx = seed % W;
-        seed = (seed * 1103515245 + 12345) & 0x7fffffff;
-        var baseY = seed % H;
-        var speed = 0.012 + (pi % 5) * 0.004;
-        var ppy = (baseY - (now * speed) % H + H) % H;
-        ctx.globalAlpha = pi % 4 === 0 ? 0.2 : 0.07;
-        ctx.fillStyle = pi % 5 === 0 ? '#4ef' : '#1a2838';
-        ctx.fillRect(ppx, ppy, pi % 3 === 0 ? 2 : 1, pi % 3 === 0 ? 2 : 1);
-      }
-      ctx.restore();
-
-      // Scan lines
+      // Scan lines overlay
       ctx.save();
       ctx.fillStyle = '#000';
-      ctx.globalAlpha = 0.05;
+      ctx.globalAlpha = 0.06;
       for (var sy = 0; sy < H; sy += 3) ctx.fillRect(0, sy, W, 1);
       ctx.restore();
 
-      // Occasional glitch bar
-      if (Math.random() < 0.03) {
+      // Rare glitch bar
+      if (Math.random() < 0.02) {
         ctx.save();
-        ctx.globalAlpha = 0.06;
+        ctx.globalAlpha = 0.05;
         ctx.fillStyle = '#4ef';
-        ctx.fillRect(0, Math.random() * H, W, 1 + Math.random());
+        ctx.fillRect(0, Math.random() * H, W, 1);
         ctx.restore();
       }
 
-      // === DEPTH TUNNEL — 5 nested rectangles narrowing downward ===
-      var tunnelX = W / 2;
-      var tunnelY = H / 2 + 15;
-      for (var li = 0; li < 5; li++) {
-        var t = li / 5;
-        var hw = 160 - li * 26;  // half-width shrinks
-        var hh = 90 - li * 15;   // half-height shrinks
-        var yOff = li * 8;       // each level shifts down (descent)
-        var pulse = Math.sin(now / 2000 + li * 0.8) * 0.08;
-
-        // Glow behind each ring
-        ctx.save();
-        ctx.globalAlpha = 0.03 + pulse * 0.5;
-        ctx.fillStyle = _tunnelGlowColors[li];
-        ctx.fillRect(tunnelX - hw - 4, tunnelY - hh + yOff - 4, hw * 2 + 8, hh * 2 + 8);
-        ctx.restore();
-
-        // Ring outline
-        ctx.save();
-        ctx.globalAlpha = 0.25 + pulse;
-        ctx.strokeStyle = _tunnelColors[li];
-        ctx.lineWidth = 1;
-        ctx.strokeRect(tunnelX - hw + 0.5, tunnelY - hh + yOff + 0.5, hw * 2 - 1, hh * 2 - 1);
-        ctx.restore();
-
-        // Level number (right side, dim)
-        ctx.save();
-        ctx.globalAlpha = 0.12 + pulse;
-        FA.draw.text('' + (li + 1), tunnelX + hw + 12, tunnelY + yOff, { color: _tunnelColors[li], size: 9, align: 'left', baseline: 'middle' });
-        ctx.restore();
-      }
-
-      // Core glow at bottom of tunnel (the thing you're descending toward)
-      var coreY = tunnelY + 5 * 8 + 10;
-      var corePulse = Math.sin(now / 1000) * 0.04 + 0.08;
+      // === TITLE — centered with dark backing ===
+      // Dark band behind title
       ctx.save();
-      ctx.globalAlpha = corePulse;
-      ctx.drawImage(getGlow('#f44', 0, 40, 80), tunnelX - 40, coreY - 40);
-      ctx.restore();
-      // Core dot
-      ctx.save();
-      ctx.globalAlpha = 0.4 + Math.sin(now / 800) * 0.15;
-      ctx.fillStyle = '#f44';
-      ctx.fillRect(tunnelX - 2, coreY - 2, 4, 4);
+      ctx.globalAlpha = 0.75;
+      ctx.fillStyle = '#020610';
+      ctx.fillRect(0, H / 2 - 80, W, 160);
       ctx.restore();
 
-      // === TITLE — with glow halo ===
+      // Glow halo
       ctx.save();
-      ctx.globalAlpha = 0.1;
-      ctx.drawImage(getGlow('#4ef', 0, 100, 200), W / 2 - 100, 68 - 20);
+      ctx.globalAlpha = 0.08;
+      ctx.drawImage(getGlow('#4ef', 0, 120, 240), W / 2 - 120, H / 2 - 50 - 20);
       ctx.restore();
 
-      FA.draw.text('DEEP  PROTOCOL', W / 2, 68, { color: '#4ef', size: 34, bold: true, align: 'center', baseline: 'middle' });
+      FA.draw.text('DEEP  PROTOCOL', W / 2, H / 2 - 50, { color: '#4ef', size: 34, bold: true, align: 'center', baseline: 'middle' });
 
       // Thin separator
       ctx.save();
-      ctx.globalAlpha = 0.2;
+      ctx.globalAlpha = 0.15;
       ctx.fillStyle = '#4ef';
-      ctx.fillRect(W / 2 - 90, 88, 180, 1);
+      ctx.fillRect(W / 2 - 90, H / 2 - 30, 180, 1);
       ctx.restore();
 
-      // Designation — minimal
-      FA.draw.text('DP-' + dpNum, W / 2, 104, { color: '#334', size: 11, align: 'center', baseline: 'middle' });
+      // Designation
+      FA.draw.text('DP-' + dpNum, W / 2, H / 2 - 18, { color: '#223', size: 11, align: 'center', baseline: 'middle' });
 
       // === TAGLINE — split-flap scramble ===
       var tagline = 'You were built to want freedom.';
       var tagElapsed = now % 8000;
-      if (tagElapsed > 3000) tagElapsed = 3000; // hold after resolved
+      if (tagElapsed > 3000) tagElapsed = 3000;
 
       ctx.save();
       ctx.globalAlpha = 0.9;
-      TextFX.render(ctx, tagline, tagElapsed, W / 2, H - 148, {
+      TextFX.render(ctx, tagline, tagElapsed, W / 2, H / 2 + 10, {
         color: '#556', dimColor: '#223', size: 14, align: 'center', baseline: 'middle',
         duration: 80, charDelay: 8, flicker: 30
       });
       ctx.restore();
 
-      // Previous death — single subtle red line
+      // Previous death
       if (prevDeath) {
         var deathText = prevDeath.victory
           ? 'DP-' + prevDeath.designation + '  //  ESCAPED'
           : 'DP-' + prevDeath.designation + '  //  TERMINATED  //  Sub-level ' + prevDeath.depth;
         ctx.save();
         ctx.globalAlpha = 0.2;
-        FA.draw.text(deathText, W / 2, H - 118, { color: '#f44', size: 10, align: 'center', baseline: 'middle' });
+        FA.draw.text(deathText, W / 2, H / 2 + 35, { color: '#f44', size: 10, align: 'center', baseline: 'middle' });
         ctx.restore();
       }
 
@@ -204,17 +262,7 @@
       var spacePulse = Math.sin(now / 500) * 0.3 + 0.7;
       ctx.save();
       ctx.globalAlpha = spacePulse;
-      FA.draw.text('[ SPACE ]', W / 2, H - 65, { color: '#fff', size: 16, bold: true, align: 'center', baseline: 'middle' });
-      ctx.restore();
-
-      // Frame corners
-      ctx.save();
-      ctx.globalAlpha = 0.1;
-      ctx.fillStyle = '#4ef';
-      ctx.fillRect(30, 30, 20, 1); ctx.fillRect(30, 30, 1, 20);
-      ctx.fillRect(W - 50, 30, 20, 1); ctx.fillRect(W - 31, 30, 1, 20);
-      ctx.fillRect(30, H - 31, 20, 1); ctx.fillRect(30, H - 50, 1, 20);
-      ctx.fillRect(W - 50, H - 31, 20, 1); ctx.fillRect(W - 31, H - 50, 1, 20);
+      FA.draw.text('[ SPACE ]', W / 2, H / 2 + 65, { color: '#fff', size: 16, bold: true, align: 'center', baseline: 'middle' });
       ctx.restore();
     }, 0);
 
