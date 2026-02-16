@@ -217,7 +217,8 @@
         terminalPos: def.terminalPos, gardenPos: def.gardenPos,
         schedule: def.schedule, appearsDay: def.appearsDay,
         systemDialogue: def.systemDialogue, met: false,
-        goal: 'home', talkedToday: false
+        goal: 'home', talkedToday: false,
+        wantsToTalk: true, followTurns: 0
       });
     }
     return npcs;
@@ -288,10 +289,8 @@
     }
     var period = getTimePeriod(state.timeOfDay);
     var dist = state.owPlayer ? Math.abs(npc.x - state.owPlayer.x) + Math.abs(npc.y - state.owPlayer.y) : 99;
-    var hasDialogue = !npc.talkedToday;
-
-    // Priority: approach player if they have undelivered dialogue and player is nearby
-    if (hasDialogue && dist < 8) { npc.goal = 'player'; return; }
+    // Priority: approach player if NPC wants to talk and player is nearby
+    if (npc.wantsToTalk && !npc.talkedToday && dist < 8) { npc.goal = 'player'; return; }
 
     // NPC-specific personality
     switch (npc.id) {
@@ -323,6 +322,18 @@
     if (npc.x < 0 || npc.y < 0) return;
     if (state.day < npc.appearsDay) return;
 
+    // Follow player for max 3 turns, then give up
+    if (npc.goal === 'player') {
+      npc.followTurns = (npc.followTurns || 0) + 1;
+      if (npc.followTurns > 3) {
+        npc.wantsToTalk = false;
+        npc.followTurns = 0;
+        selectNPCGoal(npc, state);
+      }
+    } else {
+      npc.followTurns = 0;
+    }
+
     var goalPos = resolveNPCGoalPos(npc, state);
     // If at goal, pick a new one
     if (goalPos && npc.x === goalPos.x && npc.y === goalPos.y) {
@@ -338,9 +349,37 @@
     }
   }
 
+  function talkToNPC(npc, state) {
+    npc.met = true;
+    npc.talkedToday = true;
+    npc.wantsToTalk = false;
+    npc.followTurns = 0;
+    var text = selectDialogue(npc.id) || '...';
+    addSystemBubble(npc.name + ': "' + text + '"', npc.color);
+    if (FA.narrative && FA.narrative.setVar) {
+      FA.narrative.setVar(npc.id + '_met_today', true, 'Met ' + npc.name);
+      var prev = FA.narrative.getVar(npc.id + '_interactions') || 0;
+      FA.narrative.setVar(npc.id + '_interactions', prev + 1, 'Talked to ' + npc.name);
+    }
+    selectNPCGoal(npc, state);
+  }
+
   function npcOverworldTurn(state) {
     for (var i = 0; i < state.npcs.length; i++) {
       npcOverworldStep(state.npcs[i], state);
+    }
+    // NPC auto-initiates dialogue when adjacent to player
+    if (state.owPlayer) {
+      for (var j = 0; j < state.npcs.length; j++) {
+        var npc = state.npcs[j];
+        if (state.day < npc.appearsDay) continue;
+        if (!npc.wantsToTalk || npc.talkedToday) continue;
+        var dist = Math.abs(npc.x - state.owPlayer.x) + Math.abs(npc.y - state.owPlayer.y);
+        if (dist === 1) {
+          talkToNPC(npc, state);
+          break;
+        }
+      }
     }
   }
 
@@ -432,6 +471,32 @@
       }
     });
 
+    // When narrative graph transitions, NPCs may want to talk
+    FA.on('narrative:transition', function(data) {
+      var s = FA.getState();
+      if (!s.npcs || s.screen !== 'overworld') return;
+      if (data.graph === 'arc') {
+        // Arc transition — all present NPCs react
+        for (var i = 0; i < s.npcs.length; i++) {
+          if (s.day >= s.npcs[i].appearsDay && !s.npcs[i].talkedToday) {
+            s.npcs[i].wantsToTalk = true;
+            s.npcs[i].followTurns = 0;
+            selectNPCGoal(s.npcs[i], s);
+          }
+        }
+      } else if (data.graph.indexOf('quest_') === 0) {
+        // Quest transition — only that NPC reacts
+        var npcId = data.graph.replace('quest_', '');
+        for (var j = 0; j < s.npcs.length; j++) {
+          if (s.npcs[j].id === npcId && !s.npcs[j].talkedToday) {
+            s.npcs[j].wantsToTalk = true;
+            s.npcs[j].followTurns = 0;
+            selectNPCGoal(s.npcs[j], s);
+          }
+        }
+      }
+    });
+
     updateNPCPositions(FA.getState());
     var wakeCs = FA.lookup('cutscenes', 'wake');
     if (wakeCs) startCutscene(wakeCs, FA.getState());
@@ -491,19 +556,10 @@
       return;
     }
 
-    // Adjacent NPC
+    // Adjacent NPC — player-initiated (costs time, can reveal system)
     var npc = getAdjacentNPC(state, state.owPlayer.x, state.owPlayer.y);
     if (npc) {
-      npc.met = true;
-      npc.talkedToday = true;
-      var text = selectDialogue(npc.id) || '...';
-      addSystemBubble(npc.name + ': "' + text + '"', npc.color);
-      // Narrative tracking
-      if (FA.narrative && FA.narrative.setVar) {
-        FA.narrative.setVar(npc.id + '_met_today', true, 'Met ' + npc.name);
-        var prev = FA.narrative.getVar(npc.id + '_interactions') || 0;
-        FA.narrative.setVar(npc.id + '_interactions', prev + 1, 'Talked to ' + npc.name);
-      }
+      talkToNPC(npc, state);
       var econCfg = FA.lookup('config', 'economy');
       if (state.day >= econCfg.systemRevealDay && !state.systemRevealed) {
         if (npc.id === 'victor' || npc.id === 'lena') {
@@ -512,8 +568,6 @@
           if (FA.narrative && FA.narrative.setVar) FA.narrative.setVar('system_revealed', true, 'System revealed');
         }
       }
-      // NPC re-evaluates goal after being talked to
-      selectNPCGoal(npc, state);
       state.timeOfDay += 2;
       state.turn += 2;
       checkTimeWarnings(state);
@@ -562,6 +616,8 @@
     // Reset NPC daily state
     for (var ni = 0; ni < state.npcs.length; ni++) {
       state.npcs[ni].talkedToday = false;
+      state.npcs[ni].wantsToTalk = true;
+      state.npcs[ni].followTurns = 0;
     }
     // Narrative day tracking
     if (FA.narrative && FA.narrative.setVar) {
