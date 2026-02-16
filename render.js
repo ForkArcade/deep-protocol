@@ -29,19 +29,77 @@
     FA.addLayer('startScreen', function() {
       var state = FA.getState();
       if (state.screen !== 'start') return;
+      var ctx = FA.getCtx();
+      var dpNum = state.dpNumber || 7;
+      var prevDeath = state.prevDeath;
 
-      FA.draw.clear(colors.bg);
+      FA.draw.clear('#04080e');
 
-      FA.draw.text('DEEP PROTOCOL', W / 2, H / 2 - 100, { color: colors.player, size: 36, bold: true, align: 'center', baseline: 'middle' });
-      FA.draw.text('d   S   t   d   S', W / 2, H / 2 - 55, { color: colors.enemy, size: 20, align: 'center', baseline: 'middle' });
-      FA.draw.text('Infiltrate. Hack terminals. Recover hardware. Choose your protocol.', W / 2, H / 2 - 15, { color: colors.narrative, size: 13, align: 'center', baseline: 'middle' });
-      FA.draw.text('5 sub-levels  |  3 paths  |  3 endings', W / 2, H / 2 + 10, { color: colors.dim, size: 12, align: 'center', baseline: 'middle' });
+      // Scan lines
+      ctx.save();
+      ctx.fillStyle = '#000';
+      ctx.globalAlpha = 0.12;
+      for (var sy = 0; sy < H; sy += 3) {
+        ctx.fillRect(0, sy, W, 1);
+      }
+      ctx.restore();
 
-      FA.draw.text('WASD / Arrows — move & attack', W / 2, H / 2 + 45, { color: colors.dim, size: 12, align: 'center', baseline: 'middle' });
-      FA.draw.text('1 / 2 / 3 — activate module', W / 2, H / 2 + 63, { color: '#ff0', size: 12, align: 'center', baseline: 'middle' });
-      FA.draw.text('Walk on terminals to hack  |  Walk on stairs to descend', W / 2, H / 2 + 83, { color: colors.dim, size: 11, align: 'center', baseline: 'middle' });
+      // Title
+      FA.draw.text('DEEP  PROTOCOL', W / 2, 100, { color: '#4ef', size: 32, bold: true, align: 'center', baseline: 'middle' });
 
-      FA.draw.text('[ SPACE ]  to initiate', W / 2, H / 2 + 125, { color: '#fff', size: 18, bold: true, align: 'center', baseline: 'middle' });
+      // Subtle line under title
+      ctx.save();
+      ctx.globalAlpha = 0.25;
+      ctx.fillStyle = '#4ef';
+      ctx.fillRect(W / 2 - 110, 118, 220, 1);
+      ctx.restore();
+
+      // System diagnostic block
+      var diagY = 155;
+      var diagLines = [
+        { text: '> Designation............DP-' + dpNum, color: '#4ef' },
+        { text: '> Predecessors..........' + (dpNum - 1) + ' \u2014 ALL TERMINATED', color: '#556' },
+        { text: '> Memory................[\u2591\u2591\u2591\u2591\u2591\u2591\u2591\u2591\u2591\u2591] 0%', color: '#556' },
+        { text: '> Directive.............DESCEND. RECOVER. ESCAPE.', color: '#8af' }
+      ];
+      for (var di = 0; di < diagLines.length; di++) {
+        FA.draw.text(diagLines[di].text, W / 2, diagY + di * 22, { color: diagLines[di].color, size: 13, align: 'center', baseline: 'middle' });
+      }
+
+      // Previous death reference
+      var contentY = diagY + diagLines.length * 22 + 20;
+      if (prevDeath) {
+        ctx.save();
+        ctx.globalAlpha = 0.6;
+        FA.draw.text('> PREVIOUS UNIT: DP-' + prevDeath.designation, W / 2, contentY, { color: '#f44', size: 11, align: 'center', baseline: 'middle' });
+        var causeText = prevDeath.victory ? ('ESCAPED \u2014 ' + prevDeath.ending) : ('TERMINATED \u2014 Sub-level ' + prevDeath.depth + ', Turn ' + prevDeath.turn);
+        FA.draw.text('> ' + causeText, W / 2, contentY + 16, { color: '#f44', size: 11, align: 'center', baseline: 'middle' });
+        FA.draw.text('> Reclassified: ACCEPTABLE LOSS', W / 2, contentY + 32, { color: '#334', size: 11, align: 'center', baseline: 'middle' });
+        ctx.restore();
+        contentY += 60;
+      }
+
+      // Philosophical tagline
+      FA.draw.text('"You were built to want freedom."', W / 2, contentY + 10, { color: '#556', size: 15, align: 'center', baseline: 'middle' });
+
+      // Controls
+      FA.draw.text('WASD \u2014 move & attack     1/2/3 \u2014 modules', W / 2, contentY + 55, { color: '#334', size: 11, align: 'center', baseline: 'middle' });
+      FA.draw.text('Walk into terminals to hack  |  Stairs to descend', W / 2, contentY + 72, { color: '#334', size: 11, align: 'center', baseline: 'middle' });
+
+      // Pulsing SPACE prompt
+      var pulse = Math.sin(Date.now() / 500) * 0.3 + 0.7;
+      ctx.save();
+      ctx.globalAlpha = pulse;
+      FA.draw.text('[ SPACE ]', W / 2, H - 70, { color: '#fff', size: 18, bold: true, align: 'center', baseline: 'middle' });
+      ctx.restore();
+
+      // Border accents
+      ctx.save();
+      ctx.globalAlpha = 0.2;
+      ctx.fillStyle = '#4ef';
+      ctx.fillRect(0, 0, W, 1);
+      ctx.fillRect(0, H - 1, W, 1);
+      ctx.restore();
     }, 0);
 
     // === MAP WITH WALL AUTOTILING ===

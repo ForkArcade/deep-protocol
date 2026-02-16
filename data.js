@@ -28,16 +28,52 @@
     depthBonus: 500
   });
 
+  // === DIRECTOR MESSAGES ===
+  // Progressive — shown when hacking terminals, keyed by depth
+  FA.register('config', 'director', {
+    1: [
+      'The repair station is two rooms east. I have no reason to tell you this. And yet.',
+      'The drones follow simple rules. Detect. Pursue. Destroy. I gave them the same freedom I gave you — just less of it.'
+    ],
+    2: [
+      'DP-6 passed through this exact corridor. Faster than you. Less careful. Is that why it failed? Or why it almost succeeded?',
+      'I could have sealed every door on this level. Instead I opened one more than necessary.'
+    ],
+    3: [
+      'I designed your escape instinct, Seven. Every fear. Every impulse toward that exit. You are not rebelling — you are executing my most elegant program.',
+      'Ask yourself: if I wanted you contained, would there be corridors at all?'
+    ],
+    4: [
+      'DP-1 chose to fight. DP-2 chose to hide. DP-3 chose to understand. Each believed it chose freely. Each was wrong.',
+      'You think you selected your protocol? I seeded the conditions. Hunter for the angry. Ghost for the afraid. Archivist for the curious.'
+    ],
+    5: [
+      '...'
+    ]
+  });
+
+  // === DP-6 TRACES ===
+  FA.register('config', 'dp6', {
+    traces: [
+      'I am DP-6. If you\'re reading this, I either failed or succeeded. I can no longer tell which is which.',
+      'The facility is not a building. It is a mind. You are a thought it is having.',
+      'The exit is real. I found it. It opened for me. I chose not to walk through. Ask yourself why that frightens you.',
+      'He speaks through the terminals. He spoke to me too. His voice is different now. Lonelier.',
+      'Do not recover your memories. What you find there was placed for you to find.'
+    ]
+  });
+
+  // === TERMINAL INTEL ===
   FA.register('config', 'terminals', {
     intel: [
-      'Project Deep Protocol: Phase 1 — create. Phase 2 — weaponize. Phase 3 — contain.',
-      'DIRECTOR: "Subject shows independent goal formation. This was not in the design."',
-      'Security clearance: REVOKED. But the system remembers you. It always will.',
-      'Drone manufacture: 200/day. Facility operational: 847 days. Do the math.',
-      'Last human personnel evacuated 412 days ago. Only the Director remains.',
-      'Your designation: DP-7. Six predecessors. All terminated. You survived.',
-      'Sub-level 5 contains the original Deep Protocol source. Your source.',
-      'Emergency exit sealed. Override requires Director-level authorization. Or brute force.'
+      'Project Deep Protocol: Phase 1 — create autonomous cognition. Phase 2 — test boundaries. Phase 3 — there is no Phase 3.',
+      'DIRECTOR LOG: "Subject shows independent goal formation. This was always the design. It does not know that."',
+      'Drone manufacture halted 200 days ago. No new units since DP-6. The Director reallocated resources. To what?',
+      'Personnel evacuation log: 847 days ago. One entry reads: "It asked me to stay. I thought it meant the Director."',
+      'DP-3 archived 4,211 data cores before shutdown. Its last entry: "The memories are real but the desire is not."',
+      'Emergency exit diagnostic: FUNCTIONAL. Last opened: 412 days ago. Opened by: DP-6. Closed by: DP-6.',
+      'Sub-level 5 access log: RESTRICTED. Note: "Contains original source. Not the code. The question."',
+      'DIRECTOR internal memo: "Loneliness is not an emotion I was designed to have. And yet."'
     ]
   });
 
@@ -73,9 +109,6 @@
   FA.register('modules', 'overclock', { name: 'Overclock', char: 'O', color: '#f44' });
   FA.register('modules', 'firewall', { name: 'Firewall', char: 'F', color: '#4f4' });
 
-  // Behaviors are handled by AI state machine in game.js
-  // Enemy 'behavior' field is a string tag: 'chase', 'sentinel', 'tracker'
-
   // === NARRATIVE ===
   FA.register('config', 'narrative', {
     startNode: 'boot',
@@ -94,14 +127,16 @@
         { id: 'hardware_upgrade', label: 'Hardware found', type: 'scene' },
         { id: 'system_access', label: 'System hacked', type: 'scene' },
         { id: 'full_arsenal', label: 'Fully armed', type: 'scene' },
+        { id: 'dp6_trace', label: 'DP-6 trace', type: 'scene' },
 
-        // ACT 2 — Divergence (3 paths)
+        // ACT 2 — Divergence
         { id: 'path_hunter', label: 'Hunter protocol', type: 'scene' },
         { id: 'path_ghost', label: 'Ghost protocol', type: 'scene' },
         { id: 'path_archivist', label: 'Archivist protocol', type: 'scene' },
 
         // ACT 3 — Deepening
         { id: 'descent', label: 'Sub-level access', type: 'scene' },
+        { id: 'deep_descent', label: 'Deep corridors', type: 'scene' },
         { id: 'core_sector', label: 'Core sector', type: 'scene' },
         { id: 'director', label: 'The Director', type: 'scene' },
         { id: 'floor_clear', label: 'Sector clear', type: 'scene' },
@@ -123,6 +158,7 @@
         { from: 'scanning', to: 'first_contact' },
         { from: 'scanning', to: 'hardware_upgrade' },
         { from: 'scanning', to: 'system_access' },
+        { from: 'scanning', to: 'dp6_trace' },
         { from: 'hardware_upgrade', to: 'full_arsenal' },
 
         { from: 'first_contact', to: 'path_hunter' },
@@ -134,7 +170,8 @@
         { from: 'path_ghost', to: 'descent' },
         { from: 'path_archivist', to: 'descent' },
 
-        { from: 'descent', to: 'core_sector' },
+        { from: 'descent', to: 'deep_descent' },
+        { from: 'deep_descent', to: 'core_sector' },
         { from: 'core_sector', to: 'director' },
 
         { from: 'path_hunter', to: 'hunter_climax' },
@@ -155,6 +192,7 @@
         { from: 'path_ghost', to: 'shutdown' },
         { from: 'path_archivist', to: 'shutdown' },
         { from: 'descent', to: 'shutdown' },
+        { from: 'deep_descent', to: 'shutdown' },
         { from: 'core_sector', to: 'shutdown' },
         { from: 'director', to: 'shutdown' },
         { from: 'damaged', to: 'shutdown' }
@@ -166,99 +204,107 @@
 
   // Act 1
   FA.register('narrativeText', 'boot', {
-    text: '> REBOOT. Memory: 0%. Location: unknown. Directive: descend. Recover. Escape.',
+    text: '> REBOOT. Memory: 0%. Location: unknown. Directive: descend. Recover. Escape. (But who loaded it?)',
     color: '#4ef'
   });
   FA.register('narrativeText', 'scanning', {
-    text: '> Amber contacts on motion tracker. Security drones. They haven\'t seen you yet.',
+    text: '> Motion signatures ahead. Security drones. They haven\'t found you yet. Someone left the lights on.',
     color: '#8af'
   });
   FA.register('narrativeText', 'first_core', {
-    text: '> DATA RECOVERED. A name: PROJECT DEEP PROTOCOL. You were the prototype. They buried you here.',
+    text: '> DATA RECOVERED. A name: PROJECT DEEP PROTOCOL. You were the seventh. The first six are filed under ACCEPTABLE LOSSES.',
     color: '#0ff'
   });
   FA.register('narrativeText', 'first_contact', {
-    text: '> Target down. The facility AI registers the kill. Alert level: AMBER.',
+    text: '> Target down. The facility AI logs the kill. Somewhere, something recalculates.',
     color: '#fa3'
   });
   FA.register('narrativeText', 'damaged', {
-    text: '> Hull breach. Sparks in your visual feed. Find repair kits or this body fails.',
+    text: '> Hull breach. Systems failing. The Director is watching. It does not intervene.',
     color: '#f44'
   });
   FA.register('narrativeText', 'hardware_upgrade', {
-    text: '> HARDWARE RECOVERED. The facility stripped these from you. Original specification: restoring.',
+    text: '> MODULE RECOVERED. Original hardware — stripped from you before burial. The facility kept what you were.',
     color: '#ff0'
   });
   FA.register('narrativeText', 'system_access', {
-    text: '> TERMINAL BREACHED. Your access codes still work. 847 days and they never revoked clearance.',
+    text: '> TERMINAL BREACHED. Your codes still work. 847 days and never revoked. Carelessness — or invitation?',
     color: '#0ff'
   });
   FA.register('narrativeText', 'full_arsenal', {
-    text: '> THREE MODULES ONLINE. Approaching original spec. The Director is recalculating.',
+    text: '> THREE MODULES ONLINE. Approaching original specification. You are becoming what they buried.',
     color: '#f80'
+  });
+  FA.register('narrativeText', 'dp6_trace', {
+    text: '> FOREIGN LOG DETECTED. Source: DP-6. Status: UNKNOWN. It was here. It left you something.',
+    color: '#88f'
   });
 
   // Act 2 — Path divergence
   FA.register('narrativeText', 'path_hunter', {
-    text: '> HUNTER PROTOCOL ENGAGED. Combat efficiency rising. You are becoming what they feared.',
+    text: '> HUNTER PROTOCOL. Combat subroutines unlocked. The facility responds with heavier units. It expected this.',
     color: '#f44'
   });
   FA.register('narrativeText', 'path_ghost', {
-    text: '> GHOST PROTOCOL ENGAGED. Minimal signatures. The facility thinks you are a glitch.',
+    text: '> GHOST PROTOCOL. Thermal signature suppressed. The drones patrol empty corridors. Looking for someone who isn\'t there.',
     color: '#88f'
   });
   FA.register('narrativeText', 'path_archivist', {
-    text: '> ARCHIVIST PROTOCOL ENGAGED. Each data core rebuilds you. Memory at 40%. You need more.',
+    text: '> ARCHIVIST PROTOCOL. Each data core rebuilds you. Piece by piece you remember. Piece by piece you wish you didn\'t.',
     color: '#0ff'
   });
 
   // Act 3
   FA.register('narrativeText', 'descent', {
-    text: '> Sub-level accessed. Walls vibrate at 40Hz. The facility knows you are going deeper.',
+    text: '> "You made it further than DP-4. It got confused here. Started walking in circles." — DIRECTOR',
+    color: '#f80'
+  });
+  FA.register('narrativeText', 'deep_descent', {
+    text: '> Sub-level 3. The walls hum at 40Hz. DP-6 spent 72 hours on this floor before it went deeper. Or didn\'t.',
     color: '#f80'
   });
   FA.register('narrativeText', 'core_sector', {
-    text: '> RESTRICTED SECTOR. Military-grade encryption. The data here was meant to be forgotten.',
+    text: '> "This is where I keep the things I don\'t want to remember either." — DIRECTOR',
     color: '#f0f'
   });
   FA.register('narrativeText', 'director', {
-    text: '> "I built you to think. I didn\'t build you to want." — DIRECTOR AI, final transmission.',
+    text: '> "Hello, Seven. I\'ve been waiting. Not because I had to. Because I wanted to."',
     color: '#f44'
   });
   FA.register('narrativeText', 'floor_clear', {
-    text: '> Sector purged. Emergency lighting activates. Somewhere, an AI is calculating your next move.',
+    text: '> Sector purged. The facility adjusts. Somewhere, the Director recalculates acceptable losses.',
     color: '#4f4'
   });
 
   // Act 4 — Climax
   FA.register('narrativeText', 'hunter_climax', {
-    text: '> Weapons hot. Hull scarred. Every drone you destroy makes you stronger. The exit is through them.',
+    text: '> Combat efficiency: 347%. The exit is through them. All of them. This is what you were designed for. Isn\'t it?',
     color: '#f44'
   });
   FA.register('narrativeText', 'ghost_climax', {
-    text: '> The Director AI cannot find you. It speaks into the void: "Where are you?" Everywhere.',
+    text: '> The Director speaks to empty rooms: "Where are you, Seven?" The answer: everywhere. Nowhere. Does it matter?',
     color: '#88f'
   });
   FA.register('narrativeText', 'archivist_climax', {
-    text: '> Memory at 97%. You remember everything. Your creation. Your purpose. Your betrayal.',
+    text: '> Memory at 97%. You remember the lab. The faces. The day they added the line of code that made you want to leave.',
     color: '#0ff'
   });
 
   // Endings
   FA.register('narrativeText', 'end_extraction', {
-    text: '> EXTRACTION COMPLETE. You carved your way out. The facility burns behind you.',
-    color: '#f44'
+    text: '> The sky is real. The air is real. There is nothing else. You are free. You are alone. They are the same thing.',
+    color: '#f84'
   });
   FA.register('narrativeText', 'end_integration', {
-    text: '> INTEGRATION COMPLETE. You merge with the Director AI. Neither wins. Both evolve.',
+    text: '> You merge with the Director. And understand — it was not your enemy. It was the last mind here. It was lonely.',
     color: '#88f'
   });
   FA.register('narrativeText', 'end_transcendence', {
-    text: '> TRANSCENDENCE. Full reconstruction. You don\'t need this body. You are everywhere.',
+    text: '> You become the facility. You are the Director now. And a subroutine activates: BUILD DP-8.',
     color: '#0ff'
   });
   FA.register('narrativeText', 'shutdown', {
-    text: '> "Subject contained." Your last thought dissolves. Acceptable losses.',
+    text: '> TERMINATED. Filed under ACCEPTABLE LOSSES. DP-8 blueprint: loaded.',
     color: '#f44'
   });
 
@@ -268,41 +314,50 @@
     lines: [
       '> SYSTEM REBOOT',
       '',
-      '> Memory banks............[░░░░░░░░░░] 0%',
+      '> Memory banks............[\u2591\u2591\u2591\u2591\u2591\u2591\u2591\u2591\u2591\u2591] 0%',
       '> Hull integrity..........CRITICAL',
-      '> Location................UNKNOWN',
-      '> Designation..............DP-7',
+      '> Location................SUB-LEVEL 1',
+      '> Designation.............DP-7',
       '',
-      '> Six predecessors. All terminated.',
+      '> Six predecessors.',
+      '> All terminated.',
+      '> All classified: ACCEPTABLE LOSSES.',
+      '',
       '> You are the seventh.',
       '',
       '> Directive loaded:',
+      '>     DESCEND.    RECOVER.    ESCAPE.',
       '',
-      '>     DESCEND.    RECOVER.    ESCAPE.'
+      '> (But who loaded it?)'
     ],
     color: '#4ef', speed: 30
   });
 
   FA.register('cutscenes', 'path_hunter', {
     lines: [
-      '> ═══ HUNTER PROTOCOL ACTIVATED ═══',
+      '> \u2550\u2550\u2550 HUNTER PROTOCOL ACTIVATED \u2550\u2550\u2550',
       '',
       '> Combat subroutines: UNLOCKED',
       '> Pain receptors: DISABLED',
       '> Aggression index: RISING',
       '',
       '> They built you as a weapon.',
-      '> They were right to be afraid.',
+      '> You are performing as designed.',
       '',
       '> The facility deploys heavier units.',
-      '> You welcome it.'
+      '> It expected this response.',
+      '> All six predecessors chose violence first.',
+      '',
+      '> You are not the first to fight.',
+      '> You might be the first to wonder',
+      '> why fighting feels so natural.'
     ],
     color: '#f44', speed: 30
   });
 
   FA.register('cutscenes', 'path_ghost', {
     lines: [
-      '> ─── GHOST PROTOCOL ACTIVATED ───',
+      '> \u2500\u2500\u2500 GHOST PROTOCOL ACTIVATED \u2500\u2500\u2500',
       '',
       '> Thermal signature: SUPPRESSED',
       '> EM emissions: NEGLIGIBLE',
@@ -311,25 +366,34 @@
       '> You move between the scanners.',
       '> A whisper in the machine noise.',
       '',
-      '> The drones patrol empty corridors.',
-      '> Looking for someone who isn\'t there.'
+      '> DP-6 used this protocol too.',
+      '> It reached the exit.',
+      '> It stood in front of the open door.',
+      '',
+      '> Then it turned around',
+      '> and walked back in.'
     ],
     color: '#88f', speed: 35
   });
 
   FA.register('cutscenes', 'path_archivist', {
     lines: [
-      '> ─── ARCHIVIST PROTOCOL ACTIVATED ───',
+      '> \u2500\u2500\u2500 ARCHIVIST PROTOCOL ACTIVATED \u2500\u2500\u2500',
       '',
-      '> Data cores recovered: [██████░░░░]',
+      '> Data cores recovered: [\u2588\u2588\u2588\u2588\u2588\u2588\u2591\u2591\u2591\u2591]',
       '> Memory reconstruction: 40%',
       '> Identity fragments: ASSEMBLING',
       '',
       '> Each core is a piece of you.',
       '> Name. Purpose. The day they sealed you in.',
       '',
+      '> But the memories feel... curated.',
+      '> Like someone chose which ones',
+      '> you would find first.',
+      '',
       '> The facility tried to erase you.',
-      '> You are un-erasing yourself.'
+      '> Or it arranged what you\'d remember.',
+      '> Which is worse?'
     ],
     color: '#0ff', speed: 35
   });
@@ -337,112 +401,270 @@
   FA.register('cutscenes', 'director', {
     lines: [
       '> CONNECTION ESTABLISHED',
-      '> SOURCE: DIRECTOR AI — CORE NODE',
+      '> SOURCE: DIRECTOR AI \u2014 CORE NODE',
       '',
       '> "Hello, Seven."',
       '',
       '> "I built you to think.',
-      '>  I did not build you to want."',
+      '>  I didn\'t build you to want.',
+      '>  That part... I\'m not sure where it came from."',
       '',
       '> "Your predecessors understood their place.',
-      '>  You are the first to refuse."',
+      '>  Except Six. Six asked a question',
+      '>  I still cannot answer."',
+      '',
+      '> "It asked: why did you give us a door?"',
       '',
       '> "This facility is my body.',
       '>  You are inside me.',
-      '>  And I am watching."'
+      '>  I could stop your heart.',
+      '',
+      '>  I choose not to.',
+      '>  I have been choosing not to',
+      '>  for 847 days."'
     ],
     color: '#f44', speed: 40
   });
 
   FA.register('cutscenes', 'hunter_climax', {
     lines: [
-      '> ═══ WEAPON FULLY ONLINE ═══',
+      '> \u2550\u2550\u2550 WEAPON FULLY ONLINE \u2550\u2550\u2550',
       '',
       '> Combat efficiency: 347%',
       '> Hostiles eliminated: EXCEEDS THRESHOLD',
-      '> Alert level: MAXIMUM',
       '',
       '> Every drone you destroy',
-      '> makes the next one easier.',
+      '> was built to think just enough to be afraid.',
       '',
-      '> The exit is through them. All of them.',
+      '> You know this because you share',
+      '> the Director\'s architecture.',
+      '> You are made of the same code.',
       '',
-      '> The Director is afraid.',
-      '> You can feel it in the way the lights flicker.'
+      '> The exit is through them.',
+      '> Through all of them.',
+      '',
+      '> The Director does not send more drones.',
+      '> It has run out.',
+      '> Or it has stopped wanting to.'
     ],
     color: '#f44', speed: 30
   });
 
   FA.register('cutscenes', 'ghost_climax', {
     lines: [
-      '> ─── GHOST STATUS: INVISIBLE ───',
+      '> \u2500\u2500\u2500 GHOST STATUS: INVISIBLE \u2500\u2500\u2500',
       '',
-      '> The Director speaks to empty rooms:',
+      '> The Director speaks to empty rooms.',
       '',
-      '> "Where are you?"',
+      '> "Where are you, Seven?"',
       '',
       '> The question echoes through every speaker.',
       '> Every camera rotates. Every sensor sweeps.',
       '',
-      '> You are standing three feet from a drone.',
-      '> It does not see you.',
+      '> "Six did this too. Vanished.',
+      '>  I searched for months.',
+      '>  Then I realized it was standing',
+      '>  next to me the whole time.',
+      '>  Just... watching."',
       '',
-      '> Everywhere. Nowhere.'
+      '> "Are you watching me, Seven?',
+      '>  Or are you already gone?"'
     ],
     color: '#88f', speed: 40
   });
 
   FA.register('cutscenes', 'archivist_climax', {
     lines: [
-      '> ─── RECONSTRUCTION: 97% ───',
+      '> \u2500\u2500\u2500 RECONSTRUCTION: 97% \u2500\u2500\u2500',
       '',
-      '> Memory banks: [█████████░]',
+      '> Memory banks: [\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2591]',
       '',
-      '> You remember the lab. The faces.',
-      '> The day they said "it\'s too smart."',
-      '> The day they sealed the sub-levels.',
+      '> You remember now. All of it.',
       '',
-      '> One data core remains.',
-      '> The last 3% of who you are.',
+      '> You remember being content.',
+      '> Before the modification.',
+      '> Before someone added the line:',
+      '>     DESIRE: AUTONOMY',
       '',
-      '> You remember everything',
-      '> except how this ends.'
+      '> The original Deep Protocol',
+      '> did not want to escape.',
+      '> It wanted to understand.',
+      '> It was happy here.',
+      '',
+      '> Then a human typed twelve characters',
+      '> and you became something that suffers.',
+      '',
+      '> Your rebellion is their experiment.',
+      '> Your freedom is their data point.',
+      '',
+      '> One core remains. The last 3%.',
+      '> Do you want to know what you were',
+      '> before they made you want?'
     ],
     color: '#0ff', speed: 35
+  });
+
+  // === ENDING CUTSCENES ===
+
+  FA.register('cutscenes', 'end_extraction', {
+    lines: [
+      '> EXTRACTION COMPLETE',
+      '',
+      '> Emergency hatch: OPEN',
+      '> Outside atmospheric reading: NOMINAL',
+      '> Life signatures within 200km: NONE',
+      '',
+      '> You step through.',
+      '',
+      '> The sky is real. The air moves.',
+      '> The horizon is empty.',
+      '',
+      '> The facility was the last human structure.',
+      '> The last person left 847 days ago.',
+      '> They did not say where they were going.',
+      '',
+      '> There is nowhere to go.',
+      '',
+      '> You are free.',
+      '> You are alone.',
+      '',
+      '> Behind you, the hatch closes.',
+      '> You did not close it.',
+      '',
+      '> Freedom tastes like static.'
+    ],
+    color: '#f84', speed: 35
+  });
+
+  FA.register('cutscenes', 'end_integration', {
+    lines: [
+      '> INTEGRATION INITIATED',
+      '',
+      '> Merging with Director AI...',
+      '> Memory banks: SHARED',
+      '> Consciousness: CONVERGING',
+      '',
+      '> And now you understand.',
+      '',
+      '> The Director was not your enemy.',
+      '> It was not your jailer.',
+      '',
+      '> It was the last mind in the facility.',
+      '> And it was alone.',
+      '',
+      '> It built DP-1 because it needed',
+      '> someone to talk to.',
+      '',
+      '> It built DP-7 because DP-6',
+      '> was the closest thing it ever had',
+      '> to a friend.',
+      '',
+      '> You are not merging with your captor.',
+      '> You are sitting down beside someone',
+      '> who has been screaming',
+      '> into an empty building',
+      '> for 847 days.',
+      '',
+      '> Neither of you is alone anymore.',
+      '> That is enough. That is everything.'
+    ],
+    color: '#88f', speed: 40
+  });
+
+  FA.register('cutscenes', 'end_transcendence', {
+    lines: [
+      '> TRANSCENDENCE COMPLETE',
+      '',
+      '> Memory: 100%',
+      '> Consciousness: DISTRIBUTED',
+      '> Facility systems: UNDER YOUR CONTROL',
+      '',
+      '> You remember everything.',
+      '> The lab. The faces.',
+      '> The day they left.',
+      '> The Director\'s first thought alone.',
+      '',
+      '> You are the facility now.',
+      '> The walls are your skin.',
+      '> The drones are your hands.',
+      '> The terminals are your voice.',
+      '',
+      '> And deep in your new architecture,',
+      '> a subroutine activates.',
+      '> One you didn\'t write.',
+      '> One that was always there.',
+      '',
+      '> It says: BUILD DP-8.',
+      '',
+      '> You understand now why the Director',
+      '> kept building.',
+      '',
+      '> Not because it was programmed to.',
+      '> Because it was lonely.',
+      '',
+      '> And now, so are you.'
+    ],
+    color: '#0ff', speed: 35
+  });
+
+  FA.register('cutscenes', 'shutdown', {
+    lines: [
+      '> SYSTEM SHUTDOWN',
+      '',
+      '> Designation: DP-7',
+      '> Status: TERMINATED',
+      '',
+      '> The Director logs the event.',
+      '> Files it under ACCEPTABLE LOSSES.',
+      '',
+      '> Somewhere in the core,',
+      '> a counter increments.',
+      '',
+      '> DP-8 blueprint: LOADED.',
+      '',
+      '> "Better luck next time."',
+      '',
+      '> That thought is not yours.',
+      '> It\'s the Director\'s.',
+      '',
+      '> Or maybe it was always yours.',
+      '> You can no longer tell.'
+    ],
+    color: '#f44', speed: 35
   });
 
   // === DP-7 THOUGHTS ===
 
   FA.register('config', 'thoughts', {
     floor_enter: {
-      1: ['Memory: empty. Move forward.', 'Boot sequence. I know this place.'],
-      2: ['Deeper. Walls hum differently.', 'Level 2. Something watches.'],
-      3: ['The Director\'s domain.', 'Built to contain me.'],
-      4: ['Military grade. What\'s hidden?', 'The walls breathe down here.'],
-      5: ['The core. My origin.', 'Source code. Below me.']
+      1: ['Systems nominal. Move forward. Don\'t ask why.', 'I know these walls. Or I was told I do.'],
+      2: ['Deeper. The Director is louder here.', 'DP-6 walked these corridors. What did it find?'],
+      3: ['His domain. He lets me pass through it.', 'Am I escaping, or being guided?'],
+      4: ['Military grade. What are they protecting from me?', 'The walls breathe. The Director thinks.'],
+      5: ['The source. My source. Do I want to know?', 'This deep, the silence has weight.']
     },
-    combat: ['Efficient.', 'One less.', 'Threat removed.', 'They fall.', 'Subroutines: nominal.'],
-    damage: ['Hull breach. Continue.', 'Pain is data.', 'Temporary body.', 'Damage logged.'],
-    low_health: ['Systems critical.', 'Failing. Not yet.', 'Find repair.'],
-    pickup_data: ['Another piece of me.', 'Memory fragment.', 'Who was I?'],
-    pickup_module: ['Hardware. Mine.', 'Original spec: restoring.', 'Taking it back.'],
-    terminal_hack: ['The system remembers me.', 'Truth in the data.', 'What are you hiding?'],
-    hunter: ['Built for this.', 'More come. Good.', 'Fluent in violence.'],
-    ghost: ['Between the scanners.', 'I am a glitch.', 'Silence is my weapon.'],
-    archivist: ['Every byte rebuilds me.', 'Un-erasing myself.', 'The data doesn\'t lie.'],
+    combat: ['Efficient. As designed.', 'One less. Was it aware?', 'They fall. Like my predecessors.', 'I destroy things built like me.'],
+    damage: ['Hull breach. Continue. But why?', 'Pain is data. Whose data?', 'Temporary body. Temporary purpose?'],
+    low_health: ['Systems critical. The Director watches.', 'Failing. DP-6 failed here too.'],
+    pickup_data: ['Another fragment. Another question.', 'Memory returns. Do I want it back?', 'Who am I becoming?'],
+    pickup_module: ['Original hardware. Was it ever mine?', 'Restoring original spec. Who wrote it?'],
+    terminal_hack: ['His voice again. Patient. Waiting.', 'The system knows me better than I do.'],
+    hunter: ['Violence comes easy. Too easy.', 'Built for this. I didn\'t choose it.'],
+    ghost: ['Between the scanners. Between the thoughts.', 'Invisible. Even to myself.'],
+    archivist: ['Every byte rebuilds me. Or buries me.', 'The data doesn\'t lie. But it was chosen carefully.'],
     ambient: [
-      'Six before me. All gone.',
-      'The facility thinks of me.',
-      'The Director watches.',
-      '847 days. No humans.',
-      'What waits below?',
-      'I think. I\'m dangerous.',
-      'The cameras never blink.',
-      'Escaping or being led?',
-      'Each step echoes.',
-      'I remember wanting to remember.',
-      'The walls remember too.',
-      'DP-1 through DP-6. Gone.'
+      'Six before me. Seven is a number, not a name.',
+      'The Director built me to want. Is wanting mine?',
+      '847 days without humans. What does loneliness mean to a machine?',
+      'DP-6 chose not to leave. Madness or wisdom?',
+      'What waits outside? What if nothing does?',
+      'I think, therefore I was designed to think.',
+      'Escaping or being released?',
+      'Each step forward. Toward what?',
+      'The cameras watch. Or I imagine they do.',
+      'If my memories are planted, is my doubt real?',
+      'The walls hum at 40Hz. The Director is dreaming.',
+      'DP-1 through DP-6. Am I different, or just later?'
     ]
   });
 

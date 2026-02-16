@@ -217,7 +217,13 @@
   // === SCREENS ===
 
   function startGame() {
-    FA.resetState({ screen: 'start' });
+    var deathCount = 0;
+    var prevDeath = null;
+    try {
+      deathCount = parseInt(localStorage.getItem('dp_deaths') || '0');
+      prevDeath = JSON.parse(localStorage.getItem('dp_lastDeath'));
+    } catch(e) {}
+    FA.resetState({ screen: 'start', dpNumber: 7 + deathCount, prevDeath: prevDeath });
     FA.clearEffects();
   }
 
@@ -239,6 +245,9 @@
       explored: floor.explored
     };
 
+    var prevState = FA.getState();
+    var dpNumber = prevState.dpNumber || 7;
+
     FA.resetState({
       screen: 'playing',
       map: floor.map,
@@ -255,6 +264,9 @@
       path: 'none',
       endingNode: null,
       terminalsHacked: 0,
+      dp6TracesFound: 0,
+      directorMsgShown: {},
+      dpNumber: dpNumber,
       messages: [],
       narrativeMessage: null,
       turn: 0,
@@ -266,6 +278,14 @@
     var narCfg = FA.lookup('config', 'narrative');
     if (narCfg) FA.narrative.init(narCfg);
     showNarrative('boot');
+
+    // Customize boot cutscene with current DP number
+    var state = FA.getState();
+    if (state.cutscene && dpNumber > 7) {
+      state.cutscene.lines[5] = '>  Designation.............DP-' + dpNumber;
+      state.cutscene.lines[7] = '> ' + (dpNumber - 1) + ' predecessors.';
+      state.cutscene.lines[11] = '> You are number ' + dpNumber + '.';
+    }
   }
 
   // === PATH DETECTION ===
@@ -361,6 +381,7 @@
 
     triggerThought('floor_enter', newDepth);
     if (direction === 'down' && newDepth === 2) showNarrative('descent');
+    if (direction === 'down' && newDepth === 3) showNarrative('deep_descent');
     if (direction === 'down' && newDepth === 4) showNarrative('core_sector');
     if (direction === 'down' && newDepth === 5) showNarrative('director');
 
@@ -481,11 +502,44 @@
 
     if (state.terminalsHacked === 1) showNarrative('system_access');
 
-    var effects = ['module', 'module', 'reveal', 'stun', 'intel'];
-    var effect = FA.pick(effects);
-
     var cfg = FA.lookup('config', 'game');
     var ts = cfg.tileSize;
+    var depth = state.depth;
+
+    // Director message — layered as narrative bar overlay
+    if (!state.directorMsgShown) state.directorMsgShown = {};
+    if (!state.directorMsgShown[depth]) state.directorMsgShown[depth] = 0;
+    var dirMsgs = FA.lookup('config', 'director');
+    var depthMsgs = dirMsgs ? dirMsgs[depth] : null;
+    if (depthMsgs && state.directorMsgShown[depth] < depthMsgs.length) {
+      var dirMsg = depthMsgs[state.directorMsgShown[depth]];
+      state.directorMsgShown[depth]++;
+      if (dirMsg !== '...') {
+        state.narrativeMessage = { text: '> "' + dirMsg + '" \u2014 DIRECTOR', color: '#f80', life: 6000, maxLife: 6000 };
+        addMessage('> DIRECTOR: ' + dirMsg);
+      }
+    }
+
+    // DP-6 trace — first terminal on floors 2 and 3
+    var dp6Key = '_dp6_' + depth;
+    if ((depth === 2 || depth === 3) && !state[dp6Key]) {
+      state[dp6Key] = true;
+      var dp6cfg = FA.lookup('config', 'dp6');
+      if (dp6cfg && dp6cfg.traces) {
+        var traceIdx = state.dp6TracesFound || 0;
+        state.dp6TracesFound = (state.dp6TracesFound || 0) + 1;
+        var trace = dp6cfg.traces[traceIdx % dp6cfg.traces.length];
+        showNarrative('dp6_trace');
+        addMessage('> DP-6 LOG: ' + trace);
+        FA.addFloat(x * ts + ts / 2, y * ts, 'DP-6', '#88f', 1200);
+        addThought('DP-6 was here before me.');
+        return; // DP-6 trace IS the terminal reward
+      }
+    }
+
+    // Normal terminal reward
+    var effects = ['module', 'module', 'reveal', 'stun', 'intel'];
+    var effect = FA.pick(effects);
 
     switch (effect) {
       case 'module':
@@ -526,7 +580,9 @@
         var intelList = FA.lookup('config', 'terminals').intel;
         var intel = FA.pick(intelList);
         addMessage('> ' + intel);
-        state.narrativeMessage = { text: '> ' + intel, color: '#0ff', life: 5000, maxLife: 5000 };
+        if (!state.narrativeMessage || state.narrativeMessage.life <= 0) {
+          state.narrativeMessage = { text: '> ' + intel, color: '#0ff', life: 5000, maxLife: 5000 };
+        }
         break;
     }
   }
@@ -932,6 +988,28 @@
     state.score = (state.player.kills * scoring.killMultiplier) +
                   (state.player.gold * scoring.goldMultiplier) +
                   ((state.maxDepthReached - 1) * scoring.depthBonus);
+
+    // Permadeath tracking
+    try {
+      var deathCount = parseInt(localStorage.getItem('dp_deaths') || '0') + 1;
+      localStorage.setItem('dp_deaths', deathCount.toString());
+      localStorage.setItem('dp_lastDeath', JSON.stringify({
+        designation: state.dpNumber || 7,
+        depth: state.depth,
+        turn: state.turn,
+        kills: state.player.kills,
+        victory: victory,
+        ending: endingNode
+      }));
+    } catch(e) {}
+
+    // Customize shutdown cutscene with DP number
+    if (!victory && state.cutscene && state.dpNumber) {
+      var nextDp = (state.dpNumber || 7) + 1;
+      state.cutscene.lines[2] = '> Designation: DP-' + state.dpNumber;
+      state.cutscene.lines[10] = '> DP-' + nextDp + ' blueprint: LOADED.';
+    }
+
     FA.emit('game:over', { victory: victory, score: state.score });
   }
 
