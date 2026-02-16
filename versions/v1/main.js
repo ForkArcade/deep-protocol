@@ -42,6 +42,10 @@
 
     // Playing
     if (state.screen !== 'playing') return;
+    if (data.action === 'start' && ((state.thoughts && state.thoughts.length > 0) || state.systemBubble)) {
+      Game.dismissBubbles();
+      return;
+    }
     switch (data.action) {
       case 'up':    Game.movePlayer(0, -1); break;
       case 'down':  Game.movePlayer(0, 1);  break;
@@ -64,16 +68,43 @@
   FA.setUpdate(function(dt) {
     FA.updateEffects(dt);
     FA.updateFloats(dt);
-    // Narrative message timer
+    // System bubble timer
     var state = FA.getState();
-    if (state.narrativeMessage && state.narrativeMessage.life > 0) {
-      state.narrativeMessage.life -= dt;
+    if (state.systemBubble) {
+      var sb = state.systemBubble;
+      if (!sb.done) {
+        sb.timer += dt;
+        var sbLD = 200;
+        var sbLastIdx = sb.lines.length - 1;
+        var sbEnd = sbLastIdx * sbLD + TextFX.totalTime(sb.lines[sbLastIdx]);
+        if (sb.timer >= sbEnd) sb.done = true;
+      } else {
+        sb.life -= dt;
+        if (sb.life <= 0) state.systemBubble = null;
+      }
     }
-    // Cutscene typewriter
+    // Cutscene scramble timing
     if (state.screen === 'cutscene' && state.cutscene && !state.cutscene.done) {
       state.cutscene.timer += dt;
-      if (state.cutscene.timer >= state.cutscene.totalChars * state.cutscene.speed) {
-        state.cutscene.done = true;
+      var cs = state.cutscene;
+      var ld = cs.lineDelay || 200;
+      var lastIdx = cs.lines.length - 1;
+      var endTime = lastIdx * ld + TextFX.totalTime(cs.lines[lastIdx]);
+      if (cs.timer >= endTime) cs.done = true;
+    }
+    // Thought scramble timing
+    if (state.thoughts) {
+      for (var ti = state.thoughts.length - 1; ti >= 0; ti--) {
+        var th = state.thoughts[ti];
+        if (!th.done) {
+          th.timer += dt;
+          if (th.timer >= TextFX.totalTime(th.text)) th.done = true;
+        } else {
+          th.life -= dt;
+        }
+      }
+      while (state.thoughts.length > 0 && state.thoughts[0].done && state.thoughts[0].life <= 0) {
+        state.thoughts.shift();
       }
     }
     // Screen shake decay
