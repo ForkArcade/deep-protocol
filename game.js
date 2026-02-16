@@ -433,7 +433,8 @@
     });
 
     updateNPCPositions(FA.getState());
-    showNarrative('arc', 'wake');
+    var wakeCs = FA.lookup('cutscenes', 'wake');
+    if (wakeCs) startCutscene(wakeCs, FA.getState());
     triggerThought('morning');
   }
 
@@ -502,6 +503,16 @@
         FA.narrative.setVar(npc.id + '_met_today', true, 'Met ' + npc.name);
         var prev = FA.narrative.getVar(npc.id + '_interactions') || 0;
         FA.narrative.setVar(npc.id + '_interactions', prev + 1, 'Talked to ' + npc.name);
+        // Progress NPC quest graph
+        var questId = 'quest_' + npc.id;
+        var questNode = FA.narrative.getNode(questId);
+        if (questNode) {
+          if (questNode.id === 'stranger') {
+            FA.narrative.transition(questId, 'acquaintance', 'Met ' + npc.name);
+          } else if (questNode.id === 'acquaintance' && (prev + 1) >= 3) {
+            FA.narrative.transition(questId, 'confidant', npc.name + ' trusts you');
+          }
+        }
       }
       var econCfg = FA.lookup('config', 'economy');
       if (state.day >= econCfg.systemRevealDay && !state.systemRevealed) {
@@ -678,6 +689,10 @@
     if (state.systemVisits === 0) {
       showNarrative('arc', 'first_system');
     } else {
+      var arcNode = FA.narrative.getNode('arc');
+      if (arcNode && arcNode.id === 'first_system') {
+        FA.narrative.transition('arc', 'deeper', 'Going deeper');
+      }
       addSystemBubble('> Entering sub-level ' + depth + '.', '#4ef');
     }
 
@@ -766,7 +781,10 @@
     FA.clearEffects();
 
     if (reason === 'ejected') {
-      showNarrative('arc', 'ejected');
+      var narText = FA.lookup('narrativeText', 'ejected');
+      if (narText) addSystemBubble(narText.text, narText.color);
+      var ejectedCs = FA.lookup('cutscenes', 'ejected');
+      if (ejectedCs) startCutscene(ejectedCs, state);
     }
 
     checkTimeWarnings(state);
