@@ -216,7 +216,7 @@
         homePos: def.homePos, cafePos: def.cafePos,
         terminalPos: def.terminalPos, gardenPos: def.gardenPos,
         schedule: def.schedule, appearsDay: def.appearsDay,
-        dialogue: def.dialogue, met: false,
+        systemDialogue: def.systemDialogue, met: false,
         goal: 'home', talkedToday: false
       });
     }
@@ -288,7 +288,7 @@
     }
     var period = getTimePeriod(state.timeOfDay);
     var dist = state.owPlayer ? Math.abs(npc.x - state.owPlayer.x) + Math.abs(npc.y - state.owPlayer.y) : 99;
-    var hasDialogue = npc.dialogue[state.day] && !npc.talkedToday;
+    var hasDialogue = !npc.talkedToday;
 
     // Priority: approach player if they have undelivered dialogue and player is nearby
     if (hasDialogue && dist < 8) { npc.goal = 'player'; return; }
@@ -433,7 +433,7 @@
     });
 
     updateNPCPositions(FA.getState());
-    showNarrative('wake');
+    showNarrative('arc', 'wake');
     triggerThought('morning');
   }
 
@@ -495,7 +495,7 @@
     if (npc) {
       npc.met = true;
       npc.talkedToday = true;
-      var text = npc.dialogue[state.day] || npc.dialogue._default;
+      var text = selectDialogue(npc.id) || '...';
       addSystemBubble(npc.name + ': "' + text + '"', npc.color);
       // Narrative tracking
       if (FA.narrative && FA.narrative.setVar) {
@@ -676,7 +676,7 @@
     var depth = Math.min(state.systemVisits + 1, cfg.maxDepth);
 
     if (state.systemVisits === 0) {
-      showNarrative('first_system');
+      showNarrative('arc', 'first_system');
     } else {
       addSystemBubble('> Entering sub-level ' + depth + '.', '#4ef');
     }
@@ -703,7 +703,7 @@
       sysNPCs.push({
         id: npc.id, name: npc.name, char: npc.char, color: npc.color,
         x: npos.x, y: npos.y, allegiance: npc.allegiance,
-        dialogue: npc.dialogue, talked: false
+        systemDialogue: npc.systemDialogue, talked: false
       });
     }
 
@@ -766,7 +766,7 @@
     FA.clearEffects();
 
     if (reason === 'ejected') {
-      showNarrative('ejected');
+      showNarrative('arc', 'ejected');
     }
 
     checkTimeWarnings(state);
@@ -798,8 +798,7 @@
         if (sNpc.x === nx && sNpc.y === ny) {
           if (!sNpc.talked) {
             sNpc.talked = true;
-            var allegKey = '_system_' + sNpc.allegiance;
-            var text = sNpc.dialogue[allegKey] || '...';
+            var text = (sNpc.systemDialogue && sNpc.systemDialogue[sNpc.allegiance]) || '...';
             addSystemBubble(sNpc.name + ': "' + text + '"', sNpc.color);
             triggerThought('system_npc');
           }
@@ -1275,8 +1274,8 @@
   //  NARRATIVE & COMMUNICATION
   // ============================================================
 
-  function showNarrative(nodeId) {
-    FA.narrative.transition(nodeId);
+  function showNarrative(graphId, nodeId) {
+    FA.narrative.transition(graphId, nodeId);
     var narText = FA.lookup('narrativeText', nodeId);
     if (narText) addSystemBubble(narText.text, narText.color);
     var cutscene = FA.lookup('cutscenes', nodeId);
@@ -1284,6 +1283,11 @@
     if (cutscene && state.screen !== 'cutscene') {
       startCutscene(cutscene, state);
     }
+  }
+
+  function selectDialogue(npcId) {
+    var entry = FA.select(FA.lookup('dialogues', npcId));
+    return entry ? entry.text : null;
   }
 
   function startCutscene(def, state) {
@@ -1320,7 +1324,7 @@
 
   function triggerEnding(victory, endingNode) {
     var state = FA.getState();
-    showNarrative(endingNode);
+    showNarrative('arc', endingNode);
     if (state.screen === 'cutscene') {
       state._pendingEnd = { victory: victory, endingNode: endingNode };
     } else {
@@ -1371,14 +1375,12 @@
     _createThought(state, text);
   }
 
-  function triggerThought(category, key) {
+  function triggerThought(category) {
     var state = FA.getState();
     if (state.turn - (state.lastThoughtTurn || 0) < 5) return;
-    var thoughts = FA.lookup('config', 'thoughts');
-    if (!thoughts || !thoughts[category]) return;
-    var pool = key !== undefined ? thoughts[category][key] : thoughts[category];
-    if (!pool || !pool.length) return;
-    addThought(pool[Math.floor(Math.random() * pool.length)]);
+    var entry = FA.select(FA.lookup('thoughts', category));
+    if (!entry || !entry.pool || !entry.pool.length) return;
+    addThought(FA.pick(entry.pool));
   }
 
   function dismissBubbles() {
