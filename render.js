@@ -185,7 +185,7 @@
     // ================================================================
 
     var OW_COLORS = {
-      0: '#14120f', 1: null, 2: '#1a1814',
+      0: '#14120f', 1: null, 2: '#1a1814', 3: '#1c1a18',
       6: '#1a1828', 7: '#0a1a1a', 8: '#14120f', 9: '#1e1610'
     };
 
@@ -234,12 +234,25 @@
               oc.font = 'bold 10px monospace'; oc.textAlign = 'center'; oc.textBaseline = 'middle';
               oc.fillText('v', px + ts / 2, py + ts / 2);
             }
+          } else if (tile === 3) {
+            // Street / pavement
+            oc.fillStyle = '#1c1a18'; oc.fillRect(px, py, ts, ts);
+            // Subtle grid lines (concrete slabs)
+            oc.fillStyle = '#222018'; oc.fillRect(px, py, ts, 1);
+            oc.fillStyle = '#222018'; oc.fillRect(px, py, 1, ts);
+            // Occasional crack
+            if ((x * 7 + y * 13) % 11 === 0) {
+              oc.fillStyle = '#161410'; oc.fillRect(px + 4, py + ts / 2, ts - 8, 1);
+            }
           } else {
             // Path (0) or indoor floor (2)
             var col = OW_COLORS[tile] || '#14120f';
             oc.fillStyle = col; oc.fillRect(px, py, ts, ts);
-            if (tile === 0 && (x + y) % 4 === 0) {
-              oc.fillStyle = '#1a1814'; oc.fillRect(px + ts / 2, py + ts / 2, 1, 1);
+            if (tile === 2) {
+              // Indoor floor — subtle warm wood pattern
+              if ((x + y) % 3 === 0) {
+                oc.fillStyle = '#1e1a14'; oc.fillRect(px + 2, py + ts / 2, ts - 4, 1);
+              }
             }
           }
         }

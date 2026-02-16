@@ -1231,14 +1231,35 @@
   //  TURN & END GAME
   // ============================================================
 
+  function npcComm(state) {
+    if (!state.npcs || !state.systemNPCs || state.systemNPCs.length === 0) return;
+    var commsPool = FA.lookup('config', 'systemComms');
+    if (!commsPool) return;
+    // Pick a random NPC that has been met
+    var candidates = [];
+    for (var i = 0; i < state.npcs.length; i++) {
+      if (state.npcs[i].met) candidates.push(state.npcs[i]);
+    }
+    if (candidates.length === 0) return;
+    var npc = FA.pick(candidates);
+    var pool = commsPool[npc.allegiance];
+    if (!pool || pool.length === 0) return;
+    var msg = FA.pick(pool);
+    addSystemBubble('@' + npc.name + ': ' + msg, npc.color);
+  }
+
   function endTurn() {
     var state = FA.getState();
     if (state.screen !== 'playing') return;
     state.turn++;
     state.systemTurn = (state.systemTurn || 0) + 1;
     enemyTurn();
-    if (state.screen === 'playing' && state.systemTurn > 0 && state.systemTurn % 20 === 0) {
-      triggerThought('ambient');
+    if (state.screen === 'playing' && state.systemTurn > 0) {
+      if (state.systemTurn % 12 === 0) {
+        npcComm(state);
+      } else if (state.systemTurn % 20 === 0) {
+        triggerThought('ambient');
+      }
     }
   }
 

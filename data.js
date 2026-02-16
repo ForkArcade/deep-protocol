@@ -64,30 +64,30 @@
     playerStart: { x: 3, y: 3 },
     map: [
       '1111111111111111111111111111111111111111',
-      '1122222111000000000000000000011222222211',
-      '1126222111000000000000000000011222272211',
-      '1122222111000000000000000000011222222211',
-      '1111121111000000000000000000011112111111',
-      '0000020000000000000000000000000002000000',
-      '0000000000000000000000000000000000000000',
-      '0000000000000000000000000000000000000000',
-      '0000000000000011111111110000000000000000',
-      '0000000000000012999999210000000000000000',
-      '0000000000000012900092100000000000000000',
-      '0000000000000012900092100000000000000000',
-      '0000000000000012999999210000000000000000',
-      '0000000000000011111111110000000000000000',
-      '0000000000000000000000000000000000000000',
-      '0000000000000000000000000000000000000000',
-      '0000020000000000000000000000000000000000',
-      '1111121111000000000000000000000000000000',
-      '1122222111000000000000000000000000000000',
-      '1128222111000000000000000000000000000000',
-      '1122222111000000000000000000000000000000',
-      '1111111111000000000000000000000000000000',
-      '0000000000000000000000000000000000000000',
-      '0000000000000000000000000000000000000000',
-      '0000000000000000000000000000000000000000'
+      '1122222111333333333333333333311222222211',
+      '1126222111333333333333333333311222272211',
+      '1122222111333333333333333333311222222211',
+      '1111121111333333333333333333311112111111',
+      '3333333333333333333333333333333333333333',
+      '3333333333333333333333333333333333333333',
+      '3333333333333333333333333333333333333333',
+      '3333333333333312111111213333333333333333',
+      '3333333333333312999999213333333333333333',
+      '3333333333333312222222213333333333333333',
+      '3333333333333312222222213333333333333333',
+      '3333333333333312999999213333333333333333',
+      '3333333333333312111111213333333333333333',
+      '3333333333333333333333333333333333333333',
+      '3333333333333333333333333333333333333333',
+      '3333333333333333333333333333333333333333',
+      '1111121111333333333333333333311111211111',
+      '1122222111333333333333333333311222222211',
+      '1128222111333333333333333333311222222211',
+      '1122222111333333333333333333311222222211',
+      '1111111111333333333333333333311111111111',
+      '3333333333333333333333333333333333333333',
+      '3333333333333333333333333333333333333333',
+      '1111111111111111111111111111111111111111'
     ],
     // Tile walkability (not walkable: 1=wall, 9=café table)
     blocked: { '1': true, '9': true }
@@ -99,7 +99,7 @@
   FA.register('npcs', 'lena', {
     name: 'Lena', char: '@', color: '#f8d',
     homePos: { x: 5, y: 2 },
-    cafePos: { x: 16, y: 10 },
+    cafePos: { x: 17, y: 10 },
     schedule: { morning: 'home', midday: 'cafe', evening: 'home' },
     appearsDay: 1,
     dialogue: {
@@ -118,7 +118,7 @@
   FA.register('npcs', 'victor', {
     name: 'Victor', char: '@', color: '#fa4',
     homePos: { x: 30, y: 7 },
-    cafePos: { x: 18, y: 11 },
+    cafePos: { x: 19, y: 11 },
     schedule: { morning: 'wander', midday: 'cafe', evening: 'cafe' },
     appearsDay: 2,
     dialogue: {
@@ -136,7 +136,7 @@
   FA.register('npcs', 'marta', {
     name: 'Marta', char: '@', color: '#8cf',
     homePos: { x: 33, y: 2 },
-    cafePos: { x: 16, y: 11 },
+    cafePos: { x: 17, y: 11 },
     schedule: { morning: 'home', midday: 'home', evening: 'cafe' },
     appearsDay: 1,
     dialogue: {
@@ -155,7 +155,7 @@
   FA.register('npcs', 'emil', {
     name: 'Emil', char: '@', color: '#a8f',
     homePos: { x: 20, y: 22 },
-    cafePos: { x: 18, y: 10 },
+    cafePos: { x: 19, y: 10 },
     schedule: { morning: 'wander', midday: 'wander', evening: 'cafe' },
     appearsDay: 3,
     dialogue: {
@@ -492,6 +492,46 @@
       'I work. I pay. I sleep. I descend. I work. I pay. I sleep.',
       'K. was arrested at breakfast. I was arrested at the terminal.',
       'The process has no beginning and no end. Only a middle.'
+    ]
+  });
+
+  // NPC radio comms during system runs (keyed by allegiance)
+  FA.register('config', 'systemComms', {
+    ally: [
+      'I see movement two rooms east. Be careful.',
+      'There\'s a terminal nearby. Could be useful.',
+      'The exit is in the far room. I can feel the draft.',
+      'Try the northwest corridor. Fewer hostiles.',
+      'Something valuable in the room you just passed.',
+      'I found a pattern — the drones patrol in cycles. Wait for the gap.',
+      'The walls are thinner here. I can hear the surface.',
+      'There\'s a dead zone ahead. No surveillance. Move fast.',
+      'I\'ve mapped part of this floor. The left path is safer.',
+      'Stay close to the walls. The sensors have blind spots.'
+    ],
+    traitor: [
+      'Go deeper. The real exit is below.',
+      'That corridor looks safe. Trust me.',
+      'Don\'t waste time on terminals. Keep moving south.',
+      'I think the enemies left that area. Go check.',
+      'The path to the right is a shortcut.',
+      'I disabled the sensors ahead. You can run.',
+      'There\'s nothing useful on this floor. Go deeper.',
+      'The drones are all on the other side. You\'re clear.',
+      'Skip the terminal — it\'s a trap. I\'ve seen it before.',
+      'Follow me. I know a faster way. ...Do you trust me?'
+    ],
+    neutral: [
+      'I\'ve been here before. Or somewhere like it.',
+      'The walls shift when you\'re not looking. Maybe.',
+      'Time works differently down here. I\'ve counted.',
+      'Do the drones dream? I think about that sometimes.',
+      'Every corridor looks the same. Is that by design?',
+      'I can\'t tell if I\'m helping you or myself.',
+      'The system knows we\'re here. It always knows.',
+      'I found something. I\'m not sure what it means.',
+      'The deeper you go, the quieter it gets. That\'s not comforting.',
+      'Someone scratched words into the wall: "IT WAS ALWAYS OPEN."'
     ]
   });
 
