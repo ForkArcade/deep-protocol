@@ -73,20 +73,22 @@
     if (state.narrativeMessage && state.narrativeMessage.life > 0) {
       state.narrativeMessage.life -= dt;
     }
-    // Cutscene typewriter
+    // Cutscene scramble timing
     if (state.screen === 'cutscene' && state.cutscene && !state.cutscene.done) {
       state.cutscene.timer += dt;
-      if (state.cutscene.timer >= state.cutscene.totalChars * state.cutscene.speed) {
-        state.cutscene.done = true;
-      }
+      var cs = state.cutscene;
+      var ld = cs.lineDelay || 200;
+      var lastIdx = cs.lines.length - 1;
+      var endTime = lastIdx * ld + TextFX.totalTime(cs.lines[lastIdx]);
+      if (cs.timer >= endTime) cs.done = true;
     }
-    // Thought typewriter
+    // Thought scramble timing
     if (state.thoughts) {
       for (var ti = state.thoughts.length - 1; ti >= 0; ti--) {
         var th = state.thoughts[ti];
         if (!th.done) {
           th.timer += dt;
-          if (th.timer >= th.text.length * th.speed) th.done = true;
+          if (th.timer >= TextFX.totalTime(th.text)) th.done = true;
         } else {
           th.life -= dt;
         }

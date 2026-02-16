@@ -408,17 +408,12 @@
   }
 
   function startCutscene(def, state) {
-    var totalChars = 0;
-    for (var i = 0; i < def.lines.length; i++) {
-      totalChars += def.lines[i].length + 4;
-    }
     state.cutsceneReturn = state.screen;
     state.screen = 'cutscene';
     state.cutscene = {
       lines: def.lines,
       color: def.color || '#4ef',
-      speed: def.speed || 35,
-      totalChars: totalChars,
+      lineDelay: def.lineDelay || 200,
       timer: 0,
       done: false
     };
@@ -428,8 +423,12 @@
     var state = FA.getState();
     if (!state.cutscene) return;
     if (!state.cutscene.done) {
-      state.cutscene.timer = state.cutscene.totalChars * state.cutscene.speed;
-      state.cutscene.done = true;
+      // Fast-forward: jump to end of all scramble animations
+      var cs = state.cutscene;
+      var ld = cs.lineDelay || 200;
+      var lastIdx = cs.lines.length - 1;
+      cs.timer = lastIdx * ld + TextFX.totalTime(cs.lines[lastIdx]) + 1;
+      cs.done = true;
       return;
     }
     state.screen = state.cutsceneReturn || 'playing';

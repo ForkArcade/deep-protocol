@@ -1,6 +1,7 @@
 {
   "template": "roguelike",
   "gameFiles": [
+    "text-fx.js",
     "data.js",
     "game.js",
     "render.js",

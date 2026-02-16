@@ -170,24 +170,18 @@
       // Designation — minimal
       FA.draw.text('DP-' + dpNum, W / 2, 104, { color: '#334', size: 11, align: 'center', baseline: 'middle' });
 
-      // === TAGLINE — typed out ===
+      // === TAGLINE — split-flap scramble ===
       var tagline = 'You were built to want freedom.';
-      var typeTime = now % 12000;
-      var tagChars = Math.min(tagline.length, Math.floor(typeTime / 100));
-      if (typeTime > tagline.length * 100 + 2000) tagChars = tagline.length;
-      var tagText = tagline.substring(0, tagChars);
+      var tagElapsed = now % 8000;
+      if (tagElapsed > 3000) tagElapsed = 3000; // hold after resolved
 
-      FA.draw.text(tagText, W / 2, H - 145, { color: '#445', size: 14, align: 'center', baseline: 'middle' });
-
-      // Typing cursor
-      if (tagChars < tagline.length && Math.floor(now / 300) % 2 === 0) {
-        var cursorX = W / 2 - tagline.length * 3.5 + tagChars * 7;
-        ctx.save();
-        ctx.globalAlpha = 0.4;
-        ctx.fillStyle = '#4ef';
-        ctx.fillRect(cursorX, H - 152, 6, 14);
-        ctx.restore();
-      }
+      ctx.save();
+      ctx.globalAlpha = 0.9;
+      TextFX.render(ctx, tagline, tagElapsed, W / 2, H - 148, {
+        color: '#556', dimColor: '#223', size: 14, align: 'center', baseline: 'middle',
+        duration: 80, charDelay: 8, flicker: 30
+      });
+      ctx.restore();
 
       // Previous death — single subtle red line
       if (prevDeath) {
@@ -584,12 +578,20 @@
       if (!nm || nm.life <= 0) return;
 
       var alpha = nm.life < 1000 ? nm.life / 1000 : 1;
+      var nmElapsed = nm.maxLife - nm.life; // time since message appeared
+
       FA.draw.pushAlpha(alpha * 0.85);
       FA.draw.rect(0, 0, W, 28, '#0a0f1a');
       FA.draw.popAlpha();
-      FA.draw.pushAlpha(alpha);
-      FA.draw.text(nm.text, W / 2, 14, { color: nm.color, size: 13, align: 'center', baseline: 'middle' });
-      FA.draw.popAlpha();
+
+      var ctx = FA.getCtx();
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      TextFX.render(ctx, nm.text, nmElapsed, W / 2, 8, {
+        color: nm.color, dimColor: '#1a3a3a', size: 13, align: 'center',
+        duration: 60, charDelay: 6, flicker: 25
+      });
+      ctx.restore();
     }, 25);
 
     // === DP-7 THOUGHT BUBBLE ===
@@ -612,8 +614,6 @@
       var py = p.y * ts;
 
       // Bubble size based on full text
-      var chars = thought.done ? thought.text.length : Math.floor(thought.timer / thought.speed);
-      var text = thought.text.substring(0, Math.min(chars, thought.text.length));
       var tw = Math.max(90, thought.text.length * 6.5 + 24);
       var th = 26;
       var bx = px - tw / 2;
@@ -660,20 +660,14 @@
       ctx.stroke();
       ctx.restore();
 
-      // Text
+      // Text — split-flap scramble
       ctx.save();
       ctx.globalAlpha = 0.9 * alpha;
-      FA.draw.text(text, bx + 8, by + 7, { color: '#4ef', size: 11 });
+      TextFX.render(ctx, thought.text, thought.timer, bx + 8, by + 7, {
+        color: '#4ef', dimColor: '#1a4040', size: 11,
+        duration: 60, charDelay: 6, flicker: 25
+      });
       ctx.restore();
-
-      // Blinking cursor while typing
-      if (!thought.done && Math.floor(Date.now() / 350) % 2 === 0) {
-        ctx.save();
-        ctx.globalAlpha = 0.6;
-        ctx.fillStyle = '#4ef';
-        ctx.fillRect(bx + 8 + chars * 6.2, by + 7, 5, 12);
-        ctx.restore();
-      }
 
       // [SPACE] dismiss hint after typing done
       if (thought.done && thought.life > 1500) {
@@ -816,49 +810,31 @@
         ctx.restore();
       }
 
-      // Calculate visible text
-      var charsRevealed = Math.floor(cs.timer / cs.speed);
+      // Per-line split-flap scramble
       var lineH = 24;
       var totalLines = cs.lines.length;
       var startY = Math.max(50, Math.floor((H - totalLines * lineH) / 2) - 20);
-      var charsLeft = charsRevealed;
-      var typingLine = -1;
+      var ld = cs.lineDelay || 200;
+      var scrambleOpts = { duration: 100, charDelay: 8, flicker: 30 };
 
       for (var i = 0; i < totalLines; i++) {
-        if (charsLeft <= 0) break;
-        var line = cs.lines[i];
-        var showChars = Math.min(charsLeft, line.length);
-        var text = line.substring(0, showChars);
+        var lineElapsed = cs.timer - i * ld;
+        if (lineElapsed <= 0) continue;
 
-        // Dim older lines slightly
-        var lineColor = cs.color;
-        if (showChars >= line.length && charsLeft - line.length - 4 > 0) {
-          // Completed line — slightly dimmer
-          ctx.save();
-          ctx.globalAlpha = 0.7;
-          FA.draw.text(text, 80, startY + i * lineH, { color: lineColor, size: 15 });
-          ctx.restore();
-        } else {
-          // Current or recently completed line — full brightness
-          FA.draw.text(text, 80, startY + i * lineH, { color: lineColor, size: 15 });
-          if (showChars < line.length) typingLine = i;
+        var lineDone = lineElapsed >= TextFX.totalTime(cs.lines[i], scrambleOpts);
+        var lineY = startY + i * lineH;
+
+        // Dim completed lines that are old
+        ctx.save();
+        if (lineDone && cs.timer - (i * ld + TextFX.totalTime(cs.lines[i], scrambleOpts)) > 400) {
+          ctx.globalAlpha = 0.6;
         }
-
-        charsLeft -= line.length + 4;
-      }
-
-      // Blinking cursor on current typing line
-      if (typingLine >= 0 && !cs.done) {
-        if (Math.floor(now / 400) % 2 === 0) {
-          var curLine = cs.lines[typingLine];
-          var revealed = Math.min(charsRevealed, curLine.length);
-          // Approximate cursor x position
-          ctx.save();
-          ctx.fillStyle = cs.color;
-          ctx.globalAlpha = 0.8;
-          ctx.fillRect(80 + revealed * 8.4, startY + typingLine * lineH, 8, 16);
-          ctx.restore();
-        }
+        TextFX.render(ctx, cs.lines[i], lineElapsed, 80, lineY, {
+          color: cs.color, dimColor: '#1a4a4a', size: 15,
+          duration: scrambleOpts.duration, charDelay: scrambleOpts.charDelay,
+          flicker: scrambleOpts.flicker
+        });
+        ctx.restore();
       }
 
       // "Press SPACE" prompt when done
