@@ -26,6 +26,26 @@
       return map[y][x] !== 1;
     }
 
+    // Tile ID → sprite name mapping (matches map editor)
+    var TILE_NAMES = ['floor', 'wall', 'indoor', 'garden', 'notice_board', 'sidewalk', 'bed', 'terminal', 'system_entrance', 'cafe_table'];
+    // Tiles with transparent pixels that need a background layer
+    var TILE_BG = { 4: 'floor', 6: 'indoor', 7: 'indoor', 8: 'floor', 9: 'floor' };
+
+    function owIsWall(owMap, x, y) {
+      if (x < 0 || x >= cfg.cols || y < 0 || y >= cfg.rows) return true;
+      var t = owMap[y][x];
+      return t === 1 || t === 9;
+    }
+
+    function owWallFrame(owMap, x, y) {
+      var mask = 0;
+      if (!owIsWall(owMap, x, y - 1)) mask |= 1;  // N
+      if (!owIsWall(owMap, x, y + 1)) mask |= 2;  // S
+      if (!owIsWall(owMap, x + 1, y)) mask |= 4;  // E
+      if (!owIsWall(owMap, x - 1, y)) mask |= 8;  // W
+      return mask;
+    }
+
     // --- Glow cache ---
     var _glowCache = {};
     function getGlow(color, innerR, outerR, size) {
@@ -186,79 +206,39 @@
     // ================================================================
 
     function renderOverworldMap(oc, owMap, state) {
-      // Build a base map for the dungeon renderer (special tiles → floor)
-      var baseMap = [];
-      for (var by = 0; by < owMap.length; by++) {
-        baseMap[by] = [];
-        for (var bx = 0; bx < owMap[by].length; bx++) {
-          var bt = owMap[by][bx];
-          baseMap[by][bx] = (bt === 1 || bt === 9) ? 1 : 0;
-        }
-      }
-      // Render using dungeon renderer (depth 0 = warm overworld palette)
-      renderMapToCanvas(oc, baseMap, 0);
-
-      // Overlay special tiles
       var revealed = state.systemRevealed;
       for (var y = 0; y < cfg.rows && y < owMap.length; y++) {
         for (var x = 0; x < cfg.cols && x < owMap[y].length; x++) {
-          var tile = owMap[y][x];
+          var tid = owMap[y][x];
           var px = x * ts, py = y * ts;
-          if (tile === 3) {
-            // Garden — green on floor
-            oc.fillStyle = '#0a2010'; oc.fillRect(px, py, ts, ts);
-            if ((x + y) % 2 === 0) {
-              oc.fillStyle = '#1a4020'; oc.fillRect(px + 3, py + 3, ts - 6, ts - 6);
-            }
-            if ((x * 3 + y * 7) % 5 === 0) {
-              oc.fillStyle = '#2a6030'; oc.fillRect(px + ts / 2 - 1, py + ts / 2 - 1, 3, 3);
-            }
-          } else if (tile === 5) {
-            // Sidewalk — lighter warm pavement with lane markings
-            oc.fillStyle = '#1e1a14'; oc.fillRect(px, py, ts, ts);
-            // Subtle lane marking
-            if ((x + y) % 4 === 0) {
-              oc.fillStyle = '#2a2620';
-              oc.fillRect(px + ts / 2 - 1, py + 1, 2, ts - 2);
-            }
-            // Edge detail
-            oc.fillStyle = '#14120e';
-            oc.fillRect(px, py, 1, ts);
-            oc.fillRect(px + ts - 1, py, 1, ts);
-            // Occasional marking dot
-            if ((x * 3 + y * 5) % 7 === 0) {
-              oc.fillStyle = '#2a2418';
-              oc.fillRect(px + ts / 2, py + ts / 2, 2, 2);
-            }
-          } else if (tile === 6) {
-            // Bed
-            oc.fillStyle = '#1a1838'; oc.fillRect(px + 2, py + 4, ts - 4, ts - 6);
-            oc.fillStyle = '#2a2858'; oc.fillRect(px + 3, py + 5, 6, 4);
-          } else if (tile === 7) {
-            // Work terminal (same as dungeon terminal)
-            oc.fillStyle = '#0a2a2a'; oc.fillRect(px + 2, py + 2, ts - 4, ts - 4);
-            oc.fillStyle = '#0ff'; oc.fillRect(px + 3, py + 3, ts - 6, 2);
-            oc.fillRect(px + 3, py + ts - 5, ts - 6, 2);
-            oc.fillStyle = '#0ff'; oc.font = 'bold 11px monospace'; oc.textAlign = 'center'; oc.textBaseline = 'middle';
-            oc.fillText('T', px + ts / 2, py + ts / 2);
-          } else if (tile === 8 && revealed) {
-            // System entrance
-            oc.fillStyle = '#1a0a00'; oc.fillRect(px + 2, py + 2, ts - 4, ts - 4);
-            oc.fillStyle = '#f80'; oc.fillRect(px + 3, py + 3, ts - 6, 2);
-            oc.fillRect(px + 3, py + ts - 5, ts - 6, 2);
-            oc.fillStyle = '#f80'; oc.font = 'bold 11px monospace'; oc.textAlign = 'center'; oc.textBaseline = 'middle';
-            oc.fillText('v', px + ts / 2, py + ts / 2);
-          } else if (tile === 4) {
-            // Notice board
-            oc.fillStyle = '#1a1a10'; oc.fillRect(px + 2, py + 2, ts - 4, ts - 4);
-            oc.fillStyle = '#8a7a40'; oc.fillRect(px + 3, py + 3, ts - 6, ts - 6);
-            oc.fillStyle = '#aa9a50'; oc.font = 'bold 10px monospace'; oc.textAlign = 'center'; oc.textBaseline = 'middle';
-            oc.fillText('!', px + ts / 2, py + ts / 2);
-          } else if (tile === 9) {
-            // Café table — warm wood on wall base
-            oc.fillStyle = '#2a2018'; oc.fillRect(px + 3, py + 3, ts - 6, ts - 6);
-            oc.fillStyle = '#332a20'; oc.fillRect(px + 5, py + 5, ts - 10, ts - 10);
+          var name = TILE_NAMES[tid];
+          var sprite = name ? getSprite('tiles', name) : null;
+
+          // System entrance hidden before reveal — render as floor
+          if (tid === 8 && !revealed) {
+            sprite = getSprite('tiles', 'floor');
+            tid = 0;
           }
+
+          if (!sprite) {
+            oc.fillStyle = '#222';
+            oc.fillRect(px, py, ts, ts);
+            continue;
+          }
+
+          // Draw background for tiles with transparent pixels
+          var bg = TILE_BG[tid];
+          if (bg) {
+            var bgSprite = getSprite('tiles', bg);
+            if (bgSprite) drawSprite(oc, bgSprite, px, py, ts, (x + y) % 2);
+          }
+
+          // Compute frame
+          var frame = 0;
+          if (tid === 1) frame = owWallFrame(owMap, x, y);
+          else if (tid === 0 || tid === 2) frame = (x + y) % 2;
+
+          drawSprite(oc, sprite, px, py, ts, frame);
         }
       }
     }
