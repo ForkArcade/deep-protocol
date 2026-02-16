@@ -25,6 +25,33 @@
       return map[y][x] !== 1;
     }
 
+    // --- Performance: pre-rendered glow cache ---
+    var _glowCache = {};
+    function getGlow(color, innerR, outerR, size) {
+      var key = color + '_' + innerR + '_' + outerR;
+      if (_glowCache[key]) return _glowCache[key];
+      var c = document.createElement('canvas');
+      c.width = size; c.height = size;
+      var gc = c.getContext('2d');
+      var r = size / 2;
+      var grad = gc.createRadialGradient(r, r, innerR, r, r, outerR);
+      grad.addColorStop(0, color);
+      grad.addColorStop(1, 'transparent');
+      gc.fillStyle = grad;
+      gc.fillRect(0, 0, size, size);
+      _glowCache[key] = c;
+      return c;
+    }
+    var _glowSize = ts * 2;
+    var _enemyOuterR = Math.floor(ts * 1.2);
+    var _playerOuterR = Math.floor(ts * 1.3);
+
+    // --- Performance: offscreen lighting cache ---
+    var _lightCanvas = document.createElement('canvas');
+    _lightCanvas.width = W; _lightCanvas.height = cfg.rows * ts;
+    var _lightCtx = _lightCanvas.getContext('2d');
+    var _lightPx = -1, _lightPy = -1, _lightDepth = -1;
+
     // === START SCREEN ===
     FA.addLayer('startScreen', function() {
       var state = FA.getState();
@@ -236,11 +263,7 @@
         var icx = item.x * ts + ts / 2, icy = item.y * ts + ts / 2;
         ctx.save();
         ctx.globalAlpha = item.type === 'module' ? 0.25 : 0.15;
-        var ig = ctx.createRadialGradient(icx, icy, 0, icx, icy, ts);
-        ig.addColorStop(0, item.color);
-        ig.addColorStop(1, 'transparent');
-        ctx.fillStyle = ig;
-        ctx.fillRect(item.x * ts - ts / 2, item.y * ts - ts / 2, ts * 2, ts * 2);
+        ctx.drawImage(getGlow(item.color, 0, ts, _glowSize), item.x * ts - ts / 2, item.y * ts - ts / 2);
         ctx.restore();
         FA.draw.sprite('items', item.type, item.x * ts, item.y * ts, ts, item.char, item.color, 0);
       }
@@ -271,11 +294,7 @@
 
         ctx.save();
         ctx.globalAlpha = 0.25;
-        var eg = ctx.createRadialGradient(ecx, ecy, 2, ecx, ecy, ts * 1.2);
-        eg.addColorStop(0, en.color);
-        eg.addColorStop(1, 'transparent');
-        ctx.fillStyle = eg;
-        ctx.fillRect(en.x * ts - ts / 2, en.y * ts - ts / 2, ts * 2, ts * 2);
+        ctx.drawImage(getGlow(en.color, 2, _enemyOuterR, _glowSize), en.x * ts - ts / 2, en.y * ts - ts / 2);
         ctx.restore();
 
         FA.draw.sprite('enemies', en.behavior, en.x * ts, en.y * ts, ts, en.char, en.color, 0);
@@ -302,11 +321,7 @@
         // Cloaked — ghostly appearance
         ctx.save();
         ctx.globalAlpha = 0.12;
-        var cg = ctx.createRadialGradient(pcx, pcy, 2, pcx, pcy, ts * 1.3);
-        cg.addColorStop(0, '#88f');
-        cg.addColorStop(1, 'transparent');
-        ctx.fillStyle = cg;
-        ctx.fillRect(p.x * ts - ts / 2, p.y * ts - ts / 2, ts * 2, ts * 2);
+        ctx.drawImage(getGlow('#88f', 2, _playerOuterR, _glowSize), p.x * ts - ts / 2, p.y * ts - ts / 2);
         ctx.restore();
         ctx.save();
         ctx.globalAlpha = 0.35;
@@ -315,11 +330,7 @@
       } else {
         ctx.save();
         ctx.globalAlpha = 0.2;
-        var pg = ctx.createRadialGradient(pcx, pcy, 2, pcx, pcy, ts * 1.3);
-        pg.addColorStop(0, colors.player);
-        pg.addColorStop(1, 'transparent');
-        ctx.fillStyle = pg;
-        ctx.fillRect(p.x * ts - ts / 2, p.y * ts - ts / 2, ts * 2, ts * 2);
+        ctx.drawImage(getGlow(colors.player, 2, _playerOuterR, _glowSize), p.x * ts - ts / 2, p.y * ts - ts / 2);
         ctx.restore();
         FA.draw.sprite('player', 'base', p.x * ts, p.y * ts, ts, '@', colors.player, 0);
       }
@@ -370,9 +381,9 @@
       if (state.screen !== 'playing') return;
       if (!state.player) return;
 
-      var ctx = FA.getCtx();
       var p = state.player;
-      var lightRadius = 10 - (state.depth || 1) * 0.5;
+      var depth = state.depth || 1;
+      var lightRadius = 10 - depth * 0.5;
       var vis = computeFOV(state.map, p.x, p.y, lightRadius);
       var explored = state.explored;
 
@@ -382,23 +393,29 @@
         }
       }
 
-      ctx.save();
-      ctx.fillStyle = '#000';
-      for (var y2 = 0; y2 < cfg.rows; y2++) {
-        for (var x2 = 0; x2 < cfg.cols; x2++) {
-          if (vis[y2][x2] > 0.97) {
-            continue;
-          } else if (vis[y2][x2] > 0.03) {
-            ctx.globalAlpha = Math.min(1 - vis[y2][x2], 0.88);
-          } else if (explored[y2][x2]) {
-            ctx.globalAlpha = 0.72;
-          } else {
-            ctx.globalAlpha = 0.96;
+      // Only redraw lighting canvas when player moves or depth changes
+      if (p.x !== _lightPx || p.y !== _lightPy || depth !== _lightDepth) {
+        _lightPx = p.x; _lightPy = p.y; _lightDepth = depth;
+        _lightCtx.clearRect(0, 0, _lightCanvas.width, _lightCanvas.height);
+        _lightCtx.fillStyle = '#000';
+        for (var y2 = 0; y2 < cfg.rows; y2++) {
+          for (var x2 = 0; x2 < cfg.cols; x2++) {
+            if (vis[y2][x2] > 0.97) {
+              continue;
+            } else if (vis[y2][x2] > 0.03) {
+              _lightCtx.globalAlpha = Math.min(1 - vis[y2][x2], 0.88);
+            } else if (explored[y2][x2]) {
+              _lightCtx.globalAlpha = 0.72;
+            } else {
+              _lightCtx.globalAlpha = 0.96;
+            }
+            _lightCtx.fillRect(x2 * ts, y2 * ts, ts, ts);
           }
-          ctx.fillRect(x2 * ts, y2 * ts, ts, ts);
         }
+        _lightCtx.globalAlpha = 1;
       }
-      ctx.restore();
+
+      FA.getCtx().drawImage(_lightCanvas, 0, 0);
     }, 15);
 
     // === DYNAMIC EFFECTS ===
