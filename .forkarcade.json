@@ -9,13 +9,19 @@
   ],
   "slug": "deep-protocol",
   "title": "Deep Protocol",
-  "currentVersion": 1,
+  "currentVersion": 2,
   "versions": [
     {
       "version": 1,
       "date": "2026-02-16",
       "issue": null,
       "description": "Initial release — narrative overhaul"
+    },
+    {
+      "version": 2,
+      "date": "2026-02-16",
+      "issue": null,
+      "description": "Kafka redesign — dual worlds, NPC allegiances, day cycle, credits economy"
     }
   ],
   "sdkVersion": 1,

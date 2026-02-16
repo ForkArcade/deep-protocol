@@ -1,4 +1,4 @@
-// Deep Protocol — Entry Point
+// Deep Protocol — Entry Point (Kafka Redesign)
 (function() {
   'use strict';
   var FA = window.FA;
@@ -40,7 +40,27 @@
       return;
     }
 
-    // Playing
+    // Overworld
+    if (state.screen === 'overworld') {
+      // Dismiss bubbles/thoughts first
+      if (data.action === 'start') {
+        if ((state.thoughts && state.thoughts.length > 0) || state.systemBubble) {
+          Game.dismissBubbles();
+        } else {
+          Game.interact();
+        }
+        return;
+      }
+      switch (data.action) {
+        case 'up':    Game.movePlayer(0, -1); break;
+        case 'down':  Game.movePlayer(0, 1);  break;
+        case 'left':  Game.movePlayer(-1, 0); break;
+        case 'right': Game.movePlayer(1, 0);  break;
+      }
+      return;
+    }
+
+    // System (playing)
     if (state.screen !== 'playing') return;
     if (data.action === 'start' && ((state.thoughts && state.thoughts.length > 0) || state.systemBubble)) {
       Game.dismissBubbles();
@@ -68,8 +88,8 @@
   FA.setUpdate(function(dt) {
     FA.updateEffects(dt);
     FA.updateFloats(dt);
-    // System bubble timer
     var state = FA.getState();
+    // System bubble timer
     if (state.systemBubble) {
       var sb = state.systemBubble;
       if (!sb.done) {
