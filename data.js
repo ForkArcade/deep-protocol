@@ -58,36 +58,35 @@
   });
 
   // === OVERWORLD MAP (40x25) ===
-  // 1=wall  0=path  2=indoor floor  6=bed  7=work terminal
-  // 8=system entrance (hidden until day 3)  9=café table
-  // Tiles: 0=floor 1=wall 3=garden 5=sidewalk 6=bed 7=terminal 8=system 9=table
+  // 1=wall 0=floor 2=indoor 3=garden 4=notice board 5=sidewalk
+  // 6=bed 7=work terminal 8=system entrance 9=café table
   FA.register('config', 'overworld', {
-    playerStart: { x: 19, y: 3 },
+    playerStart: { x: 5, y: 2 },
     map: [
       '1111111111111111111111111111111111111111',
-      '1111111111111111111111111111111111111111',
-      '1111111111111111100000011111111111111111',
-      '1111111111111111160000011111111111111111',
-      '1111111111111111100000011111111111111111',
-      '1111111111111111111551111111111111111111',
-      '1111111111111111111551111111009011111111',
-      '1111111133300005555555550000000011111111',
-      '1111111133300005555755500000090011111111',
-      '1111111133300005555555550000000011111111',
-      '1111111111111111111551111111009011111111',
-      '1111111111111111111551111111111111111111',
-      '1111111111111111111551111111111111111111',
-      '1111111100005555500000055555000011111111',
-      '1111111100005555500800055555000011111111',
-      '1111111100005555500000055555000011111111',
-      '1111111111111111111111111111111111111111',
-      '1111111111111111111111111111111111111111',
-      '1111111111111111111111111111111111111111',
-      '1111111111111111111111111111111111111111',
-      '1111111111111111111111111111111111111111',
-      '1111111111111111111111111111111111111111',
-      '1111111111111111111111111111111111111111',
-      '1111111111111111111111111111111111111111',
+      '1022260011111111111111111111100222600111',
+      '1022200011111111111111111111100222000111',
+      '1111100555111111111111111111111110055111',
+      '5555555555555555555555555555555555555555',
+      '1111100550000000000000000000000000551111',
+      '1133300550000000000000000009000900551111',
+      '1133300550000000004000000000000000551111',
+      '1133300550000000000000000009000900551111',
+      '1111100550000000000000000000000000551111',
+      '5555555555555555555555555555555555555555',
+      '1111100551111100551111111111005511111111',
+      '1022260011022260011111111100226001022011',
+      '1022200011022200011111111100220001022011',
+      '1111100551111100551111111111005511111111',
+      '5555555555555555555555555555555555555555',
+      '1111111111111155000000005511111111111111',
+      '1111111111111155007000705511111111111111',
+      '1111111111111155000000005511111111111111',
+      '1111111111111111550000551111111111111111',
+      '1111111111111111550000551111111111111111',
+      '1111111111111111550800551111111111111111',
+      '1111111111111111550000551111111111111111',
+      '1111111111111111555555551111111111111111',
       '1111111111111111111111111111111111111111'
     ],
     blocked: { '1': true, '9': true }
@@ -98,10 +97,10 @@
 
   FA.register('npcs', 'lena', {
     name: 'Lena', char: '@', color: '#f8d',
-    homePos: { x: 21, y: 3 },
-    cafePos: { x: 28, y: 7 },
-    terminalPos: { x: 19, y: 8 },
-    gardenPos: { x: 9, y: 7 },
+    homePos: { x: 33, y: 2 },
+    cafePos: { x: 29, y: 6 },
+    terminalPos: { x: 18, y: 17 },
+    gardenPos: { x: 3, y: 7 },
     schedule: { morning: 'home', midday: 'cafe', evening: 'home' },
     appearsDay: 1,
     systemDialogue: {
@@ -113,10 +112,10 @@
 
   FA.register('npcs', 'victor', {
     name: 'Victor', char: '@', color: '#fa4',
-    homePos: { x: 9, y: 14 },
-    cafePos: { x: 29, y: 8 },
-    terminalPos: { x: 21, y: 8 },
-    gardenPos: { x: 10, y: 8 },
+    homePos: { x: 29, y: 12 },
+    cafePos: { x: 31, y: 8 },
+    terminalPos: { x: 22, y: 17 },
+    gardenPos: { x: 4, y: 6 },
     schedule: { morning: 'wander', midday: 'cafe', evening: 'cafe' },
     appearsDay: 2,
     systemDialogue: {
@@ -128,10 +127,10 @@
 
   FA.register('npcs', 'marta', {
     name: 'Marta', char: '@', color: '#8cf',
-    homePos: { x: 29, y: 14 },
-    cafePos: { x: 28, y: 9 },
-    terminalPos: { x: 20, y: 7 },
-    gardenPos: { x: 8, y: 9 },
+    homePos: { x: 5, y: 12 },
+    cafePos: { x: 29, y: 8 },
+    terminalPos: { x: 20, y: 17 },
+    gardenPos: { x: 3, y: 8 },
     schedule: { morning: 'home', midday: 'home', evening: 'cafe' },
     appearsDay: 1,
     systemDialogue: {
@@ -143,10 +142,10 @@
 
   FA.register('npcs', 'emil', {
     name: 'Emil', char: '@', color: '#a8f',
-    homePos: { x: 20, y: 14 },
-    cafePos: { x: 31, y: 8 },
-    terminalPos: { x: 20, y: 9 },
-    gardenPos: { x: 10, y: 9 },
+    homePos: { x: 14, y: 12 },
+    cafePos: { x: 31, y: 6 },
+    terminalPos: { x: 18, y: 7 },
+    gardenPos: { x: 2, y: 6 },
     schedule: { morning: 'wander', midday: 'wander', evening: 'cafe' },
     appearsDay: 3,
     systemDialogue: {
@@ -155,6 +154,17 @@
       neutral: 'I\'ve been here longer than you think. Longer than I think.'
     }
   });
+
+  // === NOTICE BOARD (narrative-driven — FA.select) ===
+  FA.register('notices', 'board', [
+    { node: 'arc:revelation', text: 'SYSTEM NOTICE: Sector audit complete. All residents cleared. [REDACTED]' },
+    { node: 'arc:deeper', text: 'REMINDER: Unauthorized access to maintenance shafts is punishable. Report anomalies.' },
+    { node: 'arc:first_system', text: 'NOTICE: Increased drone patrols tonight. Curfew strictly enforced.' },
+    { var: 'day', gte: 5, text: 'RENT ADJUSTMENT: Monthly rates revised upward. Appeals office closed indefinitely.' },
+    { var: 'day', gte: 3, text: 'COMMUNITY EVENT: Voluntary overtime available. Increased credit compensation.' },
+    { var: 'day', eq: 2, text: 'MAINTENANCE: Shaft repairs scheduled. Do not approach utility entrances.' },
+    { text: 'WELCOME: New residents report to terminal for work assignment. Curfew at dusk.' }
+  ]);
 
   // === DIALOGUES (narrative-driven — FA.select, first match wins) ===
   // Priority: confidant > arc:deeper > arc:first_system > acquaintance > day-flavor > fallback

@@ -590,6 +590,7 @@
     var tile = state.owMap[state.owPlayer.y][state.owPlayer.x];
     if (tile === 6) goToBed(state);
     else if (tile === 7) workAtTerminal(state);
+    else if (tile === 4) readNoticeBoard(state);
     else if (tile === 8) {
       if (state.systemRevealed) enterSystem(state);
       else addThought('A sealed maintenance shaft. Nothing to see.');
@@ -610,6 +611,14 @@
     addSystemBubble('> Shift complete. +' + econCfg.workPay + ' credits.', '#fd0');
     triggerThought('work');
     checkTimeWarnings(state);
+  }
+
+  function readNoticeBoard(state) {
+    var entry = FA.select(FA.lookup('notices', 'board'));
+    var text = entry ? entry.text : 'The board is empty.';
+    addSystemBubble('> NOTICE: ' + text, '#aa9a50');
+    state.timeOfDay += 1;
+    state.turn += 1;
   }
 
   function goToBed(state) {

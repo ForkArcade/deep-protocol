@@ -248,6 +248,12 @@
             oc.fillRect(px + 3, py + ts - 5, ts - 6, 2);
             oc.fillStyle = '#f80'; oc.font = 'bold 11px monospace'; oc.textAlign = 'center'; oc.textBaseline = 'middle';
             oc.fillText('v', px + ts / 2, py + ts / 2);
+          } else if (tile === 4) {
+            // Notice board
+            oc.fillStyle = '#1a1a10'; oc.fillRect(px + 2, py + 2, ts - 4, ts - 4);
+            oc.fillStyle = '#8a7a40'; oc.fillRect(px + 3, py + 3, ts - 6, ts - 6);
+            oc.fillStyle = '#aa9a50'; oc.font = 'bold 10px monospace'; oc.textAlign = 'center'; oc.textBaseline = 'middle';
+            oc.fillText('!', px + ts / 2, py + ts / 2);
           } else if (tile === 9) {
             // Café table — warm wood on wall base
             oc.fillStyle = '#2a2018'; oc.fillRect(px + 3, py + 3, ts - 6, ts - 6);
@@ -358,6 +364,7 @@
       if (tile === 3) return 'garden';
       if (tile === 8) return 'system';
       if (tile === 9) return 'cafe';
+      if (tile === 4) return 'streets'; // notice board is in courtyard
       // Check adjacent tiles for context
       var dirs = [[0,-1],[0,1],[-1,0],[1,0]];
       for (var d = 0; d < dirs.length; d++) {
@@ -429,6 +436,7 @@
       var actions = [];
       if (tile === 6) actions.push({ key: 'SPACE', label: 'Sleep', color: '#8878cc' });
       else if (tile === 7) actions.push({ key: 'SPACE', label: state.workedToday ? 'Shift done' : 'Work', color: state.workedToday ? '#443' : '#88aa66' });
+      else if (tile === 4) actions.push({ key: 'SPACE', label: 'Read notices', color: '#aa9a50' });
       else if (tile === 8 && state.systemRevealed) actions.push({ key: 'SPACE', label: 'Enter System', color: '#f80' });
       var dirs = [[0,-1],[0,1],[-1,0],[1,0]];
       for (var d = 0; d < dirs.length; d++) {
