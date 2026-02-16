@@ -233,7 +233,6 @@
 
   function canStepOverworld(npc, nx, ny, state) {
     if (!isWalkable(state.owMap, nx, ny)) return false;
-    if (state.owPlayer && nx === state.owPlayer.x && ny === state.owPlayer.y) return false;
     for (var i = 0; i < state.npcs.length; i++) {
       var other = state.npcs[i];
       if (other === npc) continue;
@@ -455,7 +454,6 @@
     var state = FA.getState();
     var nx = state.owPlayer.x + dx;
     var ny = state.owPlayer.y + dy;
-    if (getNPCAt(state, nx, ny)) return;
     if (!isWalkable(state.owMap, nx, ny)) return;
     state.owPlayer.x = nx;
     state.owPlayer.y = ny;
