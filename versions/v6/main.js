@@ -1,4 +1,4 @@
-// Roguelike — Entry Point
+// Deep Protocol — Entry Point (Kafka Redesign)
 (function() {
   'use strict';
   var FA = window.FA;
@@ -14,6 +14,9 @@
   FA.bindKey('right', ['ArrowRight', 'd']);
   FA.bindKey('restart', ['r']);
   FA.bindKey('start',   [' ', 'Enter']);
+  FA.bindKey('mod1', ['1']);
+  FA.bindKey('mod2', ['2']);
+  FA.bindKey('mod3', ['3']);
 
   // Input handling
   FA.on('input:action', function(data) {
@@ -25,19 +28,58 @@
       return;
     }
 
+    // Cutscene — Space to skip/dismiss
+    if (state.screen === 'cutscene' && data.action === 'start') {
+      Game.dismissCutscene();
+      return;
+    }
+
+    // Dream — Space to dismiss
+    if (state.screen === 'dream' && data.action === 'start') {
+      Game.dismissDream();
+      return;
+    }
+
     // Game over screens
-    if ((state.screen === 'victory' || state.screen === 'death') && data.action === 'restart') {
+    if ((state.screen === 'victory' || state.screen === 'shutdown') && data.action === 'restart') {
       Game.start();
       return;
     }
 
-    // Playing
+    // Overworld
+    if (state.screen === 'overworld') {
+      // Dismiss bubbles/thoughts first
+      if (data.action === 'start') {
+        if ((state.thoughts && state.thoughts.length > 0) || state.systemBubble) {
+          Game.dismissBubbles();
+        } else {
+          Game.interact();
+        }
+        return;
+      }
+      switch (data.action) {
+        case 'up':    Game.movePlayer(0, -1); break;
+        case 'down':  Game.movePlayer(0, 1);  break;
+        case 'left':  Game.movePlayer(-1, 0); break;
+        case 'right': Game.movePlayer(1, 0);  break;
+      }
+      return;
+    }
+
+    // System (playing)
     if (state.screen !== 'playing') return;
+    if (data.action === 'start' && ((state.thoughts && state.thoughts.length > 0) || state.systemBubble)) {
+      Game.dismissBubbles();
+      return;
+    }
     switch (data.action) {
       case 'up':    Game.movePlayer(0, -1); break;
       case 'down':  Game.movePlayer(0, 1);  break;
       case 'left':  Game.movePlayer(-1, 0); break;
       case 'right': Game.movePlayer(1, 0);  break;
+      case 'mod1':  Game.useModule(0); break;
+      case 'mod2':  Game.useModule(1); break;
+      case 'mod3':  Game.useModule(2); break;
     }
   });
 
@@ -52,16 +94,84 @@
   FA.setUpdate(function(dt) {
     FA.updateEffects(dt);
     FA.updateFloats(dt);
-    // Narrative message timer
     var state = FA.getState();
-    if (state.narrativeMessage && state.narrativeMessage.life > 0) {
-      state.narrativeMessage.life -= dt;
+    // System bubble timer
+    if (state.systemBubble) {
+      var sb = state.systemBubble;
+      if (!sb.done) {
+        sb.timer += dt;
+        var sbLD = 200;
+        var sbLastIdx = sb.lines.length - 1;
+        var sbEnd = sbLastIdx * sbLD + TextFX.totalTime(sb.lines[sbLastIdx]);
+        if (sb.timer >= sbEnd) sb.done = true;
+      } else {
+        sb.life -= dt;
+        if (sb.life <= 0) state.systemBubble = null;
+      }
+    }
+    // Cutscene scramble timing
+    if (state.screen === 'cutscene' && state.cutscene && !state.cutscene.done) {
+      state.cutscene.timer += dt;
+      var cs = state.cutscene;
+      var ld = cs.lineDelay || 200;
+      var lastIdx = cs.lines.length - 1;
+      var endTime = lastIdx * ld + TextFX.totalTime(cs.lines[lastIdx]);
+      if (cs.timer >= endTime) cs.done = true;
+    }
+    // Thought scramble timing
+    if (state.thoughts) {
+      for (var ti = state.thoughts.length - 1; ti >= 0; ti--) {
+        var th = state.thoughts[ti];
+        if (!th.done) {
+          th.timer += dt;
+          if (th.timer >= TextFX.totalTime(th.text)) th.done = true;
+        } else {
+          th.life -= dt;
+        }
+      }
+      while (state.thoughts.length > 0 && state.thoughts[0].done && state.thoughts[0].life <= 0) {
+        state.thoughts.shift();
+      }
+    }
+    // Dream timer
+    if (state.screen === 'dream') {
+      state.dreamTimer = (state.dreamTimer || 0) + dt;
+    }
+    // Screen shake decay
+    if (state.shake > 0) {
+      state.shakeX = (Math.random() - 0.5) * state.shake;
+      state.shakeY = (Math.random() - 0.5) * state.shake;
+      state.shake -= dt * 0.012;
+      if (state.shake < 0) { state.shake = 0; state.shakeX = 0; state.shakeY = 0; }
+    }
+    // Kill particles
+    if (state.particles) {
+      for (var pi = state.particles.length - 1; pi >= 0; pi--) {
+        var pt = state.particles[pi];
+        pt.x += pt.vx * dt / 1000;
+        pt.y += pt.vy * dt / 1000;
+        pt.vx *= 0.97; pt.vy *= 0.97;
+        pt.life -= dt;
+        if (pt.life <= 0) state.particles.splice(pi, 1);
+      }
+    }
+    // Sound waves
+    if (state.soundWaves) {
+      for (var wi = state.soundWaves.length - 1; wi >= 0; wi--) {
+        state.soundWaves[wi].life -= dt;
+        if (state.soundWaves[wi].life <= 0) state.soundWaves.splice(wi, 1);
+      }
     }
   });
 
   FA.setRender(function() {
     FA.draw.clear(colors.bg);
+    var state = FA.getState();
+    var ctx = FA.getCtx();
+    var sx = state.shakeX || 0, sy = state.shakeY || 0;
+    if (sx || sy) ctx.translate(sx, sy);
     FA.renderLayers();
+    if (sx || sy) ctx.translate(-sx, -sy);
   });
 
   // Start

@@ -9,7 +9,7 @@
   ],
   "slug": "deep-protocol",
   "title": "Deep Protocol",
-  "currentVersion": 5,
+  "currentVersion": 6,
   "versions": [
     {
       "version": 1,
@@ -40,6 +40,12 @@
       "date": "2026-02-16",
       "issue": null,
       "description": "Published v5"
+    },
+    {
+      "version": 6,
+      "date": "2026-02-16",
+      "issue": null,
+      "description": "Published v6"
     }
   ],
   "sdkVersion": 1,
