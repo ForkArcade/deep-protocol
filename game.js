@@ -4,83 +4,40 @@
   var FA = window.FA;
 
   // ============================================================
-  //  SYSTEM DUNGEON — MAP GENERATION
+  //  SYSTEM DUNGEON — MAP GENERATION (rot.js)
   // ============================================================
-
-  function createEmptyMap(cols, rows) {
-    var map = [];
-    for (var y = 0; y < rows; y++) {
-      map[y] = [];
-      for (var x = 0; x < cols; x++) map[y][x] = 1;
-    }
-    return map;
-  }
-
-  function carveRoom(map, room) {
-    for (var y = room.y; y < room.y + room.h; y++) {
-      for (var x = room.x; x < room.x + room.w; x++) map[y][x] = 0;
-    }
-  }
-
-  function carveCorridor(map, x1, y1, x2, y2) {
-    var x = x1, y = y1;
-    while (x !== x2) {
-      if (y >= 0 && y < map.length && x >= 0 && x < map[0].length) map[y][x] = 0;
-      x += x2 > x1 ? 1 : -1;
-    }
-    while (y !== y2) {
-      if (y >= 0 && y < map.length && x >= 0 && x < map[0].length) map[y][x] = 0;
-      y += y2 > y1 ? 1 : -1;
-    }
-    if (y >= 0 && y < map.length && x >= 0 && x < map[0].length) map[y][x] = 0;
-  }
-
-  function roomsOverlap(a, b) {
-    return a.x - 1 < b.x + b.w && a.x + a.w + 1 > b.x &&
-           a.y - 1 < b.y + b.h && a.y + a.h + 1 > b.y;
-  }
 
   function generateFloor(cols, rows, depth) {
     var cfg = FA.lookup('config', 'game');
-    var map = createEmptyMap(cols, rows);
+
+    var digger = new ROT.Map.Digger(cols, rows, {
+      roomWidth: [cfg.roomMinSize, cfg.roomMaxSize],
+      roomHeight: [cfg.roomMinSize, cfg.roomMaxSize],
+      dugPercentage: 0.35 + depth * 0.03
+    });
+
+    var map = [];
+    for (var y = 0; y < rows; y++) { map[y] = []; for (var x = 0; x < cols; x++) map[y][x] = 1; }
+    digger.create(function(x, y, value) { map[y][x] = value; });
+
+    var rotRooms = digger.getRooms();
     var rooms = [];
-
-    for (var attempt = 0; attempt < cfg.roomAttempts; attempt++) {
-      var w = FA.rand(cfg.roomMinSize, cfg.roomMaxSize);
-      var h = FA.rand(cfg.roomMinSize, cfg.roomMaxSize);
-      var x = FA.rand(1, cols - w - 1);
-      var y = FA.rand(1, rows - h - 1);
-      var room = { x: x, y: y, w: w, h: h };
-
-      var overlaps = false;
-      for (var r = 0; r < rooms.length; r++) {
-        if (roomsOverlap(room, rooms[r])) { overlaps = true; break; }
-      }
-      if (overlaps) continue;
-
-      carveRoom(map, room);
-      if (rooms.length > 0) {
-        var prev = rooms[rooms.length - 1];
-        var cx1 = Math.floor(prev.x + prev.w / 2);
-        var cy1 = Math.floor(prev.y + prev.h / 2);
-        var cx2 = Math.floor(room.x + room.w / 2);
-        var cy2 = Math.floor(room.y + room.h / 2);
-        if (FA.rand(0, 1) === 0) {
-          carveCorridor(map, cx1, cy1, cx2, cy1);
-          carveCorridor(map, cx2, cy1, cx2, cy2);
-        } else {
-          carveCorridor(map, cx1, cy1, cx1, cy2);
-          carveCorridor(map, cx1, cy2, cx2, cy2);
-        }
-      }
-      rooms.push(room);
+    for (var r = 0; r < rotRooms.length; r++) {
+      var rr = rotRooms[r];
+      rooms.push({
+        x: rr.getLeft(), y: rr.getTop(),
+        w: rr.getRight() - rr.getLeft() + 1,
+        h: rr.getBottom() - rr.getTop() + 1
+      });
     }
 
     if (rooms.length < 2) {
       rooms = [{ x: 2, y: 2, w: 5, h: 5 }, { x: cols - 8, y: rows - 8, w: 5, h: 5 }];
-      carveRoom(map, rooms[0]);
-      carveRoom(map, rooms[1]);
-      carveCorridor(map, 4, 4, cols - 6, rows - 6);
+      for (var fi = 0; fi < rooms.length; fi++) {
+        var fr = rooms[fi];
+        for (var ry = fr.y; ry < fr.y + fr.h; ry++)
+          for (var rx = fr.x; rx < fr.x + fr.w; rx++) map[ry][rx] = 0;
+      }
     }
 
     // Exit in last room (stairsUp = system exit)
@@ -126,7 +83,37 @@
 
   function isWalkable(map, x, y) {
     if (y < 0 || y >= map.length || x < 0 || x >= map[0].length) return false;
-    return map[y][x] !== 1;
+    var tile = map[y][x];
+    return tile !== 1 && tile !== 9;
+  }
+
+  // === FOV (rot.js) ===
+
+  function computeVisibility(map, px, py, radius) {
+    var rows = map.length, cols = map[0].length;
+    var vis = [];
+    for (var y = 0; y < rows; y++) { vis[y] = []; for (var x = 0; x < cols; x++) vis[y][x] = 0; }
+    var fov = new ROT.FOV.PreciseShadowcasting(function(x, y) {
+      if (x < 0 || x >= cols || y < 0 || y >= rows) return false;
+      return map[y][x] !== 1;
+    });
+    fov.compute(px, py, radius, function(x, y, r, visibility) {
+      if (x < 0 || x >= cols || y < 0 || y >= rows) return;
+      var light = r < 2 ? 1 : Math.max(0, 1 - (r - 2) / (radius - 2));
+      if (light > vis[y][x]) vis[y][x] = light;
+    });
+    return vis;
+  }
+
+  // === PATHFINDING (rot.js) ===
+
+  function findPath(fromX, fromY, toX, toY, map) {
+    var path = [];
+    var astar = new ROT.Path.AStar(toX, toY, function(x, y) {
+      return isWalkable(map, x, y);
+    }, { topology: 4 });
+    astar.compute(fromX, fromY, function(x, y) { path.push({ x: x, y: y }); });
+    return path;
   }
 
   function populateFloor(map, rooms, depth) {
@@ -212,12 +199,6 @@
     return map;
   }
 
-  function isOverworldWalkable(map, x, y) {
-    if (y < 0 || y >= map.length || x < 0 || x >= map[0].length) return false;
-    var tile = map[y][x];
-    return tile !== 1 && tile !== 9;
-  }
-
   // ============================================================
   //  NPC SYSTEM
   // ============================================================
@@ -251,7 +232,7 @@
   // --- NPC AI: overworld pathfinding (mirrors enemy drone AI) ---
 
   function canStepOverworld(npc, nx, ny, state) {
-    if (!isOverworldWalkable(state.owMap, nx, ny)) return false;
+    if (!isWalkable(state.owMap, nx, ny)) return false;
     if (state.owPlayer && nx === state.owPlayer.x && ny === state.owPlayer.y) return false;
     for (var i = 0; i < state.npcs.length; i++) {
       var other = state.npcs[i];
@@ -263,21 +244,12 @@
   }
 
   function moveNPCToward(npc, tx, ty, state) {
-    var dx = tx - npc.x, dy = ty - npc.y;
-    if (dx === 0 && dy === 0) return false;
-    var sx = dx > 0 ? 1 : dx < 0 ? -1 : 0;
-    var sy = dy > 0 ? 1 : dy < 0 ? -1 : 0;
-    var moves;
-    if (Math.abs(dx) >= Math.abs(dy)) {
-      moves = [{dx: sx, dy: 0}, {dx: 0, dy: sy || 1}, {dx: 0, dy: -(sy || 1)}];
-    } else {
-      moves = [{dx: 0, dy: sy}, {dx: sx || 1, dy: 0}, {dx: -(sx || 1), dy: 0}];
-    }
-    for (var i = 0; i < moves.length; i++) {
-      if (moves[i].dx === 0 && moves[i].dy === 0) continue;
-      var nx = npc.x + moves[i].dx, ny = npc.y + moves[i].dy;
-      if (canStepOverworld(npc, nx, ny, state)) {
-        npc.x = nx; npc.y = ny;
+    if (npc.x === tx && npc.y === ty) return false;
+    var path = findPath(npc.x, npc.y, tx, ty, state.owMap);
+    if (path.length >= 2) {
+      var next = path[1];
+      if (canStepOverworld(npc, next.x, next.y, state)) {
+        npc.x = next.x; npc.y = next.y;
         return true;
       }
     }
@@ -484,7 +456,7 @@
     var nx = state.owPlayer.x + dx;
     var ny = state.owPlayer.y + dy;
     if (getNPCAt(state, nx, ny)) return;
-    if (!isOverworldWalkable(state.owMap, nx, ny)) return;
+    if (!isWalkable(state.owMap, nx, ny)) return;
     state.owPlayer.x = nx;
     state.owPlayer.y = ny;
     FA.playSound('step');
@@ -746,6 +718,10 @@
     state.directorMsgShown = {};
     state.mapVersion = (state.mapVersion || 0) + 1;
 
+    // Compute initial FOV
+    var lightRadius = 10 - depth * 0.5;
+    state.visible = computeVisibility(state.map, px, py, lightRadius);
+
     FA.clearEffects();
     // Narrative: track system entry (don't re-init — preserves vars)
     if (FA.narrative && FA.narrative.setVar) {
@@ -991,6 +967,16 @@
   }
 
   function moveToward(e, tx, ty, state, skipIdx) {
+    // Use A* pathfinding for smart movement
+    var path = findPath(e.x, e.y, tx, ty, state.map);
+    if (path.length >= 2) {
+      var next = path[1];
+      if (canStep(next.x, next.y, state, skipIdx)) {
+        e.x = next.x; e.y = next.y;
+        return true;
+      }
+    }
+    // Fallback to direct movement if A* blocked by entities
     var dx = tx - e.x, dy = ty - e.y;
     var sx = dx > 0 ? 1 : dx < 0 ? -1 : 0;
     var sy = dy > 0 ? 1 : dy < 0 ? -1 : 0;
@@ -1426,6 +1412,13 @@
     if (state.screen !== 'playing') return;
     state.turn++;
     state.systemTurn = (state.systemTurn || 0) + 1;
+
+    // Recompute FOV after player action
+    if (state.player) {
+      var lightRadius = 10 - (state.depth || 1) * 0.5;
+      state.visible = computeVisibility(state.map, state.player.x, state.player.y, lightRadius);
+    }
+
     enemyTurn();
     if (state.screen === 'playing' && state.systemTurn > 0) {
       if (state.systemTurn % 12 === 0) {

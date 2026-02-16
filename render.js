@@ -606,61 +606,33 @@
     }, 10);
 
     // ================================================================
-    //  SHADOWCAST LIGHTING
+    //  LIGHTING (reads state.visible pre-computed by game.js via rot.js)
     // ================================================================
-
-    var _visGrid = [];
-    for (var _vy = 0; _vy < cfg.rows; _vy++) {
-      _visGrid[_vy] = new Array(cfg.cols);
-      for (var _vx = 0; _vx < cfg.cols; _vx++) _visGrid[_vy][_vx] = 0;
-    }
-    var _fovX = -1, _fovY = -1, _fovRadius = -1;
-
-    function computeFOV(map, px, py, radius) {
-      if (px === _fovX && py === _fovY && radius === _fovRadius) return _visGrid;
-      _fovX = px; _fovY = py; _fovRadius = radius;
-      for (var y = 0; y < cfg.rows; y++)
-        for (var x = 0; x < cfg.cols; x++) _visGrid[y][x] = 0;
-      _visGrid[py][px] = 1;
-      var rays = 720;
-      for (var a = 0; a < rays; a++) {
-        var angle = (a / rays) * Math.PI * 2;
-        var dx = Math.cos(angle) * 0.5, dy = Math.sin(angle) * 0.5;
-        var rx = px + 0.5, ry = py + 0.5;
-        for (var d = 0; d < radius * 2; d++) {
-          rx += dx; ry += dy;
-          var tx = Math.floor(rx), ty = Math.floor(ry);
-          if (tx < 0 || tx >= cfg.cols || ty < 0 || ty >= cfg.rows) break;
-          var dist = Math.sqrt((tx - px) * (tx - px) + (ty - py) * (ty - py));
-          if (dist > radius) break;
-          var light = dist < 2 ? 1 : Math.max(0, 1 - (dist - 2) / (radius - 2));
-          if (light > _visGrid[ty][tx]) _visGrid[ty][tx] = light;
-          if (map[ty][tx] === 1) break;
-        }
-      }
-      return _visGrid;
-    }
 
     FA.addLayer('lighting', function() {
       var state = FA.getState();
       if (state.screen !== 'playing') return;
       if (!state.player || !state.map) return;
       var p = state.player;
-      var depth = state.depth || 1;
-      var lightRadius = 10 - depth * 0.5;
-      var vis = computeFOV(state.map, p.x, p.y, lightRadius);
+      var vis = state.visible;
+      if (!vis) return;
       var explored = state.explored;
+      var depth = state.depth || 1;
+
+      // Mark explored tiles
       for (var y = 0; y < cfg.rows; y++)
         for (var x = 0; x < cfg.cols; x++)
-          if (vis[y][x] > 0.05) explored[y][x] = true;
+          if (vis[y] && vis[y][x] > 0.05) explored[y][x] = true;
+
       if (p.x !== _lightPx || p.y !== _lightPy || depth !== _lightDepth) {
         _lightPx = p.x; _lightPy = p.y; _lightDepth = depth;
         _lightCtx.clearRect(0, 0, _lightCanvas.width, _lightCanvas.height);
         _lightCtx.fillStyle = '#000';
         for (var y2 = 0; y2 < cfg.rows; y2++) {
           for (var x2 = 0; x2 < cfg.cols; x2++) {
-            if (vis[y2][x2] > 0.97) continue;
-            else if (vis[y2][x2] > 0.03) _lightCtx.globalAlpha = Math.min(1 - vis[y2][x2], 0.88);
+            var v = vis[y2] ? vis[y2][x2] : 0;
+            if (v > 0.97) continue;
+            else if (v > 0.03) _lightCtx.globalAlpha = Math.min(1 - v, 0.88);
             else if (explored[y2][x2]) _lightCtx.globalAlpha = 0.72;
             else _lightCtx.globalAlpha = 0.96;
             _lightCtx.fillRect(x2 * ts, y2 * ts, ts, ts);
