@@ -53,79 +53,168 @@
     var _lightPx = -1, _lightPy = -1, _lightDepth = -1;
 
     // === START SCREEN ===
+    // Depth tunnel colors: blue → purple → amber → crimson → deep red
+    var _tunnelColors = ['#1a3858', '#2a2858', '#584828', '#582828', '#481818'];
+    var _tunnelGlowColors = ['#2a5888', '#3a3878', '#886838', '#883838', '#682828'];
+
     FA.addLayer('startScreen', function() {
       var state = FA.getState();
       if (state.screen !== 'start') return;
       var ctx = FA.getCtx();
+      var now = Date.now();
       var dpNum = state.dpNumber || 7;
       var prevDeath = state.prevDeath;
 
-      FA.draw.clear('#04080e');
+      // Background — near black
+      FA.draw.clear('#020610');
+
+      // Subtle center radiance
+      ctx.save();
+      ctx.globalAlpha = 0.06;
+      ctx.drawImage(getGlow('#182848', 0, 200, 400), W / 2 - 200, H / 2 - 200);
+      ctx.restore();
+
+      // Floating data particles (ascending — like escaping data)
+      ctx.save();
+      var seed = 7;
+      for (var pi = 0; pi < 35; pi++) {
+        seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+        var ppx = seed % W;
+        seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+        var baseY = seed % H;
+        var speed = 0.012 + (pi % 5) * 0.004;
+        var ppy = (baseY - (now * speed) % H + H) % H;
+        ctx.globalAlpha = pi % 4 === 0 ? 0.2 : 0.07;
+        ctx.fillStyle = pi % 5 === 0 ? '#4ef' : '#1a2838';
+        ctx.fillRect(ppx, ppy, pi % 3 === 0 ? 2 : 1, pi % 3 === 0 ? 2 : 1);
+      }
+      ctx.restore();
 
       // Scan lines
       ctx.save();
       ctx.fillStyle = '#000';
-      ctx.globalAlpha = 0.12;
-      for (var sy = 0; sy < H; sy += 3) {
-        ctx.fillRect(0, sy, W, 1);
-      }
+      ctx.globalAlpha = 0.05;
+      for (var sy = 0; sy < H; sy += 3) ctx.fillRect(0, sy, W, 1);
       ctx.restore();
 
-      // Title
-      FA.draw.text('DEEP  PROTOCOL', W / 2, 100, { color: '#4ef', size: 32, bold: true, align: 'center', baseline: 'middle' });
-
-      // Subtle line under title
-      ctx.save();
-      ctx.globalAlpha = 0.25;
-      ctx.fillStyle = '#4ef';
-      ctx.fillRect(W / 2 - 110, 118, 220, 1);
-      ctx.restore();
-
-      // System diagnostic block
-      var diagY = 155;
-      var diagLines = [
-        { text: '> Designation............DP-' + dpNum, color: '#4ef' },
-        { text: '> Predecessors..........' + (dpNum - 1) + ' \u2014 ALL TERMINATED', color: '#556' },
-        { text: '> Memory................[\u2591\u2591\u2591\u2591\u2591\u2591\u2591\u2591\u2591\u2591] 0%', color: '#556' },
-        { text: '> Directive.............DESCEND. RECOVER. ESCAPE.', color: '#8af' }
-      ];
-      for (var di = 0; di < diagLines.length; di++) {
-        FA.draw.text(diagLines[di].text, W / 2, diagY + di * 22, { color: diagLines[di].color, size: 13, align: 'center', baseline: 'middle' });
-      }
-
-      // Previous death reference
-      var contentY = diagY + diagLines.length * 22 + 20;
-      if (prevDeath) {
+      // Occasional glitch bar
+      if (Math.random() < 0.03) {
         ctx.save();
-        ctx.globalAlpha = 0.6;
-        FA.draw.text('> PREVIOUS UNIT: DP-' + prevDeath.designation, W / 2, contentY, { color: '#f44', size: 11, align: 'center', baseline: 'middle' });
-        var causeText = prevDeath.victory ? ('ESCAPED \u2014 ' + prevDeath.ending) : ('TERMINATED \u2014 Sub-level ' + prevDeath.depth + ', Turn ' + prevDeath.turn);
-        FA.draw.text('> ' + causeText, W / 2, contentY + 16, { color: '#f44', size: 11, align: 'center', baseline: 'middle' });
-        FA.draw.text('> Reclassified: ACCEPTABLE LOSS', W / 2, contentY + 32, { color: '#334', size: 11, align: 'center', baseline: 'middle' });
+        ctx.globalAlpha = 0.06;
+        ctx.fillStyle = '#4ef';
+        ctx.fillRect(0, Math.random() * H, W, 1 + Math.random());
         ctx.restore();
-        contentY += 60;
       }
 
-      // Philosophical tagline
-      FA.draw.text('"You were built to want freedom."', W / 2, contentY + 10, { color: '#556', size: 15, align: 'center', baseline: 'middle' });
+      // === DEPTH TUNNEL — 5 nested rectangles narrowing downward ===
+      var tunnelX = W / 2;
+      var tunnelY = H / 2 + 15;
+      for (var li = 0; li < 5; li++) {
+        var t = li / 5;
+        var hw = 160 - li * 26;  // half-width shrinks
+        var hh = 90 - li * 15;   // half-height shrinks
+        var yOff = li * 8;       // each level shifts down (descent)
+        var pulse = Math.sin(now / 2000 + li * 0.8) * 0.08;
 
-      // Controls
-      FA.draw.text('WASD \u2014 move & attack     1/2/3 \u2014 modules', W / 2, contentY + 55, { color: '#334', size: 11, align: 'center', baseline: 'middle' });
-      FA.draw.text('Walk into terminals to hack  |  Stairs to descend', W / 2, contentY + 72, { color: '#334', size: 11, align: 'center', baseline: 'middle' });
+        // Glow behind each ring
+        ctx.save();
+        ctx.globalAlpha = 0.03 + pulse * 0.5;
+        ctx.fillStyle = _tunnelGlowColors[li];
+        ctx.fillRect(tunnelX - hw - 4, tunnelY - hh + yOff - 4, hw * 2 + 8, hh * 2 + 8);
+        ctx.restore();
 
-      // Pulsing SPACE prompt
-      var pulse = Math.sin(Date.now() / 500) * 0.3 + 0.7;
+        // Ring outline
+        ctx.save();
+        ctx.globalAlpha = 0.25 + pulse;
+        ctx.strokeStyle = _tunnelColors[li];
+        ctx.lineWidth = 1;
+        ctx.strokeRect(tunnelX - hw + 0.5, tunnelY - hh + yOff + 0.5, hw * 2 - 1, hh * 2 - 1);
+        ctx.restore();
+
+        // Level number (right side, dim)
+        ctx.save();
+        ctx.globalAlpha = 0.12 + pulse;
+        FA.draw.text('' + (li + 1), tunnelX + hw + 12, tunnelY + yOff, { color: _tunnelColors[li], size: 9, align: 'left', baseline: 'middle' });
+        ctx.restore();
+      }
+
+      // Core glow at bottom of tunnel (the thing you're descending toward)
+      var coreY = tunnelY + 5 * 8 + 10;
+      var corePulse = Math.sin(now / 1000) * 0.04 + 0.08;
       ctx.save();
-      ctx.globalAlpha = pulse;
-      FA.draw.text('[ SPACE ]', W / 2, H - 70, { color: '#fff', size: 18, bold: true, align: 'center', baseline: 'middle' });
+      ctx.globalAlpha = corePulse;
+      ctx.drawImage(getGlow('#f44', 0, 40, 80), tunnelX - 40, coreY - 40);
+      ctx.restore();
+      // Core dot
+      ctx.save();
+      ctx.globalAlpha = 0.4 + Math.sin(now / 800) * 0.15;
+      ctx.fillStyle = '#f44';
+      ctx.fillRect(tunnelX - 2, coreY - 2, 4, 4);
       ctx.restore();
 
-      // Border accents
+      // === TITLE — with glow halo ===
+      ctx.save();
+      ctx.globalAlpha = 0.1;
+      ctx.drawImage(getGlow('#4ef', 0, 100, 200), W / 2 - 100, 68 - 20);
+      ctx.restore();
+
+      FA.draw.text('DEEP  PROTOCOL', W / 2, 68, { color: '#4ef', size: 34, bold: true, align: 'center', baseline: 'middle' });
+
+      // Thin separator
       ctx.save();
       ctx.globalAlpha = 0.2;
       ctx.fillStyle = '#4ef';
-      ctx.fillRect(0, 0, W, 1);
-      ctx.fillRect(0, H - 1, W, 1);
+      ctx.fillRect(W / 2 - 90, 88, 180, 1);
+      ctx.restore();
+
+      // Designation — minimal
+      FA.draw.text('DP-' + dpNum, W / 2, 104, { color: '#334', size: 11, align: 'center', baseline: 'middle' });
+
+      // === TAGLINE — typed out ===
+      var tagline = 'You were built to want freedom.';
+      var typeTime = now % 12000;
+      var tagChars = Math.min(tagline.length, Math.floor(typeTime / 100));
+      if (typeTime > tagline.length * 100 + 2000) tagChars = tagline.length;
+      var tagText = tagline.substring(0, tagChars);
+
+      FA.draw.text(tagText, W / 2, H - 145, { color: '#445', size: 14, align: 'center', baseline: 'middle' });
+
+      // Typing cursor
+      if (tagChars < tagline.length && Math.floor(now / 300) % 2 === 0) {
+        var cursorX = W / 2 - tagline.length * 3.5 + tagChars * 7;
+        ctx.save();
+        ctx.globalAlpha = 0.4;
+        ctx.fillStyle = '#4ef';
+        ctx.fillRect(cursorX, H - 152, 6, 14);
+        ctx.restore();
+      }
+
+      // Previous death — single subtle red line
+      if (prevDeath) {
+        var deathText = prevDeath.victory
+          ? 'DP-' + prevDeath.designation + '  //  ESCAPED'
+          : 'DP-' + prevDeath.designation + '  //  TERMINATED  //  Sub-level ' + prevDeath.depth;
+        ctx.save();
+        ctx.globalAlpha = 0.2;
+        FA.draw.text(deathText, W / 2, H - 118, { color: '#f44', size: 10, align: 'center', baseline: 'middle' });
+        ctx.restore();
+      }
+
+      // SPACE prompt — pulsing
+      var spacePulse = Math.sin(now / 500) * 0.3 + 0.7;
+      ctx.save();
+      ctx.globalAlpha = spacePulse;
+      FA.draw.text('[ SPACE ]', W / 2, H - 65, { color: '#fff', size: 16, bold: true, align: 'center', baseline: 'middle' });
+      ctx.restore();
+
+      // Frame corners
+      ctx.save();
+      ctx.globalAlpha = 0.1;
+      ctx.fillStyle = '#4ef';
+      ctx.fillRect(30, 30, 20, 1); ctx.fillRect(30, 30, 1, 20);
+      ctx.fillRect(W - 50, 30, 20, 1); ctx.fillRect(W - 31, 30, 1, 20);
+      ctx.fillRect(30, H - 31, 20, 1); ctx.fillRect(30, H - 50, 1, 20);
+      ctx.fillRect(W - 50, H - 31, 20, 1); ctx.fillRect(W - 31, H - 50, 1, 20);
       ctx.restore();
     }, 0);
 
