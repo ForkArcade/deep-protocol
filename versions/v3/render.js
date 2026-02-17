@@ -26,6 +26,26 @@
       return map[y][x] !== 1;
     }
 
+    // Tile ID → sprite name mapping (matches map editor)
+    var TILE_NAMES = ['floor', 'wall', 'indoor', 'garden', 'notice_board', 'sidewalk', 'bed', 'terminal', 'system_entrance', 'cafe_table'];
+    // Tiles with transparent pixels that need a background layer
+    var TILE_BG = { 4: 'floor', 6: 'indoor', 7: 'indoor', 8: 'floor', 9: 'floor' };
+
+    function owIsWall(owMap, x, y) {
+      if (x < 0 || x >= cfg.cols || y < 0 || y >= cfg.rows) return true;
+      var t = owMap[y][x];
+      return t === 1 || t === 9;
+    }
+
+    function owWallFrame(owMap, x, y) {
+      var mask = 0;
+      if (!owIsWall(owMap, x, y - 1)) mask |= 1;  // N
+      if (!owIsWall(owMap, x, y + 1)) mask |= 2;  // S
+      if (!owIsWall(owMap, x + 1, y)) mask |= 4;  // E
+      if (!owIsWall(owMap, x - 1, y)) mask |= 8;  // W
+      return mask;
+    }
+
     // --- Glow cache ---
     var _glowCache = {};
     function getGlow(color, innerR, outerR, size) {
@@ -186,73 +206,39 @@
     // ================================================================
 
     function renderOverworldMap(oc, owMap, state) {
-      // Build a base map for the dungeon renderer (special tiles → floor)
-      var baseMap = [];
-      for (var by = 0; by < owMap.length; by++) {
-        baseMap[by] = [];
-        for (var bx = 0; bx < owMap[by].length; bx++) {
-          var bt = owMap[by][bx];
-          baseMap[by][bx] = (bt === 1 || bt === 9) ? 1 : 0;
-        }
-      }
-      // Render using dungeon renderer (depth 0 = warm overworld palette)
-      renderMapToCanvas(oc, baseMap, 0);
-
-      // Overlay special tiles
       var revealed = state.systemRevealed;
       for (var y = 0; y < cfg.rows && y < owMap.length; y++) {
         for (var x = 0; x < cfg.cols && x < owMap[y].length; x++) {
-          var tile = owMap[y][x];
+          var tid = owMap[y][x];
           var px = x * ts, py = y * ts;
-          if (tile === 3) {
-            // Garden — green on floor
-            oc.fillStyle = '#0a2010'; oc.fillRect(px, py, ts, ts);
-            if ((x + y) % 2 === 0) {
-              oc.fillStyle = '#1a4020'; oc.fillRect(px + 3, py + 3, ts - 6, ts - 6);
-            }
-            if ((x * 3 + y * 7) % 5 === 0) {
-              oc.fillStyle = '#2a6030'; oc.fillRect(px + ts / 2 - 1, py + ts / 2 - 1, 3, 3);
-            }
-          } else if (tile === 5) {
-            // Sidewalk — lighter warm pavement with lane markings
-            oc.fillStyle = '#1e1a14'; oc.fillRect(px, py, ts, ts);
-            // Subtle lane marking
-            if ((x + y) % 4 === 0) {
-              oc.fillStyle = '#2a2620';
-              oc.fillRect(px + ts / 2 - 1, py + 1, 2, ts - 2);
-            }
-            // Edge detail
-            oc.fillStyle = '#14120e';
-            oc.fillRect(px, py, 1, ts);
-            oc.fillRect(px + ts - 1, py, 1, ts);
-            // Occasional marking dot
-            if ((x * 3 + y * 5) % 7 === 0) {
-              oc.fillStyle = '#2a2418';
-              oc.fillRect(px + ts / 2, py + ts / 2, 2, 2);
-            }
-          } else if (tile === 6) {
-            // Bed
-            oc.fillStyle = '#1a1838'; oc.fillRect(px + 2, py + 4, ts - 4, ts - 6);
-            oc.fillStyle = '#2a2858'; oc.fillRect(px + 3, py + 5, 6, 4);
-          } else if (tile === 7) {
-            // Work terminal (same as dungeon terminal)
-            oc.fillStyle = '#0a2a2a'; oc.fillRect(px + 2, py + 2, ts - 4, ts - 4);
-            oc.fillStyle = '#0ff'; oc.fillRect(px + 3, py + 3, ts - 6, 2);
-            oc.fillRect(px + 3, py + ts - 5, ts - 6, 2);
-            oc.fillStyle = '#0ff'; oc.font = 'bold 11px monospace'; oc.textAlign = 'center'; oc.textBaseline = 'middle';
-            oc.fillText('T', px + ts / 2, py + ts / 2);
-          } else if (tile === 8 && revealed) {
-            // System entrance
-            oc.fillStyle = '#1a0a00'; oc.fillRect(px + 2, py + 2, ts - 4, ts - 4);
-            oc.fillStyle = '#f80'; oc.fillRect(px + 3, py + 3, ts - 6, 2);
-            oc.fillRect(px + 3, py + ts - 5, ts - 6, 2);
-            oc.fillStyle = '#f80'; oc.font = 'bold 11px monospace'; oc.textAlign = 'center'; oc.textBaseline = 'middle';
-            oc.fillText('v', px + ts / 2, py + ts / 2);
-          } else if (tile === 9) {
-            // Café table — warm wood on wall base
-            oc.fillStyle = '#2a2018'; oc.fillRect(px + 3, py + 3, ts - 6, ts - 6);
-            oc.fillStyle = '#332a20'; oc.fillRect(px + 5, py + 5, ts - 10, ts - 10);
+          var name = TILE_NAMES[tid];
+          var sprite = name ? getSprite('tiles', name) : null;
+
+          // System entrance hidden before reveal — render as floor
+          if (tid === 8 && !revealed) {
+            sprite = getSprite('tiles', 'floor');
+            tid = 0;
           }
+
+          if (!sprite) {
+            oc.fillStyle = '#222';
+            oc.fillRect(px, py, ts, ts);
+            continue;
+          }
+
+          // Draw background for tiles with transparent pixels
+          var bg = TILE_BG[tid];
+          if (bg) {
+            var bgSprite = getSprite('tiles', bg);
+            if (bgSprite) drawSprite(oc, bgSprite, px, py, ts, (x + y) % 2);
+          }
+
+          // Compute frame
+          var frame = 0;
+          if (tid === 1) frame = owWallFrame(owMap, x, y);
+          else if (tid === 0 || tid === 2) frame = (x + y) % 2;
+
+          drawSprite(oc, sprite, px, py, ts, frame);
         }
       }
     }
@@ -342,54 +328,114 @@
     //  OVERWORLD UI
     // ================================================================
 
+    // Zone definitions: bg, separator, name, nameColor
+    var ZONES = {
+      apartment: { bg: '#100e14', sep: '#2a2040', name: 'APARTMENT', nameColor: '#8878aa' },
+      work:      { bg: '#0a1210', sep: '#1a3028', name: 'WORK STATION', nameColor: '#68a878' },
+      cafe:      { bg: '#14100a', sep: '#302518', name: 'CAFE', nameColor: '#c8a060' },
+      garden:    { bg: '#0a120a', sep: '#1a3018', name: 'GARDEN', nameColor: '#6aaa5a' },
+      streets:   { bg: '#0e0e10', sep: '#222228', name: 'STREETS', nameColor: '#7a7a88' },
+      system:    { bg: '#10080a', sep: '#301820', name: 'SYSTEM ACCESS', nameColor: '#f08040' }
+    };
+
+    function detectZone(tile, map, px, py) {
+      if (tile === 6) return 'apartment';
+      if (tile === 7) return 'work';
+      if (tile === 3) return 'garden';
+      if (tile === 8) return 'system';
+      if (tile === 9) return 'cafe';
+      if (tile === 4) return 'streets'; // notice board is in courtyard
+      // Check adjacent tiles for context
+      var dirs = [[0,-1],[0,1],[-1,0],[1,0]];
+      for (var d = 0; d < dirs.length; d++) {
+        var nx = px + dirs[d][0], ny = py + dirs[d][1];
+        if (ny >= 0 && ny < map.length && nx >= 0 && nx < map[0].length) {
+          var adj = map[ny][nx];
+          if (adj === 6) return 'apartment';
+          if (adj === 9) return 'cafe';
+          if (adj === 3) return 'garden';
+          if (adj === 7) return 'work';
+          if (adj === 8) return 'system';
+        }
+      }
+      if (tile === 2) return 'apartment'; // indoor floor
+      return 'streets';
+    }
+
     FA.addLayer('overworldUI', function() {
       var state = FA.getState();
       if (state.screen !== 'overworld') return;
       var timeCfg = FA.lookup('config', 'time');
+      var ctx = FA.getCtx();
 
-      FA.draw.rect(0, uiY, W, H - uiY, '#0c1018');
+      var tile = state.owMap[state.owPlayer.y] ? state.owMap[state.owPlayer.y][state.owPlayer.x] : 0;
+      var zone = ZONES[detectZone(tile, state.owMap, state.owPlayer.x, state.owPlayer.y)];
 
-      // Line 1: Day + Credits + Rent
-      FA.draw.text('DAY ' + state.day, 8, uiY + 6, { color: colors.text, size: 12, bold: true });
-      FA.draw.text('CREDITS: ' + state.credits, 80, uiY + 6, { color: colors.credits, size: 11 });
-      FA.draw.text('RENT: ' + state.rent + '/day', 210, uiY + 6, { color: colors.rent, size: 11 });
+      // Zone-colored background + separator
+      FA.draw.rect(0, uiY, W, H - uiY, zone.bg);
+      FA.draw.rect(0, uiY, W, 1, zone.sep);
 
-      // Time bar
+      // --- Row 1: Zone name | Day + Period | Time bar | Credits ---
+      FA.draw.text(zone.name, 8, uiY + 6, { color: zone.nameColor, size: 11, bold: true });
+
+      var period = state.timeOfDay < 33 ? 'MORNING' : state.timeOfDay < 66 ? 'MIDDAY' : 'EVENING';
+      var periodColor = state.timeOfDay < 33 ? '#d8b060' : state.timeOfDay < 66 ? '#e0a030' : '#c06030';
       var timeRatio = state.timeOfDay / timeCfg.turnsPerDay;
-      var timeColor = timeRatio > 0.95 ? '#f44' : timeRatio > 0.75 ? '#fa4' : '#8af';
-      FA.draw.text('TIME', 340, uiY + 6, { color: colors.dim, size: 11 });
-      FA.draw.bar(375, uiY + 6, 100, 10, 1 - timeRatio, timeColor, '#1a0a0a');
-      FA.draw.text(Math.floor(timeCfg.turnsPerDay - state.timeOfDay), 480, uiY + 6, { color: timeColor, size: 11 });
+      if (timeRatio > 0.95) { period = 'CURFEW'; periodColor = '#f44'; }
 
-      // System visits
-      if (state.systemVisits > 0) {
-        FA.draw.text('DEPTH: ' + state.systemVisits + '/' + cfg.maxDepth, 530, uiY + 6, { color: '#f80', size: 11 });
+      FA.draw.text('DAY ' + state.day + ' ' + period, 130, uiY + 6, { color: periodColor, size: 11 });
+
+      var timeColor = timeRatio > 0.95 ? '#f44' : timeRatio > 0.75 ? '#e08030' : '#c8a050';
+      FA.draw.bar(310, uiY + 7, 70, 8, 1 - timeRatio, timeColor, '#1a1610');
+
+      FA.draw.text(state.credits + ' cr', W - 120, uiY + 6, { color: colors.credits, size: 11, bold: true });
+      FA.draw.text('-' + state.rent + '/night', W - 65, uiY + 6, { color: '#a65', size: 10 });
+
+      // --- Row 2: Nearby NPCs as colored tags ---
+      var tagX = 8;
+      for (var ni = 0; ni < state.npcs.length; ni++) {
+        var npc = state.npcs[ni];
+        if (state.day < npc.appearsDay) continue;
+        if (npc.x < 0) continue;
+        var nd = Math.abs(npc.x - state.owPlayer.x) + Math.abs(npc.y - state.owPlayer.y);
+        if (nd > 10) continue;
+        var dimmed = nd > 5;
+        ctx.save();
+        ctx.globalAlpha = dimmed ? 0.4 : 0.9;
+        FA.draw.rect(tagX, uiY + 20, 4, 4, npc.color);
+        FA.draw.text(npc.name, tagX + 7, uiY + 19, { color: dimmed ? '#665' : '#aa9', size: 10 });
+        ctx.restore();
+        tagX += ctx.measureText(npc.name).width + 18;
       }
 
-      // Line 2: Hints
-      var tile = state.owMap[state.owPlayer.y] ? state.owMap[state.owPlayer.y][state.owPlayer.x] : 0;
-      var hint = '';
-      if (tile === 6) hint = '[SPACE] Sleep';
-      else if (tile === 7) hint = state.workedToday ? 'Shift done' : '[SPACE] Work';
-      else if (tile === 8 && state.systemRevealed) hint = '[SPACE] Enter System';
-      var adjNPC = false;
+      if (state.systemVisits > 0) {
+        FA.draw.text('DIVES: ' + state.systemVisits, W - 80, uiY + 19, { color: '#664', size: 10 });
+      }
+
+      // --- Row 3: Context actions ---
+      var actions = [];
+      if (tile === 6) actions.push({ key: 'SPACE', label: 'Lodging (' + state.rent + ' cr)', color: '#8878cc' });
+      else if (tile === 7) actions.push({ key: 'SPACE', label: state.workedToday ? 'Shift done' : 'Work', color: state.workedToday ? '#443' : '#88aa66' });
+      else if (tile === 4) actions.push({ key: 'SPACE', label: 'Read notices', color: '#aa9a50' });
+      else if (tile === 8 && state.systemRevealed) actions.push({ key: 'SPACE', label: 'Enter System', color: '#f80' });
       var dirs = [[0,-1],[0,1],[-1,0],[1,0]];
       for (var d = 0; d < dirs.length; d++) {
         var nx = state.owPlayer.x + dirs[d][0], ny = state.owPlayer.y + dirs[d][1];
-        for (var ni = 0; ni < state.npcs.length; ni++) {
-          if (state.day >= state.npcs[ni].appearsDay && state.npcs[ni].x === nx && state.npcs[ni].y === ny) {
-            hint = '[SPACE] Talk to ' + state.npcs[ni].name;
-            adjNPC = true; break;
+        for (var nj = 0; nj < state.npcs.length; nj++) {
+          if (state.day >= state.npcs[nj].appearsDay && state.npcs[nj].x === nx && state.npcs[nj].y === ny) {
+            actions.push({ key: 'SPACE', label: 'Talk to ' + state.npcs[nj].name, color: state.npcs[nj].color });
+            break;
           }
         }
-        if (adjNPC) break;
       }
-      if (hint) {
-        FA.draw.text(hint, 8, uiY + 21, { color: '#556', size: 11 });
+      var ax = 8;
+      for (var ai = 0; ai < actions.length; ai++) {
+        var act = actions[ai];
+        FA.draw.text('[' + act.key + ']', ax, uiY + 34, { color: '#554', size: 10 });
+        ax += ctx.measureText('[' + act.key + ']').width + 4;
+        FA.draw.text(act.label, ax, uiY + 34, { color: act.color, size: 10 });
+        ax += ctx.measureText(act.label).width + 12;
       }
-
-      // Line 3: Stats
-      FA.draw.text('Kills:' + (state.totalKills || 0) + '  Visits:' + (state.systemVisits || 0), 8, uiY + 36, { color: colors.dim, size: 11 });
     }, 31);
 
     // ================================================================
@@ -727,15 +773,66 @@
           color: sb.color, dimColor: '#1a3030', size: 11, duration: 60, charDelay: 6, flicker: 25
         }); ctx.restore();
       }
-      // [SPACE] hint when text is done
+      // [SPACE] hint below the box
       if (sb.done && sb.life > 1500) {
         ctx.save(); ctx.globalAlpha = 0.3 * alpha;
-        FA.draw.text('[SPACE]', bx + tw - 48, by + th - 12, { color: sb.color, size: 8 }); ctx.restore();
+        FA.draw.text('[SPACE]', bx + tw - 48, by + th + 4, { color: sb.color, size: 8 }); ctx.restore();
       }
       ctx.save(); ctx.globalAlpha = 0.04 * alpha; ctx.fillStyle = '#000';
       for (var sl = by; sl < by + th; sl += 2) ctx.fillRect(bx, sl, tw, 1);
       ctx.restore();
     }, 25);
+
+    // ================================================================
+    //  CHOICE MENU (overworld prompts)
+    // ================================================================
+
+    FA.addLayer('choiceMenu', function() {
+      var state = FA.getState();
+      if (state.screen !== 'overworld' || !state.choiceMenu) return;
+      var menu = state.choiceMenu;
+      menu.timer = (menu.timer || 0);
+      var ctx = FA.getCtx();
+      var lineH = 18, charW = 6.5;
+      var titleLen = menu.title.length;
+      var maxLen = titleLen;
+      for (var oi = 0; oi < menu.options.length; oi++) {
+        var optText = '[' + menu.options[oi].key + '] ' + menu.options[oi].label;
+        if (optText.length > maxLen) maxLen = optText.length;
+      }
+      var tw = Math.min(W - 40, Math.max(180, maxLen * charW + 32));
+      var th = (1 + menu.options.length) * lineH + 20;
+      var bx = W / 2 - tw / 2, by = 20;
+
+      // Background
+      ctx.save(); ctx.globalAlpha = 0.88; ctx.fillStyle = '#060a12';
+      ctx.fillRect(bx, by, tw, th); ctx.restore();
+      // Border
+      ctx.save(); ctx.globalAlpha = 0.4; ctx.strokeStyle = '#8878cc'; ctx.lineWidth = 1;
+      ctx.strokeRect(bx + 0.5, by + 0.5, tw - 1, th - 1); ctx.restore();
+      // Scanlines
+      ctx.save(); ctx.globalAlpha = 0.04; ctx.fillStyle = '#000';
+      for (var sl = by; sl < by + th; sl += 2) ctx.fillRect(bx, sl, tw, 1);
+      ctx.restore();
+
+      // Title
+      ctx.save(); ctx.globalAlpha = 0.9;
+      TextFX.render(ctx, menu.title, menu.timer, bx + 12, by + 10, {
+        color: '#8878cc', dimColor: '#1a1530', size: 11, duration: 60, charDelay: 6, flicker: 25
+      }); ctx.restore();
+
+      // Options
+      for (var i = 0; i < menu.options.length; i++) {
+        var opt = menu.options[i];
+        var label = '[' + opt.key + '] ' + opt.label;
+        var optY = by + 10 + (i + 1) * lineH;
+        var optColor = opt.enabled !== false ? (opt.color || '#aa9') : '#443';
+        ctx.save(); ctx.globalAlpha = opt.enabled !== false ? 0.9 : 0.5;
+        TextFX.render(ctx, label, menu.timer, bx + 16, optY, {
+          color: optColor, dimColor: '#1a1530', size: 11, duration: 60, charDelay: 4, flicker: 20
+        }); ctx.restore();
+      }
+    }, 27);
 
     // ================================================================
     //  THOUGHT BUBBLE (follows player in both modes)
@@ -789,7 +886,7 @@
       }); ctx.restore();
       if (thought.done && thought.life > 1500) {
         ctx.save(); ctx.globalAlpha = 0.3 * alpha;
-        FA.draw.text('[SPACE]', bx + tw - 48, by + th - 12, { color: '#4ef', size: 8 }); ctx.restore();
+        FA.draw.text('[SPACE]', bx + tw - 48, by + th + 4, { color: '#4ef', size: 8 }); ctx.restore();
       }
       ctx.save(); ctx.globalAlpha = 0.04 * alpha; ctx.fillStyle = '#000';
       for (var sl = by; sl < by + th; sl += 2) ctx.fillRect(bx, sl, tw, 1);
@@ -805,23 +902,40 @@
       if (state.screen !== 'playing' && state.screen !== 'victory' && state.screen !== 'shutdown') return;
       if (!state.player) return;
       var p = state.player;
-      FA.draw.rect(0, uiY, W, H - uiY, '#0c1018');
-      FA.draw.text('HULL', 8, uiY + 6, { color: colors.text, size: 11 });
-      FA.draw.bar(38, uiY + 6, 90, 10, p.hp / p.maxHp, '#4f4', '#1a0a0a');
-      FA.draw.text(p.hp + '/' + p.maxHp, 132, uiY + 6, { color: colors.text, size: 11 });
-      FA.draw.text('ATK:' + p.atk + '  DEF:' + p.def, 195, uiY + 6, { color: colors.dim, size: 11 });
-      FA.draw.text('LVL:' + (state.depth || 1) + '/' + cfg.maxDepth, 310, uiY + 6, { color: colors.stairsDown, size: 11, bold: true });
-      var buffX = 380;
+
+      // Cold tech background — contrasts with warm overworld
+      FA.draw.rect(0, uiY, W, H - uiY, '#080c14');
+      // Cyan separator line
+      FA.draw.rect(0, uiY, W, 1, '#1a3040');
+
+      // --- Row 1: Hull + Stats + Depth + Buffs ---
+      FA.draw.text('HULL', 8, uiY + 6, { color: '#4a6a7a', size: 11 });
+      var hpColor = p.hp / p.maxHp > 0.5 ? '#4f4' : p.hp / p.maxHp > 0.25 ? '#fa4' : '#f44';
+      FA.draw.bar(38, uiY + 7, 90, 8, p.hp / p.maxHp, hpColor, '#0a1a0a');
+      FA.draw.text(p.hp + '/' + p.maxHp, 132, uiY + 6, { color: '#6a8a9a', size: 11 });
+      FA.draw.text('ATK:' + p.atk + '  DEF:' + p.def, 195, uiY + 6, { color: '#4a5a6a', size: 11 });
+      FA.draw.text('DEPTH ' + (state.depth || 1) + '/' + cfg.maxDepth, 310, uiY + 6, { color: colors.stairsDown, size: 11, bold: true });
+      var buffX = 420;
       if (p.cloakTurns > 0) { FA.draw.text('CLOAK:' + p.cloakTurns, buffX, uiY + 6, { color: '#88f', size: 11, bold: true }); buffX += 65; }
       if (p.overclockActive) { FA.draw.text('OC:RDY', buffX, uiY + 6, { color: '#f44', size: 11, bold: true }); buffX += 55; }
       if (p.firewallHp > 0) { FA.draw.text('FW:' + p.firewallHp, buffX, uiY + 6, { color: '#4f4', size: 11, bold: true }); }
+
+      // --- Row 2: Module slots ---
       var mods = p.modules || [];
       for (var m = 0; m < 3; m++) {
-        var mx = 8 + m * 120;
-        if (m < mods.length) FA.draw.text('[' + (m + 1) + '] ' + mods[m].name, mx, uiY + 21, { color: mods[m].color, size: 11, bold: true });
-        else FA.draw.text('[' + (m + 1) + '] ---', mx, uiY + 21, { color: '#223', size: 11 });
+        var mx = 8 + m * 130;
+        if (m < mods.length) {
+          FA.draw.text('[' + (m + 1) + ']', mx, uiY + 21, { color: '#3a5060', size: 11 });
+          FA.draw.text(mods[m].name, mx + 22, uiY + 21, { color: mods[m].color, size: 11, bold: true });
+        } else {
+          FA.draw.text('[' + (m + 1) + '] ---', mx, uiY + 21, { color: '#1a2530', size: 11 });
+        }
       }
-      FA.draw.text('Data:' + p.gold + '  Kills:' + p.kills + '  Turn:' + (state.systemTurn || 0), 8, uiY + 36, { color: colors.dim, size: 11 });
+
+      // --- Row 3: Data + Kills + Turn ---
+      FA.draw.text('DATA:' + p.gold, 8, uiY + 36, { color: '#0aa', size: 10 });
+      FA.draw.text('KILLS:' + p.kills, 80, uiY + 36, { color: '#a44', size: 10 });
+      FA.draw.text('T:' + (state.systemTurn || 0), 160, uiY + 36, { color: '#3a4a5a', size: 10 });
     }, 30);
 
     // ================================================================

@@ -58,36 +58,35 @@
   });
 
   // === OVERWORLD MAP (40x25) ===
-  // 1=wall  0=path  2=indoor floor  6=bed  7=work terminal
-  // 8=system entrance (hidden until day 3)  9=café table
-  // Tiles: 0=floor 1=wall 3=garden 5=sidewalk 6=bed 7=terminal 8=system 9=table
+  // 1=wall 0=floor 2=indoor 3=garden 4=notice board 5=sidewalk
+  // 6=bed 7=work terminal 8=system entrance 9=café table
   FA.register('config', 'overworld', {
-    playerStart: { x: 19, y: 3 },
+    playerStart: { x: 13, y: 1 },
     map: [
       '1111111111111111111111111111111111111111',
-      '1111111111111111111111111111111111111111',
-      '1111111111111111100000011111111111111111',
-      '1111111111111111160000011111111111111111',
-      '1111111111111111100000011111111111111111',
-      '1111111111111111111551111111111111111111',
-      '1111111111111111111551111111009011111111',
-      '1111111133300005555555550000000011111111',
-      '1111111133300005555755500000090011111111',
-      '1111111133300005555555550000000011111111',
-      '1111111111111111111551111111009011111111',
-      '1111111111111111111551111111111111111111',
-      '1111111111111111111551111111111111111111',
-      '1111111100005555500000055555000011111111',
-      '1111111100005555500800055555000011111111',
-      '1111111100005555500000055555000011111111',
-      '1111111111111111111111111111111111111111',
-      '1111111111111111111111111111111111111111',
-      '1111111111111111111111111111111111111111',
-      '1111111111111111111111111111111111111111',
-      '1111111111111111111111111111111111111111',
-      '1111111111111111111111111111111111111111',
-      '1111111111111111111111111111111111111111',
-      '1111111111111111111111111111111111111111',
+      '1111111111122200111100222001111111111111',
+      '1111111111126200111100226001111111111111',
+      '1111111111110005000500111111111111111111',
+      '1111111100000005050000000011111111111111',
+      '1102220050000005050000000000000001111111',
+      '1102620050000005050000000000090001111111',
+      '1102220050000000000004000000000001111111',
+      '1111110050000005050111000000090001111111',
+      '1102220050000005050111000000000001111111',
+      '1102620050000005050111000000000001111111',
+      '1102220050000000000000000000000001111111',
+      '1102220050000005050111133300000001111111',
+      '1102620050000005050111133300000001111111',
+      '1102220050000000000000133300000001111111',
+      '1111111111111100000000001111111111111111',
+      '1111111111111111000000011111111111111111',
+      '1111111111111111007007011111111111111111',
+      '1111111111111111000000011111111111111111',
+      '1111111111111111105550111111111111111111',
+      '1111111111111111105050111111111111111111',
+      '1111111111111111108050111111111111111111',
+      '1111111111111111105050111111111111111111',
+      '1111111111111111155551111111111111111111',
       '1111111111111111111111111111111111111111'
     ],
     blocked: { '1': true, '9': true }
@@ -98,85 +97,110 @@
 
   FA.register('npcs', 'lena', {
     name: 'Lena', char: '@', color: '#f8d',
-    homePos: { x: 21, y: 3 },
-    cafePos: { x: 28, y: 7 },
-    terminalPos: { x: 19, y: 8 },
-    gardenPos: { x: 9, y: 7 },
+    homePos: { x: 23, y: 1 },
+    cafePos: { x: 28, y: 6 },
+    terminalPos: { x: 18, y: 17 },
+    gardenPos: { x: 24, y: 13 },
     schedule: { morning: 'home', midday: 'cafe', evening: 'home' },
     appearsDay: 1,
-    dialogue: {
-      1: 'Good morning. You must be new in this block. Terminal is across the street — don\'t miss your shift.',
-      2: 'There\'s a café in the center. Nice people there. Well... people.',
-      3: 'Victor said something strange yesterday. About a door that shouldn\'t exist. In the basement of this block.',
-      4: 'You went down there, didn\'t you? I can see it in your face. Be careful who you trust.',
-      5: 'I know more than I should. That\'s either helpful or dangerous. For both of us.',
-      _default: 'Another day. Another shift. The rent doesn\'t wait.',
-      _system_ally: 'This corridor is clear. I checked. Follow me.',
-      _system_traitor: 'I think the exit is this way. Come on, hurry.',
-      _system_neutral: 'I don\'t know this place any better than you do.'
+    systemDialogue: {
+      ally: 'This corridor is clear. I checked. Follow me.',
+      traitor: 'I think the exit is this way. Come on, hurry.',
+      neutral: 'I don\'t know this place any better than you do.'
     }
   });
 
   FA.register('npcs', 'victor', {
     name: 'Victor', char: '@', color: '#fa4',
-    homePos: { x: 9, y: 14 },
-    cafePos: { x: 29, y: 8 },
-    terminalPos: { x: 21, y: 8 },
-    gardenPos: { x: 10, y: 8 },
+    homePos: { x: 4, y: 9 },
+    cafePos: { x: 30, y: 8 },
+    terminalPos: { x: 21, y: 17 },
+    gardenPos: { x: 24, y: 12 },
     schedule: { morning: 'wander', midday: 'cafe', evening: 'cafe' },
     appearsDay: 2,
-    dialogue: {
-      2: 'You look like someone who asks questions. That\'s either brave or stupid here. Sit down.',
-      3: 'I found something. Block 7 basement — a maintenance shaft. It goes deep. Too deep for maintenance.',
-      4: 'You\'ve been inside. I can tell. The system leaves marks. Not on the skin — deeper.',
-      5: 'Each time you go in, it maps you. Learns what you fear. Uses it.',
-      _default: 'Going back in? I marked some paths. Whether they help... that depends on perspective.',
-      _system_ally: 'There\'s a terminal two rooms east. It has what you need.',
-      _system_traitor: 'Trust me — go left here. I\'ve been this way before.',
-      _system_neutral: 'I\'ve seen this layout before. Or something like it. Hard to tell down here.'
+    systemDialogue: {
+      ally: 'There\'s a terminal two rooms east. It has what you need.',
+      traitor: 'Trust me — go left here. I\'ve been this way before.',
+      neutral: 'I\'ve seen this layout before. Or something like it. Hard to tell down here.'
     }
   });
 
   FA.register('npcs', 'marta', {
     name: 'Marta', char: '@', color: '#8cf',
-    homePos: { x: 29, y: 14 },
-    cafePos: { x: 28, y: 9 },
-    terminalPos: { x: 20, y: 7 },
-    gardenPos: { x: 8, y: 9 },
+    homePos: { x: 4, y: 5 },
+    cafePos: { x: 28, y: 8 },
+    terminalPos: { x: 18, y: 17 },
+    gardenPos: { x: 25, y: 14 },
     schedule: { morning: 'home', midday: 'home', evening: 'cafe' },
     appearsDay: 1,
-    dialogue: {
-      1: 'Worker ID confirmed. Proceed to terminal. Don\'t waste processing cycles.',
-      2: 'Your credits are below optimal threshold. I recommend additional shifts.',
-      3: 'There was an anomaly in yesterday\'s system logs. Unauthorized access. Probably nothing.',
-      4: 'Your activity patterns are... irregular. I\'m required to note this. I have not yet filed the report.',
-      5: 'The report is still unfiled. I don\'t know why. That concerns me more than its contents.',
-      _default: 'Rent is due. The system is patient but not forgiving.',
-      _system_ally: 'Security clearance granted for this sector. Move quickly.',
-      _system_traitor: 'This area is restricted. You\'ll need to find another route. Sorry.',
-      _system_neutral: 'I process data. I don\'t interpret it. That distinction matters less each day.'
+    systemDialogue: {
+      ally: 'Security clearance granted for this sector. Move quickly.',
+      traitor: 'This area is restricted. You\'ll need to find another route. Sorry.',
+      neutral: 'I process data. I don\'t interpret it. That distinction matters less each day.'
     }
   });
 
   FA.register('npcs', 'emil', {
     name: 'Emil', char: '@', color: '#a8f',
-    homePos: { x: 20, y: 14 },
-    cafePos: { x: 31, y: 8 },
-    terminalPos: { x: 20, y: 9 },
-    gardenPos: { x: 10, y: 9 },
+    homePos: { x: 4, y: 12 },
+    cafePos: { x: 30, y: 6 },
+    terminalPos: { x: 21, y: 17 },
+    gardenPos: { x: 23, y: 13 },
     schedule: { morning: 'wander', midday: 'wander', evening: 'cafe' },
     appearsDay: 3,
-    dialogue: {
-      3: '...',
-      4: 'You went inside. I can tell. Your eyes are different now.',
-      5: 'The deeper you go, the more you understand. Or the less. I can never tell which.',
-      6: 'I was like you once. Before I learned that the door was always meant for me.',
-      _default: 'Before the Law stands a doorkeeper. The door was always open. No one ever walked through.',
-      _system_ally: 'The source is below. Everything you need to know is there. Everything.',
-      _system_traitor: 'Keep going deeper. That\'s what it wants. That\'s what you want. Is there a difference?',
-      _system_neutral: 'I\'ve been here longer than you think. Longer than I think.'
+    systemDialogue: {
+      ally: 'The source is below. Everything you need to know is there. Everything.',
+      traitor: 'Keep going deeper. That\'s what it wants. That\'s what you want. Is there a difference?',
+      neutral: 'I\'ve been here longer than you think. Longer than I think.'
     }
   });
+
+  // === NOTICE BOARD (narrative-driven — FA.select) ===
+  FA.register('notices', 'board', [
+    { node: 'arc:revelation', text: 'SYSTEM NOTICE: Sector audit complete. All residents cleared. [REDACTED]' },
+    { node: 'arc:deeper', text: 'REMINDER: Unauthorized access to maintenance shafts is punishable. Report anomalies.' },
+    { node: 'arc:first_system', text: 'NOTICE: Increased drone patrols tonight. Curfew strictly enforced.' },
+    { var: 'day', gte: 5, text: 'RENT ADJUSTMENT: Monthly rates revised upward. Appeals office closed indefinitely.' },
+    { var: 'day', gte: 3, text: 'COMMUNITY EVENT: Voluntary overtime available. Increased credit compensation.' },
+    { var: 'day', eq: 2, text: 'MAINTENANCE: Shaft repairs scheduled. Do not approach utility entrances.' },
+    { text: 'WELCOME: New residents report to terminal for work assignment. Curfew at dusk.' }
+  ]);
+
+  // === DIALOGUES (narrative-driven — FA.select, first match wins) ===
+  // Priority: confidant > arc:deeper > arc:first_system > acquaintance > day-flavor > fallback
+  FA.register('dialogues', 'lena', [
+    { node: 'quest_lena:confidant', text: 'I trust you. The system watches us build trust \u2014 that\'s the experiment. We are the variable it cannot control.' },
+    { node: 'arc:deeper', text: 'Each time you go down there, you come back different. I see it. I don\'t say it.' },
+    { node: 'arc:first_system', text: 'You went down there, didn\'t you? I can see it in your face. Be careful who you trust.' },
+    { node: 'quest_lena:acquaintance', text: 'You keep coming back to talk. That\'s either loyalty or habit. In this place, I can\'t tell the difference.' },
+    { var: 'day', eq: 1, text: 'Good morning. You must be new in this block. Terminal is across the street \u2014 don\'t miss your shift.' },
+    { text: 'Another day. Another shift. The rent doesn\'t wait.' }
+  ]);
+
+  FA.register('dialogues', 'victor', [
+    { node: 'quest_victor:confidant', text: 'I\'ve been mapping it. The system. Every visit. It changes, but there\'s a pattern. Here \u2014 take what I know.' },
+    { node: 'arc:deeper', text: 'Each time you go in, it maps you. Learns what you fear. Uses it.' },
+    { node: 'arc:first_system', text: 'You\'ve been inside. I can tell. The system leaves marks. Not on the skin \u2014 deeper.' },
+    { node: 'quest_victor:acquaintance', text: 'Still asking questions? Good. Most people here stopped years ago.' },
+    { text: 'Going back in? I marked some paths. Whether they help... that depends on perspective.' }
+  ]);
+
+  FA.register('dialogues', 'marta', [
+    { node: 'quest_marta:confidant', text: 'I deleted the reports. All of them. If they ask, I never saw you. That\'s the first lie I\'ve told. It felt... correct.' },
+    { node: 'arc:deeper', text: 'The reports pile up. I file none of them. That concerns me more than their contents.' },
+    { node: 'arc:first_system', text: 'Your activity patterns are irregular. I\'m required to note this. I have not yet filed the report.' },
+    { node: 'quest_marta:acquaintance', text: 'Your file is interesting. More interesting than most. I shouldn\'t say that.' },
+    { var: 'day', eq: 1, text: 'Worker ID confirmed. Proceed to terminal. Don\'t waste processing cycles.' },
+    { text: 'Rent is due. The system is patient but not forgiving.' }
+  ]);
+
+  FA.register('dialogues', 'emil', [
+    { node: 'quest_emil:confidant', text: 'The door was always open. We are all doorkeepers. We are all waiting. The trial never ends because we are the trial.' },
+    { node: 'arc:deeper', text: 'I was like you once. Before I learned that the door was always meant for me.' },
+    { node: 'arc:first_system', text: 'You went inside. I can tell. Your eyes are different now.' },
+    { node: 'quest_emil:acquaintance', text: 'You keep talking to me. Most people don\'t. I wonder what that says about you. Or about me.' },
+    { text: 'Before the Law stands a doorkeeper. The door was always open. No one ever walked through.' }
+  ]);
 
   // === ENEMIES (System/dungeon) ===
   FA.register('enemies', 'drone', {
@@ -247,9 +271,8 @@
     ]
   });
 
-  // === NARRATIVE (minimal — for engine compatibility) ===
+  // === NARRATIVE (multi-graph) ===
   FA.register('config', 'narrative', {
-    startNode: 'start',
     variables: {
       day: 1, system_visits: 0, credits: 0, time_period: 'morning',
       lena_met_today: false, victor_met_today: false,
@@ -258,25 +281,77 @@
       marta_interactions: 0, emil_interactions: 0,
       system_revealed: false, curfew_active: false
     },
-    graph: {
-      nodes: [
-        { id: 'start', label: 'Start', type: 'scene' },
-        { id: 'routine', label: 'Daily routine', type: 'scene' },
-        { id: 'first_system', label: 'First entry', type: 'scene' },
-        { id: 'deeper', label: 'Going deeper', type: 'scene' },
-        { id: 'revelation', label: 'The truth', type: 'scene' },
-        { id: 'curfew', label: 'Caught', type: 'scene' },
-        { id: 'eviction', label: 'Evicted', type: 'scene' },
-        { id: 'ending', label: 'The End', type: 'scene' }
-      ],
-      edges: [
-        { from: 'start', to: 'routine' },
-        { from: 'routine', to: 'first_system' },
-        { from: 'first_system', to: 'deeper' },
-        { from: 'deeper', to: 'revelation' },
-        { from: 'routine', to: 'curfew' },
-        { from: 'routine', to: 'eviction' }
-      ]
+    graphs: {
+      arc: {
+        startNode: 'routine',
+        nodes: [
+          { id: 'routine', label: 'Daily routine', type: 'scene' },
+          { id: 'first_system', label: 'First entry', type: 'scene' },
+          { id: 'deeper', label: 'Going deeper', type: 'scene' },
+          { id: 'revelation', label: 'The truth', type: 'scene' },
+          { id: 'curfew', label: 'Caught', type: 'scene' },
+          { id: 'eviction', label: 'Evicted', type: 'scene' }
+        ],
+        edges: [
+          { from: 'routine', to: 'first_system' },
+          { from: 'first_system', to: 'deeper' },
+          { from: 'deeper', to: 'revelation' },
+          { from: 'routine', to: 'curfew' },
+          { from: 'routine', to: 'eviction' },
+          { from: 'first_system', to: 'curfew' },
+          { from: 'first_system', to: 'eviction' },
+          { from: 'deeper', to: 'curfew' },
+          { from: 'deeper', to: 'eviction' }
+        ]
+      },
+      quest_lena: {
+        startNode: 'stranger',
+        nodes: [
+          { id: 'stranger', label: 'Stranger', type: 'state' },
+          { id: 'acquaintance', label: 'Acquaintance', type: 'state' },
+          { id: 'confidant', label: 'Confidant', type: 'state' }
+        ],
+        edges: [
+          { from: 'stranger', to: 'acquaintance', var: 'lena_interactions', gte: 1 },
+          { from: 'acquaintance', to: 'confidant', var: 'lena_interactions', gte: 3 }
+        ]
+      },
+      quest_victor: {
+        startNode: 'stranger',
+        nodes: [
+          { id: 'stranger', label: 'Stranger', type: 'state' },
+          { id: 'acquaintance', label: 'Acquaintance', type: 'state' },
+          { id: 'confidant', label: 'Confidant', type: 'state' }
+        ],
+        edges: [
+          { from: 'stranger', to: 'acquaintance', var: 'victor_interactions', gte: 1 },
+          { from: 'acquaintance', to: 'confidant', var: 'victor_interactions', gte: 3 }
+        ]
+      },
+      quest_marta: {
+        startNode: 'stranger',
+        nodes: [
+          { id: 'stranger', label: 'Stranger', type: 'state' },
+          { id: 'acquaintance', label: 'Acquaintance', type: 'state' },
+          { id: 'confidant', label: 'Confidant', type: 'state' }
+        ],
+        edges: [
+          { from: 'stranger', to: 'acquaintance', var: 'marta_interactions', gte: 1 },
+          { from: 'acquaintance', to: 'confidant', var: 'marta_interactions', gte: 3 }
+        ]
+      },
+      quest_emil: {
+        startNode: 'stranger',
+        nodes: [
+          { id: 'stranger', label: 'Stranger', type: 'state' },
+          { id: 'acquaintance', label: 'Acquaintance', type: 'state' },
+          { id: 'confidant', label: 'Confidant', type: 'state' }
+        ],
+        edges: [
+          { from: 'stranger', to: 'acquaintance', var: 'emil_interactions', gte: 1 },
+          { from: 'acquaintance', to: 'confidant', var: 'emil_interactions', gte: 3 }
+        ]
+      }
     }
   });
 
@@ -445,59 +520,103 @@
     color: '#a8f'
   });
 
-  // === THOUGHTS ===
-  FA.register('config', 'thoughts', {
-    // Overworld thoughts
-    morning: [
+  // === THOUGHTS (narrative-driven — FA.select, first match wins) ===
+  FA.register('thoughts', 'morning', [
+    { node: 'arc:deeper', pool: [
+      'Another morning. But the system is in my dreams now.',
+      'I see corridors when I close my eyes. Is that normal?'
+    ]},
+    { var: 'day', eq: 1, pool: ['First day. Terminal. Rent. Sleep. Repeat.'] },
+    { pool: [
       'Another day. Terminal. Rent. Sleep. Repeat.',
       'The block looks the same every morning. Does it change when I\'m not looking?',
       'Work. The word used to mean something different.'
-    ],
-    cafe: [
+    ]}
+  ]);
+
+  FA.register('thoughts', 'cafe', [
+    { pool: [
       'They smile. They talk. They know things they don\'t say.',
       'The caf\u00e9 is the only warm place here.',
       'Who are these people? Who am I to them?'
-    ],
-    work: [
+    ]}
+  ]);
+
+  FA.register('thoughts', 'work', [
+    { pool: [
       'Credits in. Purpose out.',
       'The terminal doesn\'t judge. It just counts.',
       'Am I working for the system, or is the system working on me?'
-    ],
-    evening: [
+    ]}
+  ]);
+
+  FA.register('thoughts', 'evening', [
+    { pool: [
       'Getting late. The drones will activate soon.',
       'Home. Bed. The only safe place. If it\'s safe.',
       'Tomorrow. Always tomorrow.'
-    ],
-    // System thoughts
-    system_enter: [
-      'Down again. Why do I keep coming back?',
+    ]}
+  ]);
+
+  FA.register('thoughts', 'system_enter', [
+    { node: 'arc:deeper', pool: [
       'The system expected me. It always does.',
+      'Down again. Deeper. The walls remember my footsteps.',
       'Somewhere above, my bed is empty. The clock is ticking.'
-    ],
-    system_npc: [
+    ]},
+    { pool: [
+      'Down. The air is different here. Colder. Aware.',
+      'The shaft opens into something that is not maintenance.'
+    ]}
+  ]);
+
+  FA.register('thoughts', 'system_npc', [
+    { pool: [
       'That face. From the caf\u00e9. What are they doing here?',
       'Are they trapped too? Or are they part of it?',
       'Trust is a luxury I can\'t afford. But I can\'t afford not to.'
-    ],
-    combat: [
+    ]}
+  ]);
+
+  FA.register('thoughts', 'combat', [
+    { var: 'kills', gte: 10, pool: ['Efficient. Too efficient.', 'How many more?'] },
+    { pool: [
       'Efficient. As designed.',
       'One less. Was it aware?',
       'They fall. Like the others before them.'
-    ],
-    damage: [
+    ]}
+  ]);
+
+  FA.register('thoughts', 'damage', [
+    { pool: [
       'Hull breach. Keep going. But why?',
       'Pain is data. Whose data?',
       'If I fall here, I\'ll wake up on the street. Is that better or worse?'
-    ],
-    low_health: [
+    ]}
+  ]);
+
+  FA.register('thoughts', 'low_health', [
+    { pool: [
       'Systems critical. The surface feels far away.',
       'Failing. The system remembers failures.'
-    ],
-    pickup_data: [
+    ]}
+  ]);
+
+  FA.register('thoughts', 'pickup_data', [
+    { pool: [
       'Credits. Even down here, everything has a price.',
       'Data core. Someone left this. Or placed it.'
-    ],
-    ambient: [
+    ]}
+  ]);
+
+  FA.register('thoughts', 'ambient', [
+    { node: 'arc:deeper', pool: [
+      'Every corridor looks the same. The system is running out of ideas. Or I am.',
+      'The process has no beginning and no end. Only a middle.',
+      'Lena, Victor, Marta, Emil. I know their names now. Do I know them?',
+      'The deeper you go, the more the surface feels like the dream.'
+    ]},
+    { pool: [
       'The rent goes up. The system tightens. Like a noose made of bureaucracy.',
       'Before the Law stands a doorkeeper. But the door was always open.',
       'Lena, Victor, Marta, Emil. Names. Faces. Allegiances unknown.',
@@ -507,8 +626,8 @@
       'I work. I pay. I sleep. I descend. I work. I pay. I sleep.',
       'K. was arrested at breakfast. I was arrested at the terminal.',
       'The process has no beginning and no end. Only a middle.'
-    ]
-  });
+    ]}
+  ]);
 
   // NPC radio comms during system runs (keyed by allegiance)
   FA.register('config', 'systemComms', {

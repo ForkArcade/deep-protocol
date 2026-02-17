@@ -89,8 +89,7 @@
       sendToParent({
         type: 'FA_NARRATIVE_UPDATE',
         variables: data.variables,
-        currentNode: data.currentNode,
-        graph: data.graph,
+        graphs: data.graphs,
         event: data.event
       });
     },

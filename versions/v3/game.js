@@ -216,8 +216,12 @@
         homePos: def.homePos, cafePos: def.cafePos,
         terminalPos: def.terminalPos, gardenPos: def.gardenPos,
         schedule: def.schedule, appearsDay: def.appearsDay,
-        dialogue: def.dialogue, met: false,
-        goal: 'home', talkedToday: false
+        systemDialogue: def.systemDialogue, met: false,
+        goal: 'home', talkedToday: false,
+        wantsToTalk: true, followTurns: 0,
+        pace: npcIds[i] === 'victor' ? 2 : npcIds[i] === 'emil' ? 3 : 1,
+        turnCounter: i,  // stagger start so NPCs don't all move on turn 0
+        idleTimer: 0
       });
     }
     return npcs;
@@ -288,10 +292,8 @@
     }
     var period = getTimePeriod(state.timeOfDay);
     var dist = state.owPlayer ? Math.abs(npc.x - state.owPlayer.x) + Math.abs(npc.y - state.owPlayer.y) : 99;
-    var hasDialogue = npc.dialogue[state.day] && !npc.talkedToday;
-
-    // Priority: approach player if they have undelivered dialogue and player is nearby
-    if (hasDialogue && dist < 8) { npc.goal = 'player'; return; }
+    // Priority: approach player if NPC wants to talk and player is nearby
+    if (npc.wantsToTalk && !npc.talkedToday && dist < 8) { npc.goal = 'player'; return; }
 
     // NPC-specific personality
     switch (npc.id) {
@@ -323,10 +325,31 @@
     if (npc.x < 0 || npc.y < 0) return;
     if (state.day < npc.appearsDay) return;
 
+    // Pace: NPC only moves every N player turns
+    npc.turnCounter = (npc.turnCounter || 0) + 1;
+    if (npc.goal !== 'player' && npc.turnCounter % npc.pace !== 0) return;
+
+    // Follow player for max 3 turns, then give up
+    if (npc.goal === 'player') {
+      npc.followTurns = (npc.followTurns || 0) + 1;
+      if (npc.followTurns > 3) {
+        npc.wantsToTalk = false;
+        npc.followTurns = 0;
+        selectNPCGoal(npc, state);
+      }
+    } else {
+      npc.followTurns = 0;
+    }
+
     var goalPos = resolveNPCGoalPos(npc, state);
-    // If at goal, pick a new one
+    // If at goal, idle before picking a new one
     if (goalPos && npc.x === goalPos.x && npc.y === goalPos.y) {
+      if (npc.idleTimer > 0) {
+        npc.idleTimer--;
+        return;
+      }
       selectNPCGoal(npc, state);
+      npc.idleTimer = FA.rand(2, 6);  // linger 2-6 turns at each destination
       goalPos = resolveNPCGoalPos(npc, state);
     }
 
@@ -338,9 +361,37 @@
     }
   }
 
+  function talkToNPC(npc, state) {
+    npc.met = true;
+    npc.talkedToday = true;
+    npc.wantsToTalk = false;
+    npc.followTurns = 0;
+    var text = selectDialogue(npc.id) || '...';
+    addSystemBubble(npc.name + ': "' + text + '"', npc.color);
+    if (FA.narrative && FA.narrative.setVar) {
+      FA.narrative.setVar(npc.id + '_met_today', true, 'Met ' + npc.name);
+      var prev = FA.narrative.getVar(npc.id + '_interactions') || 0;
+      FA.narrative.setVar(npc.id + '_interactions', prev + 1, 'Talked to ' + npc.name);
+    }
+    selectNPCGoal(npc, state);
+  }
+
   function npcOverworldTurn(state) {
     for (var i = 0; i < state.npcs.length; i++) {
       npcOverworldStep(state.npcs[i], state);
+    }
+    // NPC auto-initiates dialogue when adjacent to player
+    if (state.owPlayer) {
+      for (var j = 0; j < state.npcs.length; j++) {
+        var npc = state.npcs[j];
+        if (state.day < npc.appearsDay) continue;
+        if (!npc.wantsToTalk || npc.talkedToday) continue;
+        var dist = Math.abs(npc.x - state.owPlayer.x) + Math.abs(npc.y - state.owPlayer.y);
+        if (dist === 1) {
+          talkToNPC(npc, state);
+          break;
+        }
+      }
     }
   }
 
@@ -432,8 +483,35 @@
       }
     });
 
+    // When narrative graph transitions, NPCs may want to talk
+    FA.on('narrative:transition', function(data) {
+      var s = FA.getState();
+      if (!s.npcs || s.screen !== 'overworld') return;
+      if (data.graph === 'arc') {
+        // Arc transition — all present NPCs react
+        for (var i = 0; i < s.npcs.length; i++) {
+          if (s.day >= s.npcs[i].appearsDay && !s.npcs[i].talkedToday) {
+            s.npcs[i].wantsToTalk = true;
+            s.npcs[i].followTurns = 0;
+            selectNPCGoal(s.npcs[i], s);
+          }
+        }
+      } else if (data.graph.indexOf('quest_') === 0) {
+        // Quest transition — only that NPC reacts
+        var npcId = data.graph.replace('quest_', '');
+        for (var j = 0; j < s.npcs.length; j++) {
+          if (s.npcs[j].id === npcId && !s.npcs[j].talkedToday) {
+            s.npcs[j].wantsToTalk = true;
+            s.npcs[j].followTurns = 0;
+            selectNPCGoal(s.npcs[j], s);
+          }
+        }
+      }
+    });
+
     updateNPCPositions(FA.getState());
-    showNarrative('wake');
+    var wakeCs = FA.lookup('cutscenes', 'wake');
+    if (wakeCs) startCutscene(wakeCs, FA.getState());
     triggerThought('morning');
   }
 
@@ -455,8 +533,15 @@
     var state = FA.getState();
     var nx = state.owPlayer.x + dx;
     var ny = state.owPlayer.y + dy;
-    if (getNPCAt(state, nx, ny)) return;
     if (!isWalkable(state.owMap, nx, ny)) return;
+
+    // Swap positions with friendly NPC (no tile sharing)
+    var npc = getNPCAt(state, nx, ny);
+    if (npc) {
+      npc.x = state.owPlayer.x;
+      npc.y = state.owPlayer.y;
+    }
+
     state.owPlayer.x = nx;
     state.owPlayer.y = ny;
     FA.playSound('step');
@@ -483,19 +568,10 @@
       return;
     }
 
-    // Adjacent NPC
+    // Adjacent NPC — player-initiated (costs time, can reveal system)
     var npc = getAdjacentNPC(state, state.owPlayer.x, state.owPlayer.y);
     if (npc) {
-      npc.met = true;
-      npc.talkedToday = true;
-      var text = npc.dialogue[state.day] || npc.dialogue._default;
-      addSystemBubble(npc.name + ': "' + text + '"', npc.color);
-      // Narrative tracking
-      if (FA.narrative && FA.narrative.setVar) {
-        FA.narrative.setVar(npc.id + '_met_today', true, 'Met ' + npc.name);
-        var prev = FA.narrative.getVar(npc.id + '_interactions') || 0;
-        FA.narrative.setVar(npc.id + '_interactions', prev + 1, 'Talked to ' + npc.name);
-      }
+      talkToNPC(npc, state);
       var econCfg = FA.lookup('config', 'economy');
       if (state.day >= econCfg.systemRevealDay && !state.systemRevealed) {
         if (npc.id === 'victor' || npc.id === 'lena') {
@@ -504,8 +580,6 @@
           if (FA.narrative && FA.narrative.setVar) FA.narrative.setVar('system_revealed', true, 'System revealed');
         }
       }
-      // NPC re-evaluates goal after being talked to
-      selectNPCGoal(npc, state);
       state.timeOfDay += 2;
       state.turn += 2;
       checkTimeWarnings(state);
@@ -514,8 +588,9 @@
 
     // Tile under player
     var tile = state.owMap[state.owPlayer.y][state.owPlayer.x];
-    if (tile === 6) goToBed(state);
+    if (tile === 6) showBedChoice(state);
     else if (tile === 7) workAtTerminal(state);
+    else if (tile === 4) readNoticeBoard(state);
     else if (tile === 8) {
       if (state.systemRevealed) enterSystem(state);
       else addThought('A sealed maintenance shaft. Nothing to see.');
@@ -538,6 +613,61 @@
     checkTimeWarnings(state);
   }
 
+  function readNoticeBoard(state) {
+    var entry = FA.select(FA.lookup('notices', 'board'));
+    var text = entry ? entry.text : 'The board is empty.';
+    addSystemBubble('> NOTICE: ' + text, '#aa9a50');
+    state.timeOfDay += 1;
+    state.turn += 1;
+  }
+
+  // === CHOICE MENU ===
+
+  function showChoiceMenu(state, title, options) {
+    state.choiceMenu = {
+      title: title,
+      options: options,
+      timer: 0
+    };
+  }
+
+  function selectChoice(index) {
+    var state = FA.getState();
+    if (!state.choiceMenu) return;
+    var opt = state.choiceMenu.options[index];
+    if (!opt) return;
+    if (opt.enabled === false) return;
+    state.choiceMenu = null;
+    if (opt.action) opt.action(state);
+  }
+
+  function dismissChoice() {
+    var state = FA.getState();
+    state.choiceMenu = null;
+  }
+
+  function showBedChoice(state) {
+    var econCfg = FA.lookup('config', 'economy');
+    var rent = econCfg.baseRent + (state.day - 1) * econCfg.rentIncrease;
+    var canAfford = state.credits >= rent;
+    showChoiceMenu(state, '> LODGING — Pay ' + rent + ' cr for the night?', [
+      {
+        key: '1',
+        label: canAfford ? 'Pay ' + rent + ' cr & sleep' : 'Not enough credits (' + state.credits + ' cr)',
+        color: canAfford ? '#8878cc' : '#644',
+        enabled: canAfford,
+        action: function(s) { goToBed(s); }
+      },
+      {
+        key: '2',
+        label: 'Cancel',
+        color: '#665',
+        enabled: true,
+        action: function() {}
+      }
+    ]);
+  }
+
   function goToBed(state) {
     var econCfg = FA.lookup('config', 'economy');
     var rent = econCfg.baseRent + (state.day - 1) * econCfg.rentIncrease;
@@ -554,6 +684,8 @@
     // Reset NPC daily state
     for (var ni = 0; ni < state.npcs.length; ni++) {
       state.npcs[ni].talkedToday = false;
+      state.npcs[ni].wantsToTalk = true;
+      state.npcs[ni].followTurns = 0;
     }
     // Narrative day tracking
     if (FA.narrative && FA.narrative.setVar) {
@@ -669,8 +801,12 @@
     var depth = Math.min(state.systemVisits + 1, cfg.maxDepth);
 
     if (state.systemVisits === 0) {
-      showNarrative('first_system');
+      showNarrative('arc', 'first_system');
     } else {
+      var arcNode = FA.narrative.getNode('arc');
+      if (arcNode && arcNode.id === 'first_system') {
+        FA.narrative.transition('arc', 'deeper', 'Going deeper');
+      }
       addSystemBubble('> Entering sub-level ' + depth + '.', '#4ef');
     }
 
@@ -696,7 +832,7 @@
       sysNPCs.push({
         id: npc.id, name: npc.name, char: npc.char, color: npc.color,
         x: npos.x, y: npos.y, allegiance: npc.allegiance,
-        dialogue: npc.dialogue, talked: false
+        systemDialogue: npc.systemDialogue, talked: false
       });
     }
 
@@ -759,7 +895,10 @@
     FA.clearEffects();
 
     if (reason === 'ejected') {
-      showNarrative('ejected');
+      var narText = FA.lookup('narrativeText', 'ejected');
+      if (narText) addSystemBubble(narText.text, narText.color);
+      var ejectedCs = FA.lookup('cutscenes', 'ejected');
+      if (ejectedCs) startCutscene(ejectedCs, state);
     }
 
     checkTimeWarnings(state);
@@ -791,8 +930,7 @@
         if (sNpc.x === nx && sNpc.y === ny) {
           if (!sNpc.talked) {
             sNpc.talked = true;
-            var allegKey = '_system_' + sNpc.allegiance;
-            var text = sNpc.dialogue[allegKey] || '...';
+            var text = (sNpc.systemDialogue && sNpc.systemDialogue[sNpc.allegiance]) || '...';
             addSystemBubble(sNpc.name + ': "' + text + '"', sNpc.color);
             triggerThought('system_npc');
           }
@@ -1268,8 +1406,8 @@
   //  NARRATIVE & COMMUNICATION
   // ============================================================
 
-  function showNarrative(nodeId) {
-    FA.narrative.transition(nodeId);
+  function showNarrative(graphId, nodeId) {
+    FA.narrative.transition(graphId, nodeId);
     var narText = FA.lookup('narrativeText', nodeId);
     if (narText) addSystemBubble(narText.text, narText.color);
     var cutscene = FA.lookup('cutscenes', nodeId);
@@ -1277,6 +1415,11 @@
     if (cutscene && state.screen !== 'cutscene') {
       startCutscene(cutscene, state);
     }
+  }
+
+  function selectDialogue(npcId) {
+    var entry = FA.select(FA.lookup('dialogues', npcId));
+    return entry ? entry.text : null;
   }
 
   function startCutscene(def, state) {
@@ -1313,7 +1456,7 @@
 
   function triggerEnding(victory, endingNode) {
     var state = FA.getState();
-    showNarrative(endingNode);
+    showNarrative('arc', endingNode);
     if (state.screen === 'cutscene') {
       state._pendingEnd = { victory: victory, endingNode: endingNode };
     } else {
@@ -1364,14 +1507,12 @@
     _createThought(state, text);
   }
 
-  function triggerThought(category, key) {
+  function triggerThought(category) {
     var state = FA.getState();
     if (state.turn - (state.lastThoughtTurn || 0) < 5) return;
-    var thoughts = FA.lookup('config', 'thoughts');
-    if (!thoughts || !thoughts[category]) return;
-    var pool = key !== undefined ? thoughts[category][key] : thoughts[category];
-    if (!pool || !pool.length) return;
-    addThought(pool[Math.floor(Math.random() * pool.length)]);
+    var entry = FA.select(FA.lookup('thoughts', category));
+    if (!entry || !entry.pool || !entry.pool.length) return;
+    addThought(FA.pick(entry.pool));
   }
 
   function dismissBubbles() {
@@ -1459,6 +1600,8 @@
     useModule: useModule,
     dismissCutscene: dismissCutscene,
     dismissDream: dismissDream,
-    dismissBubbles: dismissBubbles
+    dismissBubbles: dismissBubbles,
+    selectChoice: selectChoice,
+    dismissChoice: dismissChoice
   };
 })();

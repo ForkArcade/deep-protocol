@@ -48,6 +48,13 @@
 
     // Overworld
     if (state.screen === 'overworld') {
+      // Choice menu active — handle selection
+      if (state.choiceMenu) {
+        if (data.action === 'mod1') { Game.selectChoice(0); return; }
+        if (data.action === 'mod2') { Game.selectChoice(1); return; }
+        if (data.action === 'start') { Game.dismissChoice(); return; }
+        return; // block other input while menu is open
+      }
       // Dismiss bubbles/thoughts first
       if (data.action === 'start') {
         if ((state.thoughts && state.thoughts.length > 0) || state.systemBubble) {
@@ -95,6 +102,10 @@
     FA.updateEffects(dt);
     FA.updateFloats(dt);
     var state = FA.getState();
+    // Choice menu timer
+    if (state.choiceMenu) {
+      state.choiceMenu.timer += dt;
+    }
     // System bubble timer
     if (state.systemBubble) {
       var sb = state.systemBubble;
