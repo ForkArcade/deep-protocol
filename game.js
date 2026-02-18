@@ -562,16 +562,15 @@
 
     state.timeOfDay += timeCfg.systemTimeCost;
 
-    // Discard dungeon map
-    delete state.maps[state.mapId];
-
     // Clear temporary buffs, keep stats/modules/hp
     state.player.cloakTurns = 0; state.player.overclockActive = false; state.player.firewallHp = 0;
     state.visible = null;
 
-    // Return to town
+    // Return to town first, then discard dungeon map
+    var dungeonMapId = state.mapId;
     var returnPos = state.townReturnPos || FA.lookup('config', 'overworld').playerStart;
     Core.changeMap('town', returnPos.x, returnPos.y);
+    delete state.maps[dungeonMapId];
 
     FA.clearEffects();
 
@@ -963,7 +962,9 @@
 
   function npcComm(state) {
     var townEntities = state.maps.town.entities;
-    var mapEntities = state.maps[state.mapId].entities;
+    var currentMap = state.maps[state.mapId];
+    if (!currentMap) return;
+    var mapEntities = currentMap.entities;
     var hasSysNPC = false;
     for (var si = 0; si < mapEntities.length; si++) {
       if (mapEntities[si].type === 'system_npc') { hasSysNPC = true; break; }
