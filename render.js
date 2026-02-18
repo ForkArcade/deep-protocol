@@ -12,38 +12,22 @@
     var H = cfg.canvasHeight;
     var uiY = cfg.rows * ts;
 
-    // === DEPTH PALETTES FOR DUNGEON ===
-
-    var PALETTES = [
-      { wCap:'#322a22', wFace:'#2a2520', wPanel:'#3a3228', wSide:'#241e18', wInner:'#1a1610', wLine:'#3a3025', fA:'#1a1814', fB:'#1c1a16', fDot:'#22201a' },
-      { wCap:'#181d30', wFace:'#252b42', wPanel:'#2e3550', wSide:'#1f2538', wInner:'#10141f', wLine:'#333c55', fA:'#161a28', fB:'#181c2a', fDot:'#1e2335' },
-      { wCap:'#1d1d2e', wFace:'#2d2b3e', wPanel:'#383545', wSide:'#272536', wInner:'#15141e', wLine:'#3e3c50', fA:'#1b1a27', fB:'#1d1c29', fDot:'#252333' },
-      { wCap:'#261d18', wFace:'#3b2b20', wPanel:'#4a3528', wSide:'#30251c', wInner:'#1a1410', wLine:'#4a3c30', fA:'#221a16', fB:'#241c18', fDot:'#2e231e' },
-      { wCap:'#2a1818', wFace:'#3e2222', wPanel:'#4c2b2b', wSide:'#331c1c', wInner:'#1c1010', wLine:'#4c3030', fA:'#261515', fB:'#281717', fDot:'#321e1e' },
-      { wCap:'#301414', wFace:'#451e1e', wPanel:'#552828', wSide:'#3a1818', wInner:'#200e0e', wLine:'#552a2a', fA:'#2a1212', fB:'#2c1414', fDot:'#381a1a' }
-    ];
-
     // === TILE HELPERS ===
 
-    function isOpen(map, x, y) {
-      if (x < 0 || x >= cfg.cols || y < 0 || y >= cfg.rows) return false;
-      return map[y][x] !== 1;
-    }
+    var OW_TILE_NAMES = ['floor', 'wall', 'indoor', 'garden', 'sidewalk'];
 
-    var TILE_NAMES = ['floor', 'wall', 'indoor', 'garden', 'sidewalk'];
-
-    function owIsWall(owMap, x, y) {
+    function isWall(map, x, y) {
       if (x < 0 || x >= cfg.cols || y < 0 || y >= cfg.rows) return true;
-      var t = owMap[y][x];
+      var t = map[y][x];
       return t === 1 || t === 9;
     }
 
-    function owWallFrame(owMap, x, y) {
+    function wallFrame(map, x, y) {
       var mask = 0;
-      if (!owIsWall(owMap, x, y - 1)) mask |= 1;
-      if (!owIsWall(owMap, x, y + 1)) mask |= 2;
-      if (!owIsWall(owMap, x + 1, y)) mask |= 4;
-      if (!owIsWall(owMap, x - 1, y)) mask |= 8;
+      if (!isWall(map, x, y - 1)) mask |= 1;
+      if (!isWall(map, x, y + 1)) mask |= 2;
+      if (!isWall(map, x + 1, y)) mask |= 4;
+      if (!isWall(map, x - 1, y)) mask |= 8;
       return mask;
     }
 
@@ -80,11 +64,6 @@
     _lightCanvas.width = W; _lightCanvas.height = cfg.rows * ts;
     var _lightCtx = _lightCanvas.getContext('2d');
     var _lightCacheKey = '';
-
-    var _owCanvas = document.createElement('canvas');
-    _owCanvas.width = W; _owCanvas.height = cfg.rows * ts;
-    var _owCtx = _owCanvas.getContext('2d');
-    var _owVersion = -1;
 
     // ================================================================
     //  START SCREEN
@@ -200,129 +179,73 @@
     }, 0);
 
     // ================================================================
-    //  TOWN MAP RENDERING (to offscreen canvas)
+    //  UNIFIED MAP RENDERING (to offscreen canvas)
     // ================================================================
 
-    function renderOverworldMap(oc, owMap, state) {
-      var revealed = state.systemRevealed;
+    function renderMap(oc, map, tilesetName, state) {
+      oc.clearRect(0, 0, oc.canvas.width, oc.canvas.height);
 
-      // Pass 1: terrain tiles
-      for (var y = 0; y < cfg.rows && y < owMap.length; y++) {
-        for (var x = 0; x < cfg.cols && x < owMap[y].length; x++) {
-          var tid = owMap[y][x];
+      for (var y = 0; y < cfg.rows && y < map.length; y++) {
+        for (var x = 0; x < cfg.cols && x < map[y].length; x++) {
+          var tid = map[y][x];
           var px = x * ts, py = y * ts;
 
-          // Tile 9 = blocking object placeholder, render as floor
+          // Blocking placeholder → floor
           if (tid === 9) tid = 0;
 
-          var name = TILE_NAMES[tid];
-          var sprite = name ? getSprite('tiles', name) : null;
+          // Resolve sprite name + frame based on tileset
+          var spriteName, frame = 0;
+          if (tilesetName === 'overworld') {
+            spriteName = OW_TILE_NAMES[tid];
+            if (tid === 1) frame = wallFrame(map, x, y);
+            else if (tid === 0 || tid === 2) frame = (x + y) % 2;
+          } else {
+            // Dungeon tileset: dungeon_d{N}_floor, dungeon_d{N}_wall, etc.
+            if (tid === 0) { spriteName = tilesetName + '_floor'; frame = (x + y) % 2; }
+            else if (tid === 1) { spriteName = tilesetName + '_wall'; frame = wallFrame(map, x, y); }
+            else if (tid === 3) spriteName = 'dungeon_stairs';
+            else if (tid === 4) spriteName = 'dungeon_terminal';
+            else if (tid === 5) spriteName = 'dungeon_terminal_used';
+          }
 
+          var sprite = spriteName ? getSprite('tiles', spriteName) : null;
           if (!sprite) {
             oc.fillStyle = '#222';
             oc.fillRect(px, py, ts, ts);
             continue;
           }
-
-          var frame = 0;
-          if (tid === 1) frame = owWallFrame(owMap, x, y);
-          else if (tid === 0 || tid === 2) frame = (x + y) % 2;
-
           drawSprite(oc, sprite, px, py, ts, frame);
         }
       }
 
-      // Pass 2: objects (from MAP_DEFS via state)
-      var objects = state.maps && state.maps.town ? state.maps.town.objects : null;
-      if (!objects) return;
-      for (var oi = 0; oi < objects.length; oi++) {
-        var obj = objects[oi];
-        // Hide system entrance until revealed
-        if (obj.type === 'system_entrance' && !revealed) continue;
-        var objSprite = getSprite('objects', obj.type);
-        if (objSprite) drawSprite(oc, objSprite, obj.x * ts, obj.y * ts, ts, 0);
-      }
-    }
-
-    // ================================================================
-    //  DUNGEON MAP RENDERING (to offscreen canvas)
-    // ================================================================
-
-    function renderMapToCanvas(oc, map, depth) {
-      var pal = PALETTES[depth] || PALETTES[1];
-      var WC = pal.wCap, WF = pal.wFace, WP = pal.wPanel;
-      var WS = pal.wSide, WI = pal.wInner, WL = pal.wLine;
-      var FA_ = pal.fA, FB = pal.fB, FD = pal.fDot;
-      oc.clearRect(0, 0, _mapCanvas.width, _mapCanvas.height);
-      for (var y = 0; y < cfg.rows; y++) {
-        for (var x = 0; x < cfg.cols; x++) {
-          var tile = map[y][x];
-          var px = x * ts, py = y * ts;
-          if (tile === 0) {
-            oc.fillStyle = (x + y) % 2 === 0 ? FA_ : FB;
-            oc.fillRect(px, py, ts, ts);
-            if ((x + y) % 3 === 0) { oc.fillStyle = FD; oc.fillRect(px + ts / 2, py + ts / 2, 1, 1); }
-            if (depth >= 3 && (x * 7 + y * 3) % 19 === 0) { oc.fillStyle = WL; oc.fillRect(px, py + ts / 2, ts, 1); }
-          } else if (tile === 3) {
-            oc.fillStyle = '#001a1a'; oc.fillRect(px, py, ts, ts);
-            oc.fillStyle = colors.stairsUp; oc.fillRect(px + 2, py + 2, ts - 4, ts - 4);
-            oc.fillStyle = '#fff'; oc.font = 'bold 12px monospace'; oc.textAlign = 'center'; oc.textBaseline = 'middle';
-            oc.fillText('^', px + ts / 2, py + ts / 2);
-          } else if (tile === 4) {
-            oc.fillStyle = FA_; oc.fillRect(px, py, ts, ts);
-            oc.fillStyle = '#0a2a2a'; oc.fillRect(px + 2, py + 2, ts - 4, ts - 4);
-            oc.fillStyle = '#0ff'; oc.fillRect(px + 3, py + 3, ts - 6, 2); oc.fillRect(px + 3, py + ts - 5, ts - 6, 2);
-            oc.font = 'bold 11px monospace'; oc.textAlign = 'center'; oc.textBaseline = 'middle';
-            oc.fillText('T', px + ts / 2, py + ts / 2);
-          } else if (tile === 5) {
-            oc.fillStyle = FA_; oc.fillRect(px, py, ts, ts);
-            oc.fillStyle = '#0a1515'; oc.fillRect(px + 2, py + 2, ts - 4, ts - 4);
-            oc.fillStyle = '#223'; oc.font = '11px monospace'; oc.textAlign = 'center'; oc.textBaseline = 'middle';
-            oc.fillText('T', px + ts / 2, py + ts / 2);
-          } else {
-            var oS = isOpen(map, x, y + 1), oN = isOpen(map, x, y - 1);
-            var oE = isOpen(map, x + 1, y), oW = isOpen(map, x - 1, y);
-            if (oS) {
-              var capH = Math.floor(ts * 0.35);
-              oc.fillStyle = WC; oc.fillRect(px, py, ts, capH);
-              oc.fillStyle = WF; oc.fillRect(px, py + capH, ts, ts - capH);
-              oc.fillStyle = WL; oc.fillRect(px, py + capH, ts, 1);
-              oc.fillStyle = WP; oc.fillRect(px, py + ts - 1, ts, 1);
-              if (x % 3 === 0) { oc.fillStyle = WS; oc.fillRect(px + ts / 2, py + capH + 2, 1, ts - capH - 3); }
-            } else if (oN) {
-              oc.fillStyle = WI; oc.fillRect(px, py, ts, ts);
-              oc.fillStyle = WS; oc.fillRect(px, py, ts, 2);
-              if (x % 4 === 0) { oc.fillStyle = WL; oc.fillRect(px + ts / 2, py + 3, 1, ts - 4); }
-            } else {
-              oc.fillStyle = WI; oc.fillRect(px, py, ts, ts);
-            }
-            if (oE) { oc.fillStyle = WS; oc.fillRect(px + ts - 2, py, 2, ts); }
-            if (oW) { oc.fillStyle = WS; oc.fillRect(px, py, 2, ts); }
-            if (!oS && !oN && (oE || oW) && y % 3 === 0) { oc.fillStyle = WL; oc.fillRect(px + 2, py + ts / 2, ts - 4, 1); }
-            if (depth >= 3 && oS && (x * 11 + y * 7) % 13 === 0) {
-              oc.fillStyle = depth >= 4 ? '#2a1010' : '#1a1828';
-              oc.fillRect(px + 3 + (x % 4) * 3, py + ts - 4, 2, 2);
-            }
-          }
+      // Objects (on any map that has them)
+      var mapData = state ? state.maps[state.mapId] : null;
+      var objects = mapData ? mapData.objects : null;
+      if (objects) {
+        for (var oi = 0; oi < objects.length; oi++) {
+          var obj = objects[oi];
+          if (obj.type === 'system_entrance' && !(state && state.systemRevealed)) continue;
+          var objSprite = getSprite('objects', obj.type);
+          if (objSprite) drawSprite(oc, objSprite, obj.x * ts, obj.y * ts, ts, 0);
         }
       }
     }
 
     // ================================================================
-    //  UNIFIED MAP LAYER
+    //  MAP LAYER
     // ================================================================
 
     FA.addLayer('map', function() {
       var state = FA.getState();
       if (state.screen === 'start' || state.screen === 'cutscene') return;
 
-      // Dream: render dreamMap with dungeon palette
+      // Dream: render with dungeon tileset
       if (state.screen === 'dream') {
         if (!state.dreamMap) return;
         var dmv = state.mapVersion || 0;
         if (dmv !== _mapVersion) {
           _mapVersion = dmv;
-          renderMapToCanvas(_mapCtx, state.dreamMap, state.dreamDepth || 1);
+          renderMap(_mapCtx, state.dreamMap, 'dungeon_d' + (state.dreamDepth || 1), null);
         }
         FA.getCtx().drawImage(_mapCanvas, 0, 0);
         return;
@@ -330,22 +253,12 @@
 
       if (!state.map || !state.maps) return;
       var mv = state.mapVersion || 0;
-
-      if (state.mapId === 'town') {
-        // Town: sprite-based rendering
-        if (mv !== _owVersion) {
-          _owVersion = mv;
-          renderOverworldMap(_owCtx, state.map, state);
-        }
-        FA.getCtx().drawImage(_owCanvas, 0, 0);
-      } else {
-        // Dungeon: palette-based rendering
-        if (mv !== _mapVersion) {
-          _mapVersion = mv;
-          renderMapToCanvas(_mapCtx, state.map, state.depth || 1);
-        }
-        FA.getCtx().drawImage(_mapCanvas, 0, 0);
+      if (mv !== _mapVersion) {
+        _mapVersion = mv;
+        var tilesetName = Location.tileset(state.mapId) || 'overworld';
+        renderMap(_mapCtx, state.map, tilesetName, state);
       }
+      FA.getCtx().drawImage(_mapCanvas, 0, 0);
     }, 1);
 
     // ================================================================

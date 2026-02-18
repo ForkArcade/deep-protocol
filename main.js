@@ -193,7 +193,7 @@
       }
       state.maps.town.grid = grid;
       state.maps.town.objects = objects;
-      if (state.mapId === 'town') {
+      if (!Location.isSystem(state.mapId)) {
         state.map = grid;
         if (state.player) {
           state.visible = Core.computeVisibility(grid, state.player.x, state.player.y, 14);

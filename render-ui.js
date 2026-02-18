@@ -43,7 +43,7 @@
       if (!state.player) return;
       var p = state.player;
       var ctx = FA.getCtx();
-      var inTown = state.mapId === 'town';
+      var inTown = !Location.isSystem(state.mapId);
       var timeCfg = FA.lookup('config', 'time');
 
       // Background — always the same

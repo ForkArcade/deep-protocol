@@ -57,8 +57,9 @@
 
   function initNPCs() {
     _zoneCells = null; // Clear zone cache on restart
-    var npcIds = ['lena', 'victor', 'marta', 'emil'];
-    var roles = FA.shuffle(['ally', 'ally', 'traitor', 'neutral']);
+    var npcDefs = FA.lookupAll('npcs');
+    var npcIds = Object.keys(npcDefs);
+    var roles = FA.shuffle(FA.lookup('config', 'npcRoles').slice());
     var npcs = [];
     for (var i = 0; i < npcIds.length; i++) {
       var def = FA.lookup('npcs', npcIds[i]);

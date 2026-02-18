@@ -123,7 +123,7 @@
     state.map = state.maps[targetMapId].grid;
     state.player.x = spawnX;
     state.player.y = spawnY;
-    state.depth = (targetMapId === 'town') ? 0 : targetMapId;
+    state.depth = Location.depth(targetMapId);
     state.mapVersion = (state.mapVersion || 0) + 1;
   }
 
