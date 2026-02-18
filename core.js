@@ -247,36 +247,15 @@
   // ============================================================
 
   function parseOverworldMap() {
-    // Primary: load from MAP_DEFS (maps.js)
-    if (typeof getMapGrid === 'function') {
-      var grid = getMapGrid('overworld');
-      if (grid) {
-        // Bake blocking objects into the grid as tile 9 (collision marker)
-        if (typeof getMapObjects === 'function') {
-          var objects = getMapObjects('overworld');
-          for (var i = 0; i < objects.length; i++) {
-            if (objects[i].blocking) {
-              grid[objects[i].y][objects[i].x] = 9;
-            }
-          }
-        }
-        return grid;
+    var grid = getMapGrid('overworld');
+    if (!grid) return [];
+    var objects = getMapObjects('overworld');
+    for (var i = 0; i < objects.length; i++) {
+      if (objects[i].blocking) {
+        grid[objects[i].y][objects[i].x] = TILES.blocking;
       }
     }
-    // Fallback: legacy data.js config
-    var owCfg = FA.lookup('config', 'overworld');
-    if (owCfg && owCfg.map) {
-      var rows = owCfg.map;
-      var map = [];
-      for (var y = 0; y < rows.length; y++) {
-        map[y] = [];
-        for (var x = 0; x < rows[y].length; x++) {
-          map[y][x] = parseInt(rows[y].charAt(x));
-        }
-      }
-      return map;
-    }
-    return [];
+    return grid;
   }
 
   function getObjectAtPos(x, y) {
