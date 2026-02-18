@@ -5,6 +5,9 @@
   var FA = window.FA;
   var Core = window.Core;
 
+  // Fade steps: 2 turns full, then ease-out over 3 turns
+  var STEP_ALPHA = [0, 0.1, 0.3, 0.7, 1, 1];
+
   // Measured char width for 11px monospace (cached on first use)
   var _cw = 0;
   function getCW(ctx) {
@@ -175,7 +178,6 @@
       if (!sb) return;
       var ctx = FA.getCtx();
       var cw = getCW(ctx);
-      var STEP_ALPHA = [0, 0.1, 0.3, 0.7, 1, 1];
       var alpha = sb.done ? (STEP_ALPHA[sb.fadeSteps] || 0.1) : 1;
       var lines = sb.lines;
       var lineH = 16;
@@ -229,7 +231,6 @@
       if (bx + tw > W - 4) bx = W - tw - 4;
       var flipped = by < 4;
       if (flipped) by = ppy + ts + 10;
-      var STEP_ALPHA = [0, 0.1, 0.3, 0.7, 1, 1];
       var alpha = thought.done ? (STEP_ALPHA[thought.fadeSteps] || 0.1) : 1;
       drawBox(ctx, bx, by, tw, th, '#4ef', alpha);
       ctx.globalAlpha = 0.15 * alpha; ctx.strokeStyle = '#4ef'; ctx.lineWidth = 1;
