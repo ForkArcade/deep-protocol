@@ -43,7 +43,6 @@
     turnsPerDay: 60,
     warningTime: 40,    // sky darkens
     curfewTime: 52,     // final warning + drones
-    droneTime: 60,      // (unused — drones kill you)
     workTurns: 10,
     systemTimeCost: 30  // turns consumed by system visit
   });
@@ -522,30 +521,6 @@
   FA.register('narrativeText', 'ejected', {
     text: '> You wake on the street. Credits missing. The entrance sealed. Until tomorrow.',
     color: '#f80'
-  });
-  FA.register('narrativeText', 'system_entry', {
-    text: '> The shaft opens. Below, the hum of something vast. Something patient.',
-    color: '#4ef'
-  });
-  FA.register('narrativeText', 'system_deeper', {
-    text: '> Deeper now. The system remembers your last visit. It adjusted.',
-    color: '#f80'
-  });
-  FA.register('narrativeText', 'work_done', {
-    text: '> Shift complete. Credits deposited. Purpose: unclear.',
-    color: '#fd0'
-  });
-  FA.register('narrativeText', 'rent_due', {
-    text: '> Rent deducted. The system provides. The system collects.',
-    color: '#f44'
-  });
-  FA.register('narrativeText', 'curfew_warning', {
-    text: '> CURFEW APPROACHING. Return to quarters. This is not a request.',
-    color: '#f44'
-  });
-  FA.register('narrativeText', 'npc_meet', {
-    text: '> A familiar face. In here? That changes everything. Or nothing.',
-    color: '#a8f'
   });
 
   // === THOUGHTS (narrative-driven — FA.select, first match wins) ===

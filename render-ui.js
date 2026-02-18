@@ -12,40 +12,6 @@
     var H = cfg.canvasHeight;
     var uiY = cfg.rows * ts;
 
-    // === ZONE DEFINITIONS (town only) ===
-
-    var ZONES = {
-      apartment: { bg: '#100e14', sep: '#2a2040', name: 'APARTMENT', nameColor: '#8878aa' },
-      work:      { bg: '#0a1210', sep: '#1a3028', name: 'WORK STATION', nameColor: '#68a878' },
-      cafe:      { bg: '#14100a', sep: '#302518', name: 'CAFE', nameColor: '#c8a060' },
-      garden:    { bg: '#0a120a', sep: '#1a3018', name: 'GARDEN', nameColor: '#6aaa5a' },
-      streets:   { bg: '#0e0e10', sep: '#222228', name: 'STREETS', nameColor: '#7a7a88' },
-      system:    { bg: '#10080a', sep: '#301820', name: 'SYSTEM ACCESS', nameColor: '#f08040' }
-    };
-
-    function detectZone(tile, map, px, py) {
-      if (tile === 6) return 'apartment';
-      if (tile === 7) return 'work';
-      if (tile === 3) return 'garden';
-      if (tile === 8) return 'system';
-      if (tile === 9) return 'cafe';
-      if (tile === 4) return 'streets';
-      var dirs = [[0,-1],[0,1],[-1,0],[1,0]];
-      for (var d = 0; d < dirs.length; d++) {
-        var nx = px + dirs[d][0], ny = py + dirs[d][1];
-        if (ny >= 0 && ny < map.length && nx >= 0 && nx < map[0].length) {
-          var adj = map[ny][nx];
-          if (adj === 6) return 'apartment';
-          if (adj === 9) return 'cafe';
-          if (adj === 3) return 'garden';
-          if (adj === 7) return 'work';
-          if (adj === 8) return 'system';
-        }
-      }
-      if (tile === 2) return 'apartment';
-      return 'streets';
-    }
-
     // ================================================================
     //  UNIFIED UI PANEL — same layout in town and dungeon
     // ================================================================

@@ -21,6 +21,10 @@
   var AMBIENT_THOUGHT_INTERVAL = 20;
   var CURFEW_DRONE_COUNT = 6;
 
+  // Listener refs (prevent accumulation on restart)
+  var _onVarChanged = null;
+  var _onTransition = null;
+
   // ============================================================
   //  GAME START
   // ============================================================
@@ -79,7 +83,10 @@
     var narCfg = FA.lookup('config', 'narrative');
     if (narCfg) FA.narrative.init(narCfg);
 
-    FA.on('narrative:varChanged', function(data) {
+    if (_onVarChanged) FA.off('narrative:varChanged', _onVarChanged);
+    if (_onTransition) FA.off('narrative:transition', _onTransition);
+
+    _onVarChanged = function(data) {
       var s = FA.getState();
       var npcs = NPC.getNPCs(s);
       if (!npcs) return;
@@ -96,9 +103,10 @@
           if (npcs[k].id === 'emil') NPC.selectNPCGoal(npcs[k], s);
         }
       }
-    });
+    };
+    FA.on('narrative:varChanged', _onVarChanged);
 
-    FA.on('narrative:transition', function(data) {
+    _onTransition = function(data) {
       var s = FA.getState();
       var npcs = NPC.getNPCs(s);
       if (!npcs) return;
@@ -120,7 +128,8 @@
           }
         }
       }
-    });
+    };
+    FA.on('narrative:transition', _onTransition);
 
     NPC.updateNPCPositions(FA.getState());
     var wakeCs = FA.lookup('cutscenes', 'wake');
