@@ -55,8 +55,12 @@
       return;
     }
 
-    if (data.type === 'FA_SPRITES_UPDATE' && data.sprites) {
-      if (typeof SPRITE_DEFS !== 'undefined') {
+    if (data.type === 'FA_SPRITES_UPDATE') {
+      if (data.sheetDataUrl && typeof SPRITESHEET !== 'undefined') {
+        SPRITESHEET.src = data.sheetDataUrl;
+        if (data.sheetCols) SPRITE_SHEET_COLS = data.sheetCols;
+      }
+      if (data.sprites && typeof SPRITE_DEFS !== 'undefined') {
         SPRITE_DEFS = data.sprites;
         for (var cat in SPRITE_DEFS) {
           for (var name in SPRITE_DEFS[cat]) {
