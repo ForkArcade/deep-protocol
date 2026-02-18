@@ -451,10 +451,17 @@
 
       if (state.maps.town) {
         if (oldPeriod !== newPeriod) {
+          var _t0 = performance.now();
           NPC.updateNPCPositions(state);
+          var _t1 = performance.now();
           if (FA.narrative && FA.narrative.setVar) FA.narrative.setVar('time_period', newPeriod, 'Period: ' + newPeriod);
+          var _t2 = performance.now();
+          console.log('[PERF] period change: updateNPC=' + (_t1 - _t0).toFixed(1) + 'ms, setVar=' + (_t2 - _t1).toFixed(1) + 'ms');
         }
+        var _t3 = performance.now();
         NPC.npcOverworldTurn(state);
+        var _t4 = performance.now();
+        if (_t4 - _t3 > 1) console.log('[PERF] npcTurn=' + (_t4 - _t3).toFixed(1) + 'ms');
       }
 
       DayCycle.checkTimeWarnings(state);
@@ -465,11 +472,17 @@
     }
 
     if (state.player) {
+      var _t5 = performance.now();
       var lightRadius = hasTime ? 14 : 10 - (state.depth || 1) * 0.5;
       state.visible = Core.computeVisibility(state.map, state.player.x, state.player.y, lightRadius);
+      var _t6 = performance.now();
+      if (_t6 - _t5 > 1) console.log('[PERF] FOV=' + (_t6 - _t5).toFixed(1) + 'ms');
     }
 
+    var _t7 = performance.now();
     Combat.enemyTurn();
+    var _t8 = performance.now();
+    if (_t8 - _t7 > 1) console.log('[PERF] enemyTurn=' + (_t8 - _t7).toFixed(1) + 'ms');
 
     if (hasTime) {
       DayCycle.checkOverworldThoughts(state);
