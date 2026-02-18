@@ -162,6 +162,7 @@
     // Reuse FOV object if same map
     var _newFov = _fovMap !== map;
     if (_newFov) {
+      if (_fovMap) console.log('[FOV] map ref changed! old rows[0]===new rows[0]? ' + (_fovMap[0] === map[0]));
       _fovMap = map;
       _fovObj = new ROT.FOV.PreciseShadowcasting(function(x, y) {
         if (x < 0 || x >= cols || y < 0 || y >= rows) return false;
