@@ -4,6 +4,26 @@
   'use strict';
   var FA = window.FA;
 
+  // Measured char width for 11px monospace (cached on first use)
+  var _cw = 0;
+  function getCW(ctx) {
+    if (_cw) return _cw;
+    ctx.font = '11px monospace';
+    _cw = ctx.measureText('M').width;
+    return _cw;
+  }
+
+  // Shared bubble box: background + border + scanlines
+  function drawBox(ctx, bx, by, tw, th, color, alpha) {
+    ctx.save(); ctx.globalAlpha = 0.85 * alpha; ctx.fillStyle = '#060a12';
+    ctx.fillRect(bx, by, tw, th); ctx.restore();
+    ctx.save(); ctx.globalAlpha = 0.3 * alpha; ctx.strokeStyle = color; ctx.lineWidth = 1;
+    ctx.strokeRect(bx + 0.5, by + 0.5, tw - 1, th - 1); ctx.restore();
+    ctx.save(); ctx.globalAlpha = 0.04 * alpha; ctx.fillStyle = '#000';
+    for (var sl = by; sl < by + th; sl += 2) ctx.fillRect(bx, sl, tw, 1);
+    ctx.restore();
+  }
+
   function setupUILayers() {
     var cfg = FA.lookup('config', 'game');
     var colors = FA.lookup('config', 'colors');
@@ -154,20 +174,18 @@
       var sb = state.systemBubble;
       if (!sb) return;
       var ctx = FA.getCtx();
+      var cw = getCW(ctx);
       var alpha = 1;
       if (sb.done && sb.life < 1500) alpha = sb.life / 1500;
       var lines = sb.lines;
-      var lineH = 16, charW = 6.5;
+      var lineH = 16;
       var maxLineLen = 0;
       for (var mi = 0; mi < lines.length; mi++)
         if (lines[mi].length > maxLineLen) maxLineLen = lines[mi].length;
-      var tw = Math.min(W - 40, Math.max(140, maxLineLen * charW + 24));
+      var tw = Math.min(W - 40, Math.max(140, maxLineLen * cw + 24));
       var th = lines.length * lineH + 12;
       var bx = W / 2 - tw / 2, by = 8;
-      ctx.save(); ctx.globalAlpha = 0.82 * alpha; ctx.fillStyle = '#060a12';
-      ctx.fillRect(bx, by, tw, th); ctx.restore();
-      ctx.save(); ctx.globalAlpha = 0.3 * alpha; ctx.strokeStyle = sb.color; ctx.lineWidth = 1;
-      ctx.strokeRect(bx + 0.5, by + 0.5, tw - 1, th - 1); ctx.restore();
+      drawBox(ctx, bx, by, tw, th, sb.color, alpha);
       for (var li = 0; li < lines.length; li++) {
         var lineElapsed = sb.timer - li * 200;
         if (lineElapsed <= 0) continue;
@@ -180,16 +198,13 @@
         ctx.save(); ctx.globalAlpha = 0.3 * alpha;
         FA.draw.text('[SPACE]', bx + tw - 48, by + th + 4, { color: sb.color, size: 8 }); ctx.restore();
       }
-      ctx.save(); ctx.globalAlpha = 0.04 * alpha; ctx.fillStyle = '#000';
-      for (var sl = by; sl < by + th; sl += 2) ctx.fillRect(bx, sl, tw, 1);
-      ctx.restore();
     }, 25);
 
     // ================================================================
     //  THOUGHT BUBBLE
     // ================================================================
 
-    FA.addLayer('terminal', function() {
+    FA.addLayer('thoughtBubble', function() {
       var state = FA.getState();
       if (state.screen !== 'playing') return;
       if (state.systemBubble) return;
@@ -202,10 +217,10 @@
       if (!thought) return;
       if (!state.player) return;
       var ctx = FA.getCtx();
-
+      var cw = getCW(ctx);
       var ppx = state.player.x * ts + ts / 2;
       var ppy = state.player.y * ts;
-      var tw = Math.max(90, thought.text.length * 6.5 + 24);
+      var tw = Math.max(90, thought.text.length * cw + 24);
       var th = 26;
       var bx = ppx - tw / 2;
       var by = ppy - th - 14;
@@ -215,10 +230,7 @@
       if (flipped) by = ppy + ts + 10;
       var alpha = 1;
       if (thought.done && thought.life < 1500) alpha = thought.life / 1500;
-      ctx.save(); ctx.globalAlpha = 0.82 * alpha; ctx.fillStyle = '#060a12';
-      ctx.fillRect(bx, by, tw, th); ctx.restore();
-      ctx.save(); ctx.globalAlpha = 0.3 * alpha; ctx.strokeStyle = '#4ef'; ctx.lineWidth = 1;
-      ctx.strokeRect(bx + 0.5, by + 0.5, tw - 1, th - 1); ctx.restore();
+      drawBox(ctx, bx, by, tw, th, '#4ef', alpha);
       ctx.save(); ctx.globalAlpha = 0.15 * alpha; ctx.strokeStyle = '#4ef'; ctx.lineWidth = 1;
       ctx.beginPath();
       if (!flipped) { ctx.moveTo(ppx, by + th); ctx.lineTo(ppx, ppy - 2); }
@@ -232,9 +244,6 @@
         ctx.save(); ctx.globalAlpha = 0.3 * alpha;
         FA.draw.text('[SPACE]', bx + tw - 48, by + th + 4, { color: '#4ef', size: 8 }); ctx.restore();
       }
-      ctx.save(); ctx.globalAlpha = 0.04 * alpha; ctx.fillStyle = '#000';
-      for (var sl = by; sl < by + th; sl += 2) ctx.fillRect(bx, sl, tw, 1);
-      ctx.restore();
     }, 26);
 
     // ================================================================
@@ -247,30 +256,21 @@
       var menu = state.choiceMenu;
       menu.timer = (menu.timer || 0);
       var ctx = FA.getCtx();
-      var lineH = 18, charW = 6.5;
-      var titleLen = menu.title.length;
-      var maxLen = titleLen;
+      var cw = getCW(ctx);
+      var lineH = 18;
+      var maxLen = menu.title.length;
       for (var oi = 0; oi < menu.options.length; oi++) {
         var optText = '[' + menu.options[oi].key + '] ' + menu.options[oi].label;
         if (optText.length > maxLen) maxLen = optText.length;
       }
-      var tw = Math.min(W - 40, Math.max(180, maxLen * charW + 32));
+      var tw = Math.min(W - 40, Math.max(180, maxLen * cw + 32));
       var th = (1 + menu.options.length) * lineH + 20;
       var bx = W / 2 - tw / 2, by = 20;
-
-      ctx.save(); ctx.globalAlpha = 0.88; ctx.fillStyle = '#060a12';
-      ctx.fillRect(bx, by, tw, th); ctx.restore();
-      ctx.save(); ctx.globalAlpha = 0.4; ctx.strokeStyle = '#8878cc'; ctx.lineWidth = 1;
-      ctx.strokeRect(bx + 0.5, by + 0.5, tw - 1, th - 1); ctx.restore();
-      ctx.save(); ctx.globalAlpha = 0.04; ctx.fillStyle = '#000';
-      for (var sl = by; sl < by + th; sl += 2) ctx.fillRect(bx, sl, tw, 1);
-      ctx.restore();
-
+      drawBox(ctx, bx, by, tw, th, '#8878cc', 1);
       ctx.save(); ctx.globalAlpha = 0.9;
       TextFX.render(ctx, menu.title, menu.timer, bx + 12, by + 10, {
         color: '#8878cc', dimColor: '#1a1530', size: 11, duration: 60, charDelay: 6, flicker: 25
       }); ctx.restore();
-
       for (var i = 0; i < menu.options.length; i++) {
         var opt = menu.options[i];
         var label = '[' + opt.key + '] ' + opt.label;
