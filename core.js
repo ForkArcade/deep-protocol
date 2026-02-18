@@ -400,7 +400,7 @@
   //  BUBBLE / THOUGHT QUEUE SYSTEM
   // ============================================================
 
-  function _createSystemBubble(state, text, color) {
+  function _createSystemBubble(state, text, color, source) {
     var words = text.split(' ');
     var lines = []; var line = '';
     for (var i = 0; i < words.length; i++) {
