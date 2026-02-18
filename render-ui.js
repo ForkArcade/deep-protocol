@@ -8,13 +8,14 @@
   // Fade steps: 2 turns full, then ease-out over 3 turns
   var STEP_ALPHA = [0, 0.1, 0.3, 0.7, 1, 1];
 
-  // Measured char width for 11px monospace (cached on first use)
-  var _cw = 0;
-  function getCW(ctx) {
-    if (_cw) return _cw;
-    ctx.font = '11px monospace';
-    _cw = ctx.measureText('M').width;
-    return _cw;
+  // Measured char width per font size (cached on first use)
+  var _cwCache = {};
+  function getCW(ctx, size) {
+    if (!size) size = 11;
+    if (_cwCache[size]) return _cwCache[size];
+    ctx.font = size + 'px monospace';
+    _cwCache[size] = ctx.measureText('M').width;
+    return _cwCache[size];
   }
 
   // Object pool for FA.draw.text opts — zero allocations per frame
@@ -146,10 +147,11 @@
       var ax = 8;
       for (var ai = 0; ai < actions.length; ai++) {
         var act = actions[ai];
-        FA.draw.text('[' + act.key + ']', ax, uiY + 36, O('#554', 10));
-        ax += ctx.measureText('[' + act.key + ']').width + 4;
+        var keyText = '[' + act.key + ']';
+        FA.draw.text(keyText, ax, uiY + 36, O('#554', 10));
+        ax += getCW(ctx, 10) * keyText.length + 4;
         FA.draw.text(act.label, ax, uiY + 36, O(act.color, 10));
-        ax += ctx.measureText(act.label).width + 12;
+        ax += getCW(ctx, 10) * act.label.length + 12;
       }
 
       // Nearby NPC tags (town only, after actions)
@@ -167,7 +169,7 @@
           ctx.globalAlpha = dimmed ? 0.4 : 0.9;
           FA.draw.rect(tagX, uiY + 37, 4, 4, npc.color);
           FA.draw.text(npc.name, tagX + 7, uiY + 36, O(dimmed ? '#665' : '#aa9', 10));
-          tagX += ctx.measureText(npc.name).width + 18;
+          tagX += getCW(ctx, 10) * npc.name.length + 18;
         }
         ctx.globalAlpha = 1;
       }

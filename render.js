@@ -41,6 +41,7 @@
 
     // === GLOW CACHE ===
 
+    var _glitchColors = ['#f00', '#0ff', '#f0f', '#ff0'];
     var _glowCache = {};
     function getGlow(color, innerR, outerR, size) {
       var key = color + '_' + innerR + '_' + outerR;
@@ -540,7 +541,7 @@
       var depth = state.depth || 0;
       if (depth > 0 && Math.random() < 0.002 * depth) {
         ctx.globalAlpha = 0.06 + Math.random() * 0.06;
-        ctx.fillStyle = ['#f00', '#0ff', '#f0f', '#ff0'][Math.floor(Math.random() * 4)];
+        ctx.fillStyle = _glitchColors[Math.floor(Math.random() * 4)];
         ctx.fillRect(0, Math.random() * uiY, W, 1 + Math.random() * 2);
         ctx.globalAlpha = 1;
       }

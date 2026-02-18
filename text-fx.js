@@ -5,6 +5,7 @@
   var CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789#$%&@!<>=|{}[]~*+:';
   var CL = CHARS.length;
   var _cwCache = {};
+  var _scrambleParts = [];
 
   function getCharWidth(ctx, size, bold) {
     var key = size + (bold ? 'b' : '');
@@ -56,13 +57,13 @@
 
     // Scrambling tail — one fillText for entire unsettled portion
     ctx.fillStyle = dimColor;
-    var scramble = '';
+    _scrambleParts.length = 0;
     for (var i = settledCount; i < text.length; i++) {
-      if (text.charAt(i) === ' ') { scramble += ' '; continue; }
+      if (text.charAt(i) === ' ') { _scrambleParts.push(' '); continue; }
       var idx = ((tick + i * 13 + i * i * 7) % CL + CL) % CL;
-      scramble += CHARS.charAt(idx);
+      _scrambleParts.push(CHARS.charAt(idx));
     }
-    ctx.fillText(scramble, startX + settledCount * cw, y);
+    ctx.fillText(_scrambleParts.join(''), startX + settledCount * cw, y);
   }
 
   function totalTime(text, opts) {
