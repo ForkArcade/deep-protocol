@@ -53,42 +53,25 @@
     baseRent: 30,
     rentIncrease: 5,    // per day — Kafka: the system tightens
     ejectionPenalty: 40, // credits lost when ejected from system
-    systemRevealDay: 3  // day when system entrance appears
+    systemRevealDay: 3, // day when system entrance appears
+    curfewDrones: 6     // number of drones during curfew
   });
 
-  // === OVERWORLD MAP (40x25) ===
-  // 1=wall 0=floor 2=indoor 3=garden 4=notice board 5=sidewalk
-  // 6=bed 7=work terminal 8=system entrance 9=café table
-  FA.register('config', 'overworld', {
-    playerStart: { x: 13, y: 1 },
-    map: [
-      '1111111111111111111111111111111111111111',
-      '1111111111122200111100222001111111111111',
-      '1111111111126200111100226001111111111111',
-      '1111111111110005000500111111111111111111',
-      '1111111100000005050000000011111111111111',
-      '1102220050000005050000000000000001111111',
-      '1102620050000005050000000000090001111111',
-      '1102220050000000000004000000000001111111',
-      '1111110050000005050111000000090001111111',
-      '1102220050000005050111000000000001111111',
-      '1102620050000005050111000000000001111111',
-      '1102220050000000000000000000000001111111',
-      '1102220050000005050111133300000001111111',
-      '1102620050000005050111133300000001111111',
-      '1102220050000000000000133300000001111111',
-      '1111111111111100000000001111111111111111',
-      '1111111111111111000000011111111111111111',
-      '1111111111111111007007011111111111111111',
-      '1111111111111111000000011111111111111111',
-      '1111111111111111105550111111111111111111',
-      '1111111111111111105050111111111111111111',
-      '1111111111111111108050111111111111111111',
-      '1111111111111111105050111111111111111111',
-      '1111111111111111155551111111111111111111',
-      '1111111111111111111111111111111111111111'
-    ],
+  // === DUNGEON TILES ===
+  // Tile IDs used in procedurally generated dungeon floors
+  FA.register('config', 'dungeonTiles', {
+    floor: 0,
+    wall: 1,
+    stairsUp: 3,
+    terminal: 4,
+    terminalUsed: 5,
+    blocking: 9      // collision placeholder for blocking objects
   });
+
+  // === OVERWORLD MAP ===
+  // Map data now lives in _maps.json / maps.js (MAP_DEFS global)
+  // Tiles: 0=floor 1=wall 2=indoor 3=garden 4=sidewalk
+  // Objects (in _maps.json, category 'objects'): bed, terminal, notice_board, system_entrance, cafe_table
 
   // === NPCs ===
   // allegiance is randomized at game start: 2 ally, 1 traitor, 1 neutral
@@ -99,7 +82,7 @@
     cafePos: { x: 28, y: 6 },
     terminalPos: { x: 18, y: 17 },
     gardenPos: { x: 24, y: 13 },
-    appearsDay: 1,
+    appearsDay: 1, pace: 1, systemMinDepth: 1,
     systemDialogue: {
       ally: 'This corridor is clear. I checked. Follow me.',
       traitor: 'I think the exit is this way. Come on, hurry.',
@@ -113,7 +96,7 @@
     cafePos: { x: 30, y: 8 },
     terminalPos: { x: 21, y: 17 },
     gardenPos: { x: 24, y: 12 },
-    appearsDay: 2,
+    appearsDay: 2, pace: 2, systemMinDepth: 2,
     systemDialogue: {
       ally: 'There\'s a terminal two rooms east. It has what you need.',
       traitor: 'Trust me — go left here. I\'ve been this way before.',
@@ -127,7 +110,7 @@
     cafePos: { x: 28, y: 8 },
     terminalPos: { x: 18, y: 17 },
     gardenPos: { x: 25, y: 14 },
-    appearsDay: 1,
+    appearsDay: 1, pace: 1, systemMinDepth: 2,
     systemDialogue: {
       ally: 'Security clearance granted for this sector. Move quickly.',
       traitor: 'This area is restricted. You\'ll need to find another route. Sorry.',
@@ -141,7 +124,7 @@
     cafePos: { x: 30, y: 6 },
     terminalPos: { x: 21, y: 17 },
     gardenPos: { x: 23, y: 13 },
-    appearsDay: 3,
+    appearsDay: 3, pace: 3, systemMinDepth: 3,
     systemDialogue: {
       ally: 'The source is below. Everything you need to know is there. Everything.',
       traitor: 'Keep going deeper. That\'s what it wants. That\'s what you want. Is there a difference?',

@@ -173,6 +173,36 @@
     if (sx || sy) ctx.translate(-sx, -sy);
   });
 
+  // Hot-reload maps from editor (fa-map-update dispatched by SDK)
+  window.addEventListener('fa-map-update', function(e) {
+    var state = FA.getState();
+    if (!state.maps) return;
+    var mapDefs = e.detail;
+    if (!mapDefs) return;
+    // Look for 'overworld' key (matches town map)
+    if (mapDefs.overworld && mapDefs.overworld.grid) {
+      var grid = mapDefs.overworld.grid.map(function(row) {
+        return row.split('').map(Number);
+      });
+      // Bake blocking objects into grid as tile 9
+      var objects = mapDefs.overworld.objects || [];
+      for (var bi = 0; bi < objects.length; bi++) {
+        if (objects[bi].blocking) {
+          grid[objects[bi].y][objects[bi].x] = 9;
+        }
+      }
+      state.maps.town.grid = grid;
+      state.maps.town.objects = objects;
+      if (state.mapId === 'town') {
+        state.map = grid;
+        if (state.player) {
+          state.visible = Core.computeVisibility(grid, state.player.x, state.player.y, 14);
+        }
+      }
+      state.mapVersion = (state.mapVersion || 0) + 1;
+    }
+  });
+
   // Start
   Render.setup();
   RenderUI.setup();

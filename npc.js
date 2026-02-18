@@ -15,11 +15,48 @@
   var NPC_CLOSE_RADIUS = 6;
   var NPC_WANDER_CHANCE = 0.4;
 
+  // Goal name → zone key mapping
+  var GOAL_ZONES = { home: 'h', cafe: 'c', terminal: 'w', garden: 'g' };
+
+  // Cached zone cells (built once per game start)
+  var _zoneCells = null;
+
+  function buildZoneCells(state) {
+    var zones = state.maps && state.maps.town ? state.maps.town.zones : null;
+    if (!zones) return null;
+    var grid = state.maps.town.grid;
+    var cells = {};
+    for (var y = 0; y < zones.length; y++) {
+      for (var x = 0; x < zones[y].length; x++) {
+        var z = zones[y][x];
+        if (z === '.') continue;
+        // Only walkable cells
+        if (grid && grid[y] && (grid[y][x] === 1 || grid[y][x] === 9)) continue;
+        if (!cells[z]) cells[z] = [];
+        cells[z].push({ x: x, y: y });
+      }
+    }
+    return cells;
+  }
+
+  function getZoneCells(state) {
+    if (!_zoneCells) _zoneCells = buildZoneCells(state);
+    return _zoneCells;
+  }
+
+  function pickZoneTarget(zoneKey, state) {
+    var cells = getZoneCells(state);
+    if (!cells || !cells[zoneKey] || cells[zoneKey].length === 0) return null;
+    var arr = cells[zoneKey];
+    return arr[Math.floor(Math.random() * arr.length)];
+  }
+
   // ============================================================
   //  NPC INITIALIZATION
   // ============================================================
 
   function initNPCs() {
+    _zoneCells = null; // Clear zone cache on restart
     var npcIds = ['lena', 'victor', 'marta', 'emil'];
     var roles = FA.shuffle(['ally', 'ally', 'traitor', 'neutral']);
     var npcs = [];
@@ -31,11 +68,11 @@
         allegiance: roles[i],
         homePos: def.homePos, cafePos: def.cafePos,
         terminalPos: def.terminalPos, gardenPos: def.gardenPos,
-        schedule: def.schedule, appearsDay: def.appearsDay,
+        schedule: def.schedule, appearsDay: def.appearsDay, systemMinDepth: def.systemMinDepth || 1,
         systemDialogue: def.systemDialogue, met: false,
-        goal: 'home', talkedToday: false,
+        goal: 'home', goalPos: null, talkedToday: false,
         wantsToTalk: true, followTurns: 0,
-        pace: npcIds[i] === 'victor' ? 2 : npcIds[i] === 'emil' ? 3 : 1,
+        pace: def.pace || 1,
         turnCounter: i,
         idleTimer: 0
       });
@@ -79,27 +116,40 @@
   // ============================================================
 
   function resolveNPCGoalPos(npc, state) {
-    var g = npc.goal;
-    if (g === 'home') return npc.homePos;
-    if (g === 'cafe') return npc.cafePos;
-    if (g === 'terminal') return npc.terminalPos;
-    if (g === 'garden') return npc.gardenPos;
-    if (g === 'player' && state.player) return { x: state.player.x, y: state.player.y };
+    if (npc.goal === 'player' && state.player) return { x: state.player.x, y: state.player.y };
+    return npc.goalPos || null;
+  }
+
+  function computeGoalPos(npc, state) {
+    var zoneKey = GOAL_ZONES[npc.goal];
+    if (zoneKey) {
+      var target = pickZoneTarget(zoneKey, state);
+      if (target) return { x: target.x, y: target.y };
+    }
+    // Fallback to hardcoded positions
+    if (npc.goal === 'home') return npc.homePos;
+    if (npc.goal === 'cafe') return npc.cafePos;
+    if (npc.goal === 'terminal') return npc.terminalPos;
+    if (npc.goal === 'garden') return npc.gardenPos;
     return null;
   }
 
   function selectNPCGoal(npc, state) {
     if (state.day < npc.appearsDay) {
-      npc.goal = 'hidden'; npc.x = -1; npc.y = -1;
+      npc.goal = 'hidden'; npc.goalPos = null; npc.x = -1; npc.y = -1;
       return;
     }
     // NPC appearing for the first time — place at home
     if (npc.x < 0 || npc.y < 0) {
-      npc.x = npc.homePos.x;
-      npc.y = npc.homePos.y;
+      var homeTarget = pickZoneTarget('h', state);
+      if (homeTarget) { npc.x = homeTarget.x; npc.y = homeTarget.y; }
+      else { npc.x = npc.homePos.x; npc.y = npc.homePos.y; }
     }
     var dist = state.player ? Math.abs(npc.x - state.player.x) + Math.abs(npc.y - state.player.y) : 99;
-    if (npc.wantsToTalk && !npc.talkedToday && dist < NPC_APPROACH_RADIUS) { npc.goal = 'player'; return; }
+    if (npc.wantsToTalk && !npc.talkedToday && dist < NPC_APPROACH_RADIUS) {
+      npc.goal = 'player'; npc.goalPos = null;
+      return;
+    }
 
     // Data-driven: pick schedule from behaviors registry (narrative-aware)
     var behavior = FA.select(FA.lookup('behaviors', npc.id));
@@ -110,6 +160,9 @@
     } else {
       npc.goal = 'wander';
     }
+
+    // Compute target position from zone
+    npc.goalPos = computeGoalPos(npc, state);
   }
 
   // ============================================================

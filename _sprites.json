@@ -1,5 +1,44 @@
 {
   "tiles": {
+    "floor": {
+      "w": 10,
+      "h": 10,
+      "palette": {
+        "A": "#1a1814",
+        "B": "#1c1a16",
+        "D": "#22201a"
+      },
+      "origin": [
+        0,
+        0
+      ],
+      "frames": [
+        [
+          "AAAAAAAAAA",
+          "AAAAAAAAAA",
+          "AAAAAAAAAA",
+          "AAAAAAAAAA",
+          "AAAAAAAAAA",
+          "AAAAAAAAAA",
+          "AAAAAAAAAA",
+          "AAAAAAAAAA",
+          "AAAAAAAAAA",
+          "AAAAAAAAAA"
+        ],
+        [
+          "BBBBBBBBBB",
+          "BBBBBBBBBB",
+          "BBBBBBBBBB",
+          "BBBBBBBBBB",
+          "BBBBBDBBBB",
+          "BBBBBBBBBB",
+          "BBBBBBBBBB",
+          "BBBBBBBBBB",
+          "BBBBBBBBBB",
+          "BBBBBBBBBB"
+        ]
+      ]
+    },
     "wall": {
       "w": 10,
       "h": 10,
@@ -210,45 +249,6 @@
         ]
       ]
     },
-    "floor": {
-      "w": 10,
-      "h": 10,
-      "palette": {
-        "A": "#1a1814",
-        "B": "#1c1a16",
-        "D": "#22201a"
-      },
-      "origin": [
-        0,
-        0
-      ],
-      "frames": [
-        [
-          "AAAAAAAAAA",
-          "AAAAAAAAAA",
-          "AAAAAAAAAA",
-          "AAAAAAAAAA",
-          "AAAAAAAAAA",
-          "AAAAAAAAAA",
-          "AAAAAAAAAA",
-          "AAAAAAAAAA",
-          "AAAAAAAAAA",
-          "AAAAAAAAAA"
-        ],
-        [
-          "BBBBBBBBBB",
-          "BBBBBBBBBB",
-          "BBBBBBBBBB",
-          "BBBBBBBBBB",
-          "BBBBBDBBBB",
-          "BBBBBBBBBB",
-          "BBBBBBBBBB",
-          "BBBBBBBBBB",
-          "BBBBBBBBBB",
-          "BBBBBBBBBB"
-        ]
-      ]
-    },
     "indoor": {
       "w": 10,
       "h": 10,
@@ -315,33 +315,6 @@
         ]
       ]
     },
-    "notice_board": {
-      "w": 10,
-      "h": 10,
-      "palette": {
-        "B": "#1a1a10",
-        "Y": "#8a7a40",
-        "T": "#aa9a50"
-      },
-      "origin": [
-        0,
-        0
-      ],
-      "frames": [
-        [
-          "..........",
-          "..........",
-          "..BBBBBB..",
-          "..BYYYYB..",
-          "..BYTTYB..",
-          "..BYTTYB..",
-          "..BYYYYB..",
-          "..BYYYYB..",
-          "..BBBBBB..",
-          ".........."
-        ]
-      ]
-    },
     "sidewalk": {
       "w": 10,
       "h": 10,
@@ -368,7 +341,9 @@
           "EBBBBBBBBE"
         ]
       ]
-    },
+    }
+  },
+  "objects": {
     "bed": {
       "w": 10,
       "h": 10,
@@ -416,6 +391,33 @@
           "..BBBBBB..",
           "..BBBBBB..",
           "..BCCCCB..",
+          "..BBBBBB..",
+          ".........."
+        ]
+      ]
+    },
+    "notice_board": {
+      "w": 10,
+      "h": 10,
+      "palette": {
+        "B": "#1a1a10",
+        "Y": "#8a7a40",
+        "T": "#aa9a50"
+      },
+      "origin": [
+        0,
+        0
+      ],
+      "frames": [
+        [
+          "..........",
+          "..........",
+          "..BBBBBB..",
+          "..BYYYYB..",
+          "..BYTTYB..",
+          "..BYTTYB..",
+          "..BYYYYB..",
+          "..BYYYYB..",
           "..BBBBBB..",
           ".........."
         ]

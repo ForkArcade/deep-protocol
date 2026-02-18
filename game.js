@@ -19,7 +19,7 @@
   var PARTICLE_LIFE = 500;
   var COMM_INTERVAL = 12;
   var AMBIENT_THOUGHT_INTERVAL = 20;
-  var CURFEW_DRONE_COUNT = 6;
+  // Curfew drone count read from economy config (data.js)
 
   // Listener refs (prevent accumulation on restart)
   var _onVarChanged = null;
@@ -35,7 +35,15 @@
   }
 
   function beginPlaying() {
-    var owCfg = FA.lookup('config', 'overworld');
+    var playerStart = { x: 13, y: 1 };
+    var townObjects = [];
+    if (typeof getMap === 'function') {
+      var mapDef = getMap('overworld');
+      if (mapDef && mapDef.playerStart) playerStart = mapDef.playerStart;
+    }
+    if (typeof getMapObjects === 'function') {
+      townObjects = getMapObjects('overworld');
+    }
     var econCfg = FA.lookup('config', 'economy');
     var townGrid = Core.parseOverworldMap();
     var npcs = NPC.initNPCs();
@@ -47,7 +55,11 @@
       explored[ey] = [];
       for (var ex = 0; ex < cfg.cols; ex++) explored[ey][ex] = false;
     }
-    maps.town = { grid: townGrid, entities: npcs, items: [], explored: explored, effects: ['timeOfDay', 'curfew'] };
+    var townZones = null;
+    if (typeof getMapZones === 'function') {
+      townZones = getMapZones('overworld');
+    }
+    maps.town = { grid: townGrid, entities: npcs, items: [], explored: explored, effects: ['timeOfDay', 'curfew'], objects: townObjects, zones: townZones };
 
     FA.resetState({
       screen: 'playing',
@@ -55,7 +67,7 @@
       maps: maps,
       map: townGrid,
       player: {
-        x: owCfg.playerStart.x, y: owCfg.playerStart.y,
+        x: playerStart.x, y: playerStart.y,
         hp: 20, maxHp: 20, atk: 5, def: 1,
         gold: 0, kills: 0,
         modules: [], cloakTurns: 0, overclockActive: false, firewallHp: 0
@@ -67,7 +79,7 @@
       workedToday: false,
       systemRevealed: false,
       systemVisits: 0, totalKills: 0, totalGold: 0,
-      visible: Core.computeVisibility(townGrid, owCfg.playerStart.x, owCfg.playerStart.y, 14),
+      visible: Core.computeVisibility(townGrid, playerStart.x, playerStart.y, 14),
       mapVersion: 1, turn: 0, systemTurn: 0,
       systemBubble: null,
       thoughts: [], lastThoughtTurn: -10, bubbleQueue: [],
@@ -224,18 +236,21 @@
       return;
     }
 
-    var tile = state.map[state.player.y][state.player.x];
-    // Town tile actions (tile IDs 4-9 have town-specific meanings)
     if (state.mapId === 'town') {
-      if (tile === 6) showBedChoice(state);
-      else if (tile === 7) workAtTerminal(state);
-      else if (tile === 4) readNoticeBoard(state);
-      else if (tile === 8) {
-        if (state.systemRevealed) enterSystem(state);
-        else Core.addThought('A sealed maintenance shaft. Nothing to see.');
+      // Town: check objects at player position
+      var obj = Core.getObjectAtPos(state.player.x, state.player.y);
+      if (obj) {
+        if (obj.type === 'bed') showBedChoice(state);
+        else if (obj.type === 'terminal') workAtTerminal(state);
+        else if (obj.type === 'notice_board') readNoticeBoard(state);
+        else if (obj.type === 'system_entrance') {
+          if (state.systemRevealed) enterSystem(state);
+          else Core.addThought('A sealed maintenance shaft. Nothing to see.');
+        }
       }
     } else {
-      // Dungeon: SPACE on terminal = hack it
+      // Dungeon: SPACE on terminal tile = hack it
+      var tile = state.map[state.player.y][state.player.x];
       if (tile === 4) hackTerminal(state.player.x, state.player.y, state);
     }
   }
@@ -426,7 +441,8 @@
     var period = NPC.getTimePeriod(state.timeOfDay);
     if (period === 'morning' && state.timeOfDay < 10) Core.triggerThought('morning');
     else if (period === 'evening') Core.triggerThought('evening');
-    if (Math.abs(state.player.x - 29) < 5 && Math.abs(state.player.y - 8) < 4) {
+    var zones = state.maps && state.maps.town ? state.maps.town.zones : null;
+    if (zones && zones[state.player.y] && zones[state.player.y][state.player.x] === 'c') {
       Core.triggerThought('cafe');
     }
   }
@@ -439,14 +455,17 @@
     var def = FA.lookup('enemies', 'drone');
     var townEntities = state.maps.town.entities;
     var townGrid = state.maps.town.grid;
+    var townZones = state.maps.town.zones || null;
     var cfg = FA.lookup('config', 'game');
-    for (var i = 0; i < CURFEW_DRONE_COUNT; i++) {
+    var curfewCount = FA.lookup('config', 'economy').curfewDrones;
+    for (var i = 0; i < curfewCount; i++) {
       var dx, dy, attempts = 0;
       do {
         dx = FA.rand(1, cfg.cols - 2);
         dy = FA.rand(1, cfg.rows - 2);
         attempts++;
       } while (attempts < 50 && (!Core.isWalkable(townGrid, dx, dy) ||
+        (townZones && townZones[dy] && townZones[dy][dx] === 'h') ||
         (state.mapId === 'town' && state.player && Math.abs(dx - state.player.x) + Math.abs(dy - state.player.y) < 5)));
       townEntities.push({
         id: FA.uid(), type: 'enemy', curfewDrone: true,
@@ -499,8 +518,8 @@
       var npc = townEntities[i];
       if (npc.type !== 'npc') continue;
       if (!npc.met || state.day < npc.appearsDay) continue;
-      if (depth < 2 && npc.id !== 'lena') continue;
-      if (depth < 3 && npc.id === 'emil') continue;
+      var minDepth = npc.systemMinDepth || 1;
+      if (depth < minDepth) continue;
       var npos = Core.findEmptyInRooms(floor.map, floor.rooms, populated.occupied);
       populated.occupied.push(npos);
       populated.entities.push({
@@ -568,7 +587,12 @@
 
     // Return to town first, then discard dungeon map
     var dungeonMapId = state.mapId;
-    var returnPos = state.townReturnPos || FA.lookup('config', 'overworld').playerStart;
+    var fallbackStart = { x: 13, y: 1 };
+    if (typeof getMap === 'function') {
+      var md = getMap('overworld');
+      if (md && md.playerStart) fallbackStart = md.playerStart;
+    }
+    var returnPos = state.townReturnPos || fallbackStart;
     Core.changeMap('town', returnPos.x, returnPos.y);
     delete state.maps[dungeonMapId];
 
@@ -797,6 +821,8 @@
     var entities = mapData.entities;
     var rooms = mapData.rooms || null;
 
+    var zones = mapData.zones || null;
+
     for (var i = 0; i < entities.length; i++) {
       if (state.screen !== 'playing' || !state.player) return;
       var e = entities[i];
@@ -805,11 +831,16 @@
 
       var action = computeEnemyAction(e, state, rooms);
 
+      // Save position for zone-restricted enemies
+      var prevX = e.x, prevY = e.y;
+
       switch (action.type) {
         case 'shoot':
           sentinelShoot(e, state);
           break;
         case 'attack':
+          // Drones can't attack into housing zone
+          if (e.curfewDrone && zones && state.player && zones[state.player.y] && zones[state.player.y][state.player.x] === 'h') break;
           if (state.player) {
             var dmg = Math.max(1, e.atk - state.player.def + FA.rand(-1, 1));
             applyDamageToPlayer(dmg, e.name, state);
@@ -830,6 +861,11 @@
         case 'random':
           Core.randomStep(e);
           break;
+      }
+
+      // Curfew drones cannot enter housing zones — revert move
+      if (e.curfewDrone && zones && zones[e.y] && zones[e.y][e.x] === 'h') {
+        e.x = prevX; e.y = prevY;
       }
     }
   }

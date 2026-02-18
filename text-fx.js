@@ -38,22 +38,30 @@
     ctx.textBaseline = baseline;
     ctx.textAlign = 'left';
 
-    for (var i = 0; i < text.length; i++) {
-      var ch = text.charAt(i);
-      if (ch === ' ') continue;
+    // How many chars have settled (left-to-right reveal)
+    var settledCount = elapsed >= dur ? Math.min(text.length, Math.floor((elapsed - dur) / cd) + 1) : 0;
 
+    // All settled — single fillText for entire string
+    if (settledCount >= text.length) {
+      ctx.fillStyle = color;
+      ctx.fillText(text, startX, y);
+      return;
+    }
+
+    // Settled prefix — one fillText call
+    if (settledCount > 0) {
+      ctx.fillStyle = color;
+      ctx.fillText(text.substring(0, settledCount), startX, y);
+    }
+
+    // Scrambling tail — only unsettled chars
+    ctx.fillStyle = dimColor;
+    for (var i = settledCount; i < text.length; i++) {
+      if (text.charAt(i) === ' ') continue;
       var cx = startX + i * cw;
-      var settleAt = dur + i * cd;
-
-      if (elapsed >= settleAt) {
-        ctx.fillStyle = color;
-        ctx.fillText(ch, cx, y);
-      } else {
-        var idx = ((tick + i * 13 + i * i * 7) % CL + CL) % CL;
-        var jitter = ((tick + i) % 3) - 1;
-        ctx.fillStyle = dimColor;
-        ctx.fillText(CHARS.charAt(idx), cx, y + jitter);
-      }
+      var idx = ((tick + i * 13 + i * i * 7) % CL + CL) % CL;
+      var jitter = ((tick + i) % 3) - 1;
+      ctx.fillText(CHARS.charAt(idx), cx, y + jitter);
     }
   }
 

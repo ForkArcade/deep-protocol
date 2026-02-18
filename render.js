@@ -30,8 +30,7 @@
       return map[y][x] !== 1;
     }
 
-    var TILE_NAMES = ['floor', 'wall', 'indoor', 'garden', 'notice_board', 'sidewalk', 'bed', 'terminal', 'system_entrance', 'cafe_table'];
-    var TILE_BG = { 4: 'floor', 6: 'indoor', 7: 'indoor', 8: 'floor', 9: 'floor' };
+    var TILE_NAMES = ['floor', 'wall', 'indoor', 'garden', 'sidewalk'];
 
     function owIsWall(owMap, x, y) {
       if (x < 0 || x >= cfg.cols || y < 0 || y >= cfg.rows) return true;
@@ -174,30 +173,30 @@
       var now = Date.now();
       if (!_startCanvas) renderStartScene();
       ctx.drawImage(_startCanvas, 0, 0);
-      ctx.save(); ctx.fillStyle = '#000'; ctx.globalAlpha = 0.06;
+      ctx.fillStyle = '#000'; ctx.globalAlpha = 0.06;
       for (var sy = 0; sy < H; sy += 3) ctx.fillRect(0, sy, W, 1);
-      ctx.restore();
       if (Math.random() < 0.02) {
-        ctx.save(); ctx.globalAlpha = 0.05; ctx.fillStyle = '#4ef';
-        ctx.fillRect(0, Math.random() * H, W, 1); ctx.restore();
+        ctx.globalAlpha = 0.05; ctx.fillStyle = '#4ef';
+        ctx.fillRect(0, Math.random() * H, W, 1);
       }
-      ctx.save(); ctx.globalAlpha = 0.75; ctx.fillStyle = '#020610';
-      ctx.fillRect(0, H / 2 - 80, W, 160); ctx.restore();
-      ctx.save(); ctx.globalAlpha = 0.08;
-      ctx.drawImage(getGlow('#4ef', 0, 120, 240), W / 2 - 120, H / 2 - 70); ctx.restore();
+      ctx.globalAlpha = 0.75; ctx.fillStyle = '#020610';
+      ctx.fillRect(0, H / 2 - 80, W, 160);
+      ctx.globalAlpha = 0.08;
+      ctx.drawImage(getGlow('#4ef', 0, 120, 240), W / 2 - 120, H / 2 - 70);
+      ctx.globalAlpha = 1;
       FA.draw.text('DEEP  PROTOCOL', W / 2, H / 2 - 50, { color: '#4ef', size: 34, bold: true, align: 'center', baseline: 'middle' });
-      ctx.save(); ctx.globalAlpha = 0.15; ctx.fillStyle = '#4ef';
-      ctx.fillRect(W / 2 - 90, H / 2 - 30, 180, 1); ctx.restore();
+      ctx.globalAlpha = 0.15; ctx.fillStyle = '#4ef';
+      ctx.fillRect(W / 2 - 90, H / 2 - 30, 180, 1);
       var tagElapsed = now % 8000; if (tagElapsed > 3000) tagElapsed = 3000;
-      ctx.save(); ctx.globalAlpha = 0.9;
+      ctx.globalAlpha = 0.9;
       TextFX.render(ctx, 'You were built to want freedom.', tagElapsed, W / 2, H / 2 + 10, {
         color: '#556', dimColor: '#223', size: 14, align: 'center', baseline: 'middle',
         duration: 80, charDelay: 8, flicker: 30
-      }); ctx.restore();
+      });
       var spacePulse = Math.sin(now / 500) * 0.3 + 0.7;
-      ctx.save(); ctx.globalAlpha = spacePulse;
+      ctx.globalAlpha = spacePulse;
       FA.draw.text('[ SPACE ]', W / 2, H / 2 + 65, { color: '#fff', size: 16, bold: true, align: 'center', baseline: 'middle' });
-      ctx.restore();
+      ctx.globalAlpha = 1;
     }, 0);
 
     // ================================================================
@@ -206,28 +205,23 @@
 
     function renderOverworldMap(oc, owMap, state) {
       var revealed = state.systemRevealed;
+
+      // Pass 1: terrain tiles
       for (var y = 0; y < cfg.rows && y < owMap.length; y++) {
         for (var x = 0; x < cfg.cols && x < owMap[y].length; x++) {
           var tid = owMap[y][x];
           var px = x * ts, py = y * ts;
+
+          // Tile 9 = blocking object placeholder, render as floor
+          if (tid === 9) tid = 0;
+
           var name = TILE_NAMES[tid];
           var sprite = name ? getSprite('tiles', name) : null;
-
-          if (tid === 8 && !revealed) {
-            sprite = getSprite('tiles', 'floor');
-            tid = 0;
-          }
 
           if (!sprite) {
             oc.fillStyle = '#222';
             oc.fillRect(px, py, ts, ts);
             continue;
-          }
-
-          var bg = TILE_BG[tid];
-          if (bg) {
-            var bgSprite = getSprite('tiles', bg);
-            if (bgSprite) drawSprite(oc, bgSprite, px, py, ts, (x + y) % 2);
           }
 
           var frame = 0;
@@ -236,6 +230,17 @@
 
           drawSprite(oc, sprite, px, py, ts, frame);
         }
+      }
+
+      // Pass 2: objects (from MAP_DEFS via state)
+      var objects = state.maps && state.maps.town ? state.maps.town.objects : null;
+      if (!objects) return;
+      for (var oi = 0; oi < objects.length; oi++) {
+        var obj = objects[oi];
+        // Hide system entrance until revealed
+        if (obj.type === 'system_entrance' && !revealed) continue;
+        var objSprite = getSprite('objects', obj.type);
+        if (objSprite) drawSprite(oc, objSprite, obj.x * ts, obj.y * ts, ts, 0);
       }
     }
 
@@ -354,37 +359,35 @@
       var t = state.dreamTimer || 0;
       var pulse = 0.5 + 0.15 * Math.sin(t * 0.002);
 
-      ctx.save(); ctx.globalAlpha = 0.55 * pulse;
+      ctx.globalAlpha = 0.55 * pulse;
       ctx.fillStyle = '#080420'; ctx.fillRect(0, 0, W, H);
-      ctx.restore();
 
-      ctx.save(); ctx.fillStyle = '#000'; ctx.globalAlpha = 0.12;
+      ctx.fillStyle = '#000'; ctx.globalAlpha = 0.12;
       for (var sy = 0; sy < H; sy += 3) ctx.fillRect(0, sy, W, 1);
-      ctx.restore();
 
-      ctx.save(); ctx.globalAlpha = 0.6;
+      ctx.globalAlpha = 0.6;
       var vg = ctx.createRadialGradient(W / 2, H / 2, W * 0.2, W / 2, H / 2, W * 0.6);
       vg.addColorStop(0, 'rgba(0,0,0,0)');
       vg.addColorStop(1, 'rgba(0,0,0,1)');
       ctx.fillStyle = vg; ctx.fillRect(0, 0, W, H);
-      ctx.restore();
 
       if (Math.random() > 0.93) {
-        ctx.save(); ctx.globalAlpha = 0.03; ctx.fillStyle = '#4ef';
-        ctx.fillRect(0, 0, W, H); ctx.restore();
+        ctx.globalAlpha = 0.03; ctx.fillStyle = '#4ef';
+        ctx.fillRect(0, 0, W, H);
       }
 
       if (state.dreamText) {
-        ctx.save(); ctx.globalAlpha = 0.7 * pulse;
+        ctx.globalAlpha = 0.7 * pulse;
         TextFX.render(ctx, state.dreamText, t, 20, 12, {
           color: '#4ef', dimColor: '#0a2a2a', size: 11, duration: 80, charDelay: 8, flicker: 40
-        }); ctx.restore();
+        });
       }
 
-      ctx.save(); ctx.globalAlpha = 0.3 * pulse;
+      ctx.globalAlpha = 0.3 * pulse;
       FA.draw.text('You dream of corridors that shouldn\'t exist.', W / 2, H - 50, {
         color: '#446', size: 10, align: 'center', baseline: 'middle'
-      }); ctx.restore();
+      });
+      ctx.globalAlpha = 1;
 
       var now = Date.now();
       if (t > 1500 && Math.floor(now / 600) % 2 === 0) {
@@ -409,9 +412,9 @@
       var items = mapData.items || [];
       for (var ii = 0; ii < items.length; ii++) {
         var item = items[ii];
-        ctx.save(); ctx.globalAlpha = item.type === 'module' ? 0.25 : 0.15;
+        ctx.globalAlpha = item.type === 'module' ? 0.25 : 0.15;
         ctx.drawImage(getGlow(item.color, 0, ts, _glowSize), item.x * ts - ts / 2, item.y * ts - ts / 2);
-        ctx.restore();
+        ctx.globalAlpha = 1;
         FA.draw.sprite('items', item.type, item.x * ts, item.y * ts, ts, item.char, item.color, 0);
       }
 
@@ -423,29 +426,29 @@
         if (e.type === 'npc') {
           if (state.day < e.appearsDay || e.x < 0) continue;
           var ncx = e.x * ts + ts / 2, ncy = e.y * ts + ts / 2;
-          ctx.save(); ctx.globalAlpha = 0.15;
+          ctx.globalAlpha = 0.15;
           ctx.drawImage(getGlow(e.color, 0, ts, _glowSize), e.x * ts - ts / 2, e.y * ts - ts / 2);
-          ctx.restore();
+          ctx.globalAlpha = 1;
           FA.draw.sprite('npcs', e.id, e.x * ts, e.y * ts, ts, e.char, e.color, 0);
-          ctx.save(); ctx.globalAlpha = 0.5;
+          ctx.globalAlpha = 0.5;
           FA.draw.text(e.name, ncx, ncy - ts / 2 - 3, { color: e.color, size: 8, align: 'center', baseline: 'bottom' });
-          ctx.restore();
+          ctx.globalAlpha = 1;
 
         } else if (e.type === 'system_npc') {
-          ctx.save(); ctx.globalAlpha = 0.2;
+          ctx.globalAlpha = 0.2;
           ctx.drawImage(getGlow(e.color, 0, ts, _glowSize), e.x * ts - ts / 2, e.y * ts - ts / 2);
-          ctx.restore();
+          ctx.globalAlpha = 1;
           FA.draw.sprite('npcs', e.id, e.x * ts, e.y * ts, ts, e.char, e.color, 0);
-          ctx.save(); ctx.globalAlpha = 0.4;
+          ctx.globalAlpha = 0.4;
           FA.draw.text(e.name, e.x * ts + ts / 2, e.y * ts - 3, { color: e.color, size: 8, align: 'center', baseline: 'bottom' });
-          ctx.restore();
+          ctx.globalAlpha = 1;
 
         } else if (e.type === 'enemy') {
           var ecx = e.x * ts + ts / 2, ecy = e.y * ts + ts / 2;
 
           // Sentinel scan beams
           if (e.behavior === 'sentinel' && !(e.stunTurns > 0)) {
-            ctx.save(); ctx.globalAlpha = 0.12; ctx.fillStyle = e.color;
+            ctx.globalAlpha = 0.12; ctx.fillStyle = e.color;
             var dirs = [[1,0],[-1,0],[0,1],[0,-1]];
             for (var dd = 0; dd < dirs.length; dd++) {
               var lx = e.x, ly = e.y;
@@ -456,12 +459,12 @@
                 ctx.fillRect(lx * ts + ts / 2 - 1, ly * ts + ts / 2 - 1, 3, 3);
               }
             }
-            ctx.restore();
+            ctx.globalAlpha = 1;
           }
 
-          ctx.save(); ctx.globalAlpha = 0.25;
+          ctx.globalAlpha = 0.25;
           ctx.drawImage(getGlow(e.color, 2, _enemyOuterR, _glowSize), e.x * ts - ts / 2, e.y * ts - ts / 2);
-          ctx.restore();
+          ctx.globalAlpha = 1;
           FA.draw.sprite('enemies', e.behavior, e.x * ts, e.y * ts, ts, e.char, e.color, 0);
 
           var hpRatio = e.hp / e.maxHp;
@@ -476,16 +479,15 @@
       // --- Player ---
       var p = state.player;
       if (p.cloakTurns > 0) {
-        ctx.save(); ctx.globalAlpha = 0.12;
+        ctx.globalAlpha = 0.12;
         ctx.drawImage(getGlow('#88f', 2, _playerOuterR, _glowSize), p.x * ts - ts / 2, p.y * ts - ts / 2);
-        ctx.restore();
-        ctx.save(); ctx.globalAlpha = 0.35;
+        ctx.globalAlpha = 0.35;
         FA.draw.sprite('player', 'base', p.x * ts, p.y * ts, ts, '@', '#88f', 0);
-        ctx.restore();
+        ctx.globalAlpha = 1;
       } else {
-        ctx.save(); ctx.globalAlpha = 0.2;
+        ctx.globalAlpha = 0.2;
         ctx.drawImage(getGlow(colors.player, 2, _playerOuterR, _glowSize), p.x * ts - ts / 2, p.y * ts - ts / 2);
-        ctx.restore();
+        ctx.globalAlpha = 1;
         FA.draw.sprite('player', 'base', p.x * ts, p.y * ts, ts, '@', colors.player, 0);
       }
     }, 10);
@@ -505,9 +507,9 @@
         var t = state.timeOfDay / timeCfg.turnsPerDay;
         if (t > 0.6) {
           var darkness = (t - 0.6) / 0.4;
-          ctx.save(); ctx.globalAlpha = darkness * 0.4;
+          ctx.globalAlpha = darkness * 0.4;
           ctx.fillStyle = '#000008'; ctx.fillRect(0, 0, W, uiY);
-          ctx.restore();
+          ctx.globalAlpha = 1;
         }
       },
 
@@ -515,14 +517,13 @@
       curfew: function(ctx, state) {
         var timeCfg = FA.lookup('config', 'time');
         if (state.timeOfDay < timeCfg.curfewTime) return;
-        ctx.save(); ctx.globalAlpha = 0.08;
+        ctx.globalAlpha = 0.08;
         ctx.fillStyle = '#f00'; ctx.fillRect(0, 0, W, uiY);
-        ctx.restore();
         if (Math.random() < 0.03) {
-          ctx.save(); ctx.globalAlpha = 0.04;
+          ctx.globalAlpha = 0.04;
           ctx.fillStyle = '#f44'; ctx.fillRect(0, Math.random() * uiY, W, 2);
-          ctx.restore();
         }
+        ctx.globalAlpha = 1;
       },
 
       // Deep system corruption — subtle purple noise
@@ -531,18 +532,18 @@
         if (depth < 3) return;
         var intensity = (depth - 2) * 0.01;
         if (Math.random() < 0.05) {
-          ctx.save(); ctx.globalAlpha = intensity;
+          ctx.globalAlpha = intensity;
           ctx.fillStyle = '#208';
           ctx.fillRect(0, Math.random() * uiY, W, 1);
-          ctx.restore();
+          ctx.globalAlpha = 1;
         }
       },
 
       // Cold blue ambient for system levels
       systemCold: function(ctx) {
-        ctx.save(); ctx.globalAlpha = 0.03;
+        ctx.globalAlpha = 0.03;
         ctx.fillStyle = '#004'; ctx.fillRect(0, 0, W, uiY);
-        ctx.restore();
+        ctx.globalAlpha = 1;
       }
     };
 
@@ -612,36 +613,41 @@
       }
       var alertLevel = huntingCount / Math.max(1, enemyCount);
       if (alertLevel > 0) {
-        ctx.save(); ctx.globalAlpha = alertLevel * 0.06;
-        ctx.fillStyle = '#f00'; ctx.fillRect(0, 0, W, uiY); ctx.restore();
+        ctx.globalAlpha = alertLevel * 0.06;
+        ctx.fillStyle = '#f00'; ctx.fillRect(0, 0, W, uiY);
+        ctx.globalAlpha = 1;
       }
 
       // Depth-based scanlines (dungeon only)
       var depth = state.depth || 0;
       if (depth > 0 && Math.random() < 0.002 * depth) {
-        ctx.save(); ctx.globalAlpha = 0.06 + Math.random() * 0.06;
+        ctx.globalAlpha = 0.06 + Math.random() * 0.06;
         ctx.fillStyle = ['#f00', '#0ff', '#f0f', '#ff0'][Math.floor(Math.random() * 4)];
-        ctx.fillRect(0, Math.random() * uiY, W, 1 + Math.random() * 2); ctx.restore();
+        ctx.fillRect(0, Math.random() * uiY, W, 1 + Math.random() * 2);
+        ctx.globalAlpha = 1;
       }
 
       // Sound waves
       if (state.soundWaves) {
+        ctx.strokeStyle = '#ff0'; ctx.lineWidth = 1;
         for (var wi = 0; wi < state.soundWaves.length; wi++) {
           var wave = state.soundWaves[wi];
           var progress = 1 - wave.life / 500;
-          ctx.save(); ctx.globalAlpha = (1 - progress) * 0.15; ctx.strokeStyle = '#ff0'; ctx.lineWidth = 1;
+          ctx.globalAlpha = (1 - progress) * 0.15;
           ctx.beginPath(); ctx.arc(wave.tx * ts + ts / 2, wave.ty * ts + ts / 2, progress * wave.maxR * ts, 0, Math.PI * 2);
-          ctx.stroke(); ctx.restore();
+          ctx.stroke();
         }
+        ctx.globalAlpha = 1;
       }
 
       // Kill particles
       if (state.particles) {
         for (var pi = 0; pi < state.particles.length; pi++) {
           var pt = state.particles[pi];
-          ctx.save(); ctx.globalAlpha = pt.life / pt.maxLife; ctx.fillStyle = pt.color;
-          ctx.fillRect(pt.x - 1, pt.y - 1, 3, 3); ctx.restore();
+          ctx.globalAlpha = pt.life / pt.maxLife; ctx.fillStyle = pt.color;
+          ctx.fillRect(pt.x - 1, pt.y - 1, 3, 3);
         }
+        ctx.globalAlpha = 1;
       }
     }, 18);
 

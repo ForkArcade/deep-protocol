@@ -7,6 +7,7 @@
 
   // === CONSTANTS ===
 
+  var TILES = FA.lookup('config', 'dungeonTiles');
   var FIND_EMPTY_MAX_ATTEMPTS = 200;
   var BUBBLE_MAX_CHARS = 65;
   var BUBBLE_HOLD_TIME = 8000;
@@ -30,7 +31,7 @@
     });
 
     var map = [];
-    for (var y = 0; y < rows; y++) { map[y] = []; for (var x = 0; x < cols; x++) map[y][x] = 1; }
+    for (var y = 0; y < rows; y++) { map[y] = []; for (var x = 0; x < cols; x++) map[y][x] = TILES.wall; }
     digger.create(function(x, y, value) { map[y][x] = value; });
 
     var rotRooms = digger.getRooms();
@@ -49,7 +50,7 @@
       for (var fi = 0; fi < rooms.length; fi++) {
         var fr = rooms[fi];
         for (var ry = fr.y; ry < fr.y + fr.h; ry++)
-          for (var rx = fr.x; rx < fr.x + fr.w; rx++) map[ry][rx] = 0;
+          for (var rx = fr.x; rx < fr.x + fr.w; rx++) map[ry][rx] = TILES.floor;
       }
     }
 
@@ -57,7 +58,7 @@
     var lastRoom = rooms[rooms.length - 1];
     var ex = Math.floor(lastRoom.x + lastRoom.w / 2);
     var ey = Math.floor(lastRoom.y + lastRoom.h / 2);
-    map[ey][ex] = 3;
+    map[ey][ex] = TILES.stairsUp;
     var stairsUp = { x: ex, y: ey };
 
     // Terminals (1-2 per floor)
@@ -67,7 +68,7 @@
       if (!tRoom) break;
       var ttx = tRoom.x + 1;
       var tty = tRoom.y + 1;
-      if (map[tty][ttx] === 0) map[tty][ttx] = 4;
+      if (map[tty][ttx] === TILES.floor) map[tty][ttx] = TILES.terminal;
     }
 
     var explored = [];
@@ -84,7 +85,7 @@
       var room = FA.pick(rooms);
       var x = FA.rand(room.x, room.x + room.w - 1);
       var y = FA.rand(room.y, room.y + room.h - 1);
-      if (map[y][x] !== 0) continue;
+      if (map[y][x] !== TILES.floor) continue;
       var taken = false;
       for (var j = 0; j < occupied.length; j++) {
         if (occupied[j].x === x && occupied[j].y === y) { taken = true; break; }
@@ -95,7 +96,7 @@
     var fallbackRoom = rooms[0];
     for (var fy = fallbackRoom.y; fy < fallbackRoom.y + fallbackRoom.h; fy++) {
       for (var fx = fallbackRoom.x; fx < fallbackRoom.x + fallbackRoom.w; fx++) {
-        if (map[fy][fx] !== 0) continue;
+        if (map[fy][fx] !== TILES.floor) continue;
         var ftaken = false;
         for (var fj = 0; fj < occupied.length; fj++) {
           if (occupied[fj].x === fx && occupied[fj].y === fy) { ftaken = true; break; }
@@ -109,7 +110,7 @@
   function isWalkable(map, x, y) {
     if (y < 0 || y >= map.length || x < 0 || x >= map[0].length) return false;
     var tile = map[y][x];
-    return tile !== 1 && tile !== 9;
+    return tile !== TILES.wall && tile !== TILES.blocking;
   }
 
   // ============================================================
@@ -246,16 +247,47 @@
   // ============================================================
 
   function parseOverworldMap() {
-    var owCfg = FA.lookup('config', 'overworld');
-    var rows = owCfg.map;
-    var map = [];
-    for (var y = 0; y < rows.length; y++) {
-      map[y] = [];
-      for (var x = 0; x < rows[y].length; x++) {
-        map[y][x] = parseInt(rows[y].charAt(x));
+    // Primary: load from MAP_DEFS (maps.js)
+    if (typeof getMapGrid === 'function') {
+      var grid = getMapGrid('overworld');
+      if (grid) {
+        // Bake blocking objects into the grid as tile 9 (collision marker)
+        if (typeof getMapObjects === 'function') {
+          var objects = getMapObjects('overworld');
+          for (var i = 0; i < objects.length; i++) {
+            if (objects[i].blocking) {
+              grid[objects[i].y][objects[i].x] = 9;
+            }
+          }
+        }
+        return grid;
       }
     }
-    return map;
+    // Fallback: legacy data.js config
+    var owCfg = FA.lookup('config', 'overworld');
+    if (owCfg && owCfg.map) {
+      var rows = owCfg.map;
+      var map = [];
+      for (var y = 0; y < rows.length; y++) {
+        map[y] = [];
+        for (var x = 0; x < rows[y].length; x++) {
+          map[y][x] = parseInt(rows[y].charAt(x));
+        }
+      }
+      return map;
+    }
+    return [];
+  }
+
+  function getObjectAtPos(x, y) {
+    var state = FA.getState();
+    var mapData = state.maps ? state.maps[state.mapId] : null;
+    var objects = mapData ? mapData.objects : null;
+    if (!objects) return null;
+    for (var i = 0; i < objects.length; i++) {
+      if (objects[i].x === x && objects[i].y === y) return objects[i];
+    }
+    return null;
   }
 
   // ============================================================
@@ -496,6 +528,7 @@
     // Map registry
     changeMap: changeMap,
     getEntityAt: getEntityAt,
+    getObjectAtPos: getObjectAtPos,
     // AI movement
     hasLOS: hasLOS,
     canStep: canStep,
