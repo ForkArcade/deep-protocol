@@ -304,6 +304,30 @@
     return true;
   }
 
+  // Simple greedy step — no pathfinding, just step toward target
+  function stepToward(e, tx, ty) {
+    var dx = tx - e.x, dy = ty - e.y;
+    var sx = dx > 0 ? 1 : dx < 0 ? -1 : 0;
+    var sy = dy > 0 ? 1 : dy < 0 ? -1 : 0;
+    var tryX, tryY;
+    if (Math.abs(dx) >= Math.abs(dy)) {
+      tryX = e.x + sx; tryY = e.y;
+      if (sx !== 0 && canStep(tryX, tryY, e)) { e.x = tryX; e.y = tryY; return true; }
+      tryX = e.x; tryY = e.y + (sy || 1);
+      if (canStep(tryX, tryY, e)) { e.x = tryX; e.y = tryY; return true; }
+      tryY = e.y - (sy || 1);
+      if (canStep(tryX, tryY, e)) { e.x = tryX; e.y = tryY; return true; }
+    } else {
+      tryX = e.x; tryY = e.y + sy;
+      if (sy !== 0 && canStep(tryX, tryY, e)) { e.x = tryX; e.y = tryY; return true; }
+      tryX = e.x + (sx || 1); tryY = e.y;
+      if (canStep(tryX, tryY, e)) { e.x = tryX; e.y = tryY; return true; }
+      tryX = e.x - (sx || 1);
+      if (canStep(tryX, tryY, e)) { e.x = tryX; e.y = tryY; return true; }
+    }
+    return false;
+  }
+
   function moveToward(e, tx, ty) {
     var state = FA.getState();
     var path = findPath(e.x, e.y, tx, ty, state.map);
@@ -314,24 +338,11 @@
         return true;
       }
     }
-    var dx = tx - e.x, dy = ty - e.y;
-    var sx = dx > 0 ? 1 : dx < 0 ? -1 : 0;
-    var sy = dy > 0 ? 1 : dy < 0 ? -1 : 0;
-    var moves;
-    if (Math.abs(dx) >= Math.abs(dy)) {
-      moves = [{dx: sx, dy: 0}, {dx: 0, dy: sy || 1}, {dx: 0, dy: -(sy || 1)}];
-    } else {
-      moves = [{dx: 0, dy: sy}, {dx: sx || 1, dy: 0}, {dx: -(sx || 1), dy: 0}];
-    }
-    for (var i = 0; i < moves.length; i++) {
-      if (moves[i].dx === 0 && moves[i].dy === 0) continue;
-      var nx = e.x + moves[i].dx, ny = e.y + moves[i].dy;
-      if (canStep(nx, ny, e)) {
-        e.x = nx; e.y = ny;
-        return true;
-      }
-    }
-    return false;
+    return stepToward(e, tx, ty);
+  }
+
+  function moveTowardSimple(e, tx, ty) {
+    return stepToward(e, tx, ty);
   }
 
   function flankTarget(e, tx, ty) {
@@ -538,6 +549,7 @@
     hasLOS: hasLOS,
     canStep: canStep,
     moveToward: moveToward,
+    moveTowardSimple: moveTowardSimple,
     flankTarget: flankTarget,
     randomStep: randomStep,
     propagateSound: propagateSound,

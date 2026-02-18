@@ -248,7 +248,8 @@
           }
           break;
         case 'chase':
-          Core.moveToward(e, state.player.x, state.player.y);
+          if (e.curfewDrone) Core.moveTowardSimple(e, state.player.x, state.player.y);
+          else Core.moveToward(e, state.player.x, state.player.y);
           break;
         case 'flank':
           Core.flankTarget(e, state.player.x, state.player.y);
