@@ -439,6 +439,7 @@
     var state = FA.getState();
     if (state.screen !== 'playing') return;
     state.turn++;
+    Core.tickBubbles();
     var mapData = state.maps[state.mapId];
     var fx = mapData ? mapData.effects || [] : [];
 

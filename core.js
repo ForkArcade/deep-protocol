@@ -10,9 +10,9 @@
   var TILES = FA.lookup('config', 'dungeonTiles');
   var FIND_EMPTY_MAX_ATTEMPTS = 200;
   var BUBBLE_MAX_CHARS = 65;
-  var BUBBLE_HOLD_TIME = 8000;
+  var BUBBLE_FADE_STEPS = 5;
   var BUBBLE_LINE_DELAY = 200;
-  var THOUGHT_HOLD_TIME = 8000;
+  var THOUGHT_FADE_STEPS = 5;
   var THOUGHT_REVEAL_SPEED = 30;
   var THOUGHT_COOLDOWN = 5;
   var SOUND_ALERT_TIMER = 8;
@@ -398,12 +398,12 @@
       else line = test;
     }
     if (line) lines.push(line);
-    state.systemBubble = { lines: lines, color: color || '#4ef', timer: 0, done: false, life: BUBBLE_HOLD_TIME };
+    state.systemBubble = { lines: lines, color: color || '#4ef', timer: 0, done: false, fadeSteps: BUBBLE_FADE_STEPS };
   }
 
   function _createThought(state, text) {
     if (!state.thoughts) state.thoughts = [];
-    state.thoughts = [{ text: text, timer: 0, speed: THOUGHT_REVEAL_SPEED, done: false, life: THOUGHT_HOLD_TIME }];
+    state.thoughts = [{ text: text, timer: 0, speed: THOUGHT_REVEAL_SPEED, done: false, fadeSteps: THOUGHT_FADE_STEPS }];
     state.lastThoughtTurn = state.turn;
   }
 
@@ -439,14 +439,40 @@
     addThought(FA.pick(entry.pool));
   }
 
-  function dismissBubbles() {
-    var state = FA.getState();
-    state.thoughts = [];
-    state.systemBubble = null;
+  function _popQueue(state) {
     if (state.bubbleQueue && state.bubbleQueue.length > 0) {
       var next = state.bubbleQueue.shift();
       if (next.type === 'system') _createSystemBubble(state, next.text, next.color);
       else _createThought(state, next.text);
+    }
+  }
+
+  function dismissBubbles() {
+    var state = FA.getState();
+    state.thoughts = [];
+    state.systemBubble = null;
+    _popQueue(state);
+  }
+
+  // Called each turn — fade done bubbles, auto-dismiss when gone
+  function tickBubbles() {
+    var state = FA.getState();
+    if (state.systemBubble && state.systemBubble.done) {
+      state.systemBubble.fadeSteps--;
+      if (state.systemBubble.fadeSteps <= 0) {
+        state.systemBubble = null;
+        _popQueue(state);
+      }
+    }
+    if (state.thoughts) {
+      for (var i = state.thoughts.length - 1; i >= 0; i--) {
+        var t = state.thoughts[i];
+        if (t.done) {
+          t.fadeSteps--;
+          if (t.fadeSteps <= 0) { state.thoughts.splice(i, 1); }
+        }
+      }
+      if (state.thoughts.length === 0 && !state.systemBubble) _popQueue(state);
     }
   }
 
@@ -520,6 +546,7 @@
     addThought: addThought,
     triggerThought: triggerThought,
     dismissBubbles: dismissBubbles,
+    tickBubbles: tickBubbles,
     _createSystemBubble: _createSystemBubble,
     _createThought: _createThought,
     // Narrative

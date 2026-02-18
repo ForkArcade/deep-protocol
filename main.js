@@ -94,7 +94,7 @@
     if (state.choiceMenu) {
       state.choiceMenu.timer += dt;
     }
-    // System bubble timer
+    // System bubble scramble timing (fade is turn-based via Core.tickBubbles)
     if (state.systemBubble) {
       var sb = state.systemBubble;
       if (!sb.done) {
@@ -103,9 +103,6 @@
         var sbLastIdx = sb.lines.length - 1;
         var sbEnd = sbLastIdx * sbLD + TextFX.totalTime(sb.lines[sbLastIdx]);
         if (sb.timer >= sbEnd) sb.done = true;
-      } else {
-        sb.life -= dt;
-        if (sb.life <= 0) state.systemBubble = null;
       }
     }
     // Cutscene scramble timing
@@ -117,19 +114,14 @@
       var endTime = lastIdx * ld + TextFX.totalTime(cs.lines[lastIdx]);
       if (cs.timer >= endTime) cs.done = true;
     }
-    // Thought scramble timing
+    // Thought scramble timing (fade is turn-based via Core.tickBubbles)
     if (state.thoughts) {
       for (var ti = state.thoughts.length - 1; ti >= 0; ti--) {
         var th = state.thoughts[ti];
         if (!th.done) {
           th.timer += dt;
           if (th.timer >= TextFX.totalTime(th.text)) th.done = true;
-        } else {
-          th.life -= dt;
         }
-      }
-      while (state.thoughts.length > 0 && state.thoughts[0].done && state.thoughts[0].life <= 0) {
-        state.thoughts.shift();
       }
     }
     // Dream timer

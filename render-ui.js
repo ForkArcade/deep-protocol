@@ -175,8 +175,8 @@
       if (!sb) return;
       var ctx = FA.getCtx();
       var cw = getCW(ctx);
-      var alpha = 1;
-      if (sb.done && sb.life < 1500) alpha = sb.life / 1500;
+      var STEP_ALPHA = [0, 0.1, 0.3, 0.7, 1, 1];
+      var alpha = sb.done ? (STEP_ALPHA[sb.fadeSteps] || 0.1) : 1;
       var lines = sb.lines;
       var lineH = 16;
       var maxLineLen = 0;
@@ -194,7 +194,7 @@
           color: sb.color, dimColor: '#1a3030', size: 11, duration: 60, charDelay: 6, flicker: 25
         });
       }
-      if (sb.done && sb.life > 1500) {
+      if (sb.done) {
         ctx.globalAlpha = 0.3 * alpha;
         FA.draw.text('[SPACE]', bx + tw - 48, by + th + 4, { color: sb.color, size: 8 });
       }
@@ -213,7 +213,7 @@
       var thought = null;
       for (var ti = state.thoughts.length - 1; ti >= 0; ti--) {
         var t = state.thoughts[ti];
-        if (!(t.done && t.life <= 0)) { thought = t; break; }
+        if (t.fadeSteps > 0 || !t.done) { thought = t; break; }
       }
       if (!thought) return;
       if (!state.player) return;
@@ -229,8 +229,8 @@
       if (bx + tw > W - 4) bx = W - tw - 4;
       var flipped = by < 4;
       if (flipped) by = ppy + ts + 10;
-      var alpha = 1;
-      if (thought.done && thought.life < 1500) alpha = thought.life / 1500;
+      var STEP_ALPHA = [0, 0.1, 0.3, 0.7, 1, 1];
+      var alpha = thought.done ? (STEP_ALPHA[thought.fadeSteps] || 0.1) : 1;
       drawBox(ctx, bx, by, tw, th, '#4ef', alpha);
       ctx.globalAlpha = 0.15 * alpha; ctx.strokeStyle = '#4ef'; ctx.lineWidth = 1;
       ctx.beginPath();
@@ -241,7 +241,7 @@
       TextFX.render(ctx, thought.text, thought.timer, bx + 8, by + 7, {
         color: '#4ef', dimColor: '#1a4040', size: 11, duration: 60, charDelay: 6, flicker: 25
       });
-      if (thought.done && thought.life > 1500) {
+      if (thought.done) {
         ctx.globalAlpha = 0.3 * alpha;
         FA.draw.text('[SPACE]', bx + tw - 48, by + th + 4, { color: '#4ef', size: 8 });
       }
