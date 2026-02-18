@@ -1,4 +1,4 @@
-// Deep Protocol — Entry Point (Kafka Redesign)
+// Deep Protocol — Entry Point (Unified World)
 (function() {
   'use strict';
   var FA = window.FA;
@@ -46,32 +46,27 @@
       return;
     }
 
-    // Overworld
-    if (state.screen === 'overworld') {
-      // Dismiss bubbles/thoughts first
-      if (data.action === 'start') {
-        if ((state.thoughts && state.thoughts.length > 0) || state.systemBubble) {
-          Game.dismissBubbles();
-        } else {
-          Game.interact();
-        }
-        return;
-      }
-      switch (data.action) {
-        case 'up':    Game.movePlayer(0, -1); break;
-        case 'down':  Game.movePlayer(0, 1);  break;
-        case 'left':  Game.movePlayer(-1, 0); break;
-        case 'right': Game.movePlayer(1, 0);  break;
+    // All gameplay (town + dungeon)
+    if (state.screen !== 'playing') return;
+
+    // Choice menu active — handle selection
+    if (state.choiceMenu) {
+      if (data.action === 'mod1') { Game.selectChoice(0); return; }
+      if (data.action === 'mod2') { Game.selectChoice(1); return; }
+      if (data.action === 'start') { Game.dismissChoice(); return; }
+      return;
+    }
+
+    // Dismiss bubbles/thoughts or interact
+    if (data.action === 'start') {
+      if ((state.thoughts && state.thoughts.length > 0) || state.systemBubble) {
+        Game.dismissBubbles();
+      } else {
+        Game.interact();
       }
       return;
     }
 
-    // System (playing)
-    if (state.screen !== 'playing') return;
-    if (data.action === 'start' && ((state.thoughts && state.thoughts.length > 0) || state.systemBubble)) {
-      Game.dismissBubbles();
-      return;
-    }
     switch (data.action) {
       case 'up':    Game.movePlayer(0, -1); break;
       case 'down':  Game.movePlayer(0, 1);  break;
@@ -95,6 +90,10 @@
     FA.updateEffects(dt);
     FA.updateFloats(dt);
     var state = FA.getState();
+    // Choice menu timer
+    if (state.choiceMenu) {
+      state.choiceMenu.timer += dt;
+    }
     // System bubble timer
     if (state.systemBubble) {
       var sb = state.systemBubble;
@@ -176,6 +175,7 @@
 
   // Start
   Render.setup();
+  RenderUI.setup();
   Game.start();
 
   if (typeof ForkArcade !== 'undefined') {

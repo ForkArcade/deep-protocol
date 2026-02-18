@@ -1,423 +1,25 @@
-// Deep Protocol — Game Logic (Kafka Redesign)
+// Deep Protocol — Game Logic (Unified World)
+// One player, one movement system, one turn system across all maps
 (function() {
   'use strict';
   var FA = window.FA;
+  var Core = window.Core;
+  var NPC = window.NPC;
 
-  // ============================================================
-  //  SYSTEM DUNGEON — MAP GENERATION (rot.js)
-  // ============================================================
+  // === CONSTANTS ===
 
-  function generateFloor(cols, rows, depth) {
-    var cfg = FA.lookup('config', 'game');
-
-    var digger = new ROT.Map.Digger(cols, rows, {
-      roomWidth: [cfg.roomMinSize, cfg.roomMaxSize],
-      roomHeight: [cfg.roomMinSize, cfg.roomMaxSize],
-      dugPercentage: 0.35 + depth * 0.03
-    });
-
-    var map = [];
-    for (var y = 0; y < rows; y++) { map[y] = []; for (var x = 0; x < cols; x++) map[y][x] = 1; }
-    digger.create(function(x, y, value) { map[y][x] = value; });
-
-    var rotRooms = digger.getRooms();
-    var rooms = [];
-    for (var r = 0; r < rotRooms.length; r++) {
-      var rr = rotRooms[r];
-      rooms.push({
-        x: rr.getLeft(), y: rr.getTop(),
-        w: rr.getRight() - rr.getLeft() + 1,
-        h: rr.getBottom() - rr.getTop() + 1
-      });
-    }
-
-    if (rooms.length < 2) {
-      rooms = [{ x: 2, y: 2, w: 5, h: 5 }, { x: cols - 8, y: rows - 8, w: 5, h: 5 }];
-      for (var fi = 0; fi < rooms.length; fi++) {
-        var fr = rooms[fi];
-        for (var ry = fr.y; ry < fr.y + fr.h; ry++)
-          for (var rx = fr.x; rx < fr.x + fr.w; rx++) map[ry][rx] = 0;
-      }
-    }
-
-    // Exit in last room (stairsUp = system exit)
-    var lastRoom = rooms[rooms.length - 1];
-    var ex = Math.floor(lastRoom.x + lastRoom.w / 2);
-    var ey = Math.floor(lastRoom.y + lastRoom.h / 2);
-    map[ey][ex] = 3;
-    var stairsUp = { x: ex, y: ey };
-
-    // Terminals (1-2 per floor)
-    var termCount = 1 + Math.floor(depth / 3);
-    for (var ti = 0; ti < termCount && rooms.length > 2; ti++) {
-      var tRoom = rooms[1 + ti];
-      if (!tRoom) break;
-      var ttx = tRoom.x + 1;
-      var tty = tRoom.y + 1;
-      if (map[tty][ttx] === 0) map[tty][ttx] = 4;
-    }
-
-    var explored = [];
-    for (var ey2 = 0; ey2 < rows; ey2++) {
-      explored[ey2] = [];
-      for (var ex2 = 0; ex2 < cols; ex2++) explored[ey2][ex2] = false;
-    }
-
-    return { map: map, rooms: rooms, stairsUp: stairsUp, explored: explored };
-  }
-
-  function findEmptyInRooms(map, rooms, occupied) {
-    for (var i = 0; i < 200; i++) {
-      var room = FA.pick(rooms);
-      var x = FA.rand(room.x, room.x + room.w - 1);
-      var y = FA.rand(room.y, room.y + room.h - 1);
-      if (map[y][x] !== 0) continue;
-      var taken = false;
-      for (var j = 0; j < occupied.length; j++) {
-        if (occupied[j].x === x && occupied[j].y === y) { taken = true; break; }
-      }
-      if (!taken) return { x: x, y: y };
-    }
-    return { x: rooms[0].x + 1, y: rooms[0].y + 1 };
-  }
-
-  function isWalkable(map, x, y) {
-    if (y < 0 || y >= map.length || x < 0 || x >= map[0].length) return false;
-    var tile = map[y][x];
-    return tile !== 1 && tile !== 9;
-  }
-
-  // === FOV (rot.js) ===
-
-  function computeVisibility(map, px, py, radius) {
-    var rows = map.length, cols = map[0].length;
-    var vis = [];
-    for (var y = 0; y < rows; y++) { vis[y] = []; for (var x = 0; x < cols; x++) vis[y][x] = 0; }
-    var fov = new ROT.FOV.PreciseShadowcasting(function(x, y) {
-      if (x < 0 || x >= cols || y < 0 || y >= rows) return false;
-      return map[y][x] !== 1;
-    });
-    fov.compute(px, py, radius, function(x, y, r, visibility) {
-      if (x < 0 || x >= cols || y < 0 || y >= rows) return;
-      var light = r < 2 ? 1 : Math.max(0, 1 - (r - 2) / (radius - 2));
-      if (light > vis[y][x]) vis[y][x] = light;
-    });
-    return vis;
-  }
-
-  // === PATHFINDING (rot.js) ===
-
-  function findPath(fromX, fromY, toX, toY, map) {
-    var path = [];
-    var astar = new ROT.Path.AStar(toX, toY, function(x, y) {
-      return isWalkable(map, x, y);
-    }, { topology: 4 });
-    astar.compute(fromX, fromY, function(x, y) { path.push({ x: x, y: y }); });
-    return path;
-  }
-
-  function populateFloor(map, rooms, depth) {
-    var occupied = [];
-    var enemies = [];
-    var enemyCount = 3 + depth * 2;
-
-    for (var i = 0; i < enemyCount; i++) {
-      var epos = findEmptyInRooms(map, rooms, occupied);
-      occupied.push(epos);
-
-      var type;
-      if (depth >= 3 && i === 0) type = 'sentinel';
-      else if (depth >= 4 && i === 1) type = 'sentinel';
-      else if (depth >= 2 && i === enemyCount - 1) type = 'tracker';
-      else if (depth >= 3 && i === enemyCount - 2) type = 'tracker';
-      else type = 'drone';
-
-      var def = FA.lookup('enemies', type);
-      var hpScale = 1 + (depth - 1) * 0.3;
-      var atkScale = 1 + (depth - 1) * 0.2;
-
-      enemies.push({
-        id: FA.uid(), x: epos.x, y: epos.y,
-        hp: Math.floor(def.hp * hpScale),
-        maxHp: Math.floor(def.hp * hpScale),
-        atk: Math.floor(def.atk * atkScale),
-        def: def.def + Math.floor((depth - 1) / 2),
-        char: def.char, color: def.color, name: def.name,
-        behavior: def.behavior, stunTurns: 0,
-        aiState: 'patrol', alertTarget: null, alertTimer: 0, patrolTarget: null
-      });
-    }
-
-    var items = [];
-    var goldDef = FA.lookup('items', 'gold');
-    var potionDef = FA.lookup('items', 'potion');
-    var goldCount = 5 + depth * 2;
-    var potionCount = 2 + Math.floor(depth / 2);
-
-    for (var g = 0; g < goldCount; g++) {
-      var gpos = findEmptyInRooms(map, rooms, occupied);
-      occupied.push(gpos);
-      items.push({ id: FA.uid(), x: gpos.x, y: gpos.y, type: 'gold', char: goldDef.char, color: goldDef.color, value: goldDef.value + depth * 5 });
-    }
-    for (var p = 0; p < potionCount; p++) {
-      var pp = findEmptyInRooms(map, rooms, occupied);
-      occupied.push(pp);
-      items.push({ id: FA.uid(), x: pp.x, y: pp.y, type: 'potion', char: potionDef.char, color: potionDef.color, healAmount: potionDef.healAmount });
-    }
-
-    var moduleTypes = ['emp', 'cloak', 'scanner', 'overclock', 'firewall'];
-    var modCount = 1 + Math.floor(depth / 2);
-    for (var m = 0; m < modCount; m++) {
-      var modType = FA.pick(moduleTypes);
-      var modDef = FA.lookup('modules', modType);
-      var mpos = findEmptyInRooms(map, rooms, occupied);
-      occupied.push(mpos);
-      items.push({
-        id: FA.uid(), x: mpos.x, y: mpos.y,
-        type: 'module', moduleType: modType,
-        char: modDef.char, color: modDef.color, name: modDef.name
-      });
-    }
-
-    return { enemies: enemies, items: items, occupied: occupied };
-  }
-
-  // ============================================================
-  //  OVERWORLD
-  // ============================================================
-
-  function parseOverworldMap() {
-    var owCfg = FA.lookup('config', 'overworld');
-    var rows = owCfg.map;
-    var map = [];
-    for (var y = 0; y < rows.length; y++) {
-      map[y] = [];
-      for (var x = 0; x < rows[y].length; x++) {
-        map[y][x] = parseInt(rows[y].charAt(x));
-      }
-    }
-    return map;
-  }
-
-  // ============================================================
-  //  NPC SYSTEM
-  // ============================================================
-
-  function initNPCs() {
-    var npcIds = ['lena', 'victor', 'marta', 'emil'];
-    var roles = FA.shuffle(['ally', 'ally', 'traitor', 'neutral']);
-    var npcs = [];
-    for (var i = 0; i < npcIds.length; i++) {
-      var def = FA.lookup('npcs', npcIds[i]);
-      npcs.push({
-        id: npcIds[i], name: def.name, char: def.char, color: def.color,
-        x: def.homePos.x, y: def.homePos.y,
-        allegiance: roles[i],
-        homePos: def.homePos, cafePos: def.cafePos,
-        terminalPos: def.terminalPos, gardenPos: def.gardenPos,
-        schedule: def.schedule, appearsDay: def.appearsDay,
-        systemDialogue: def.systemDialogue, met: false,
-        goal: 'home', talkedToday: false,
-        wantsToTalk: true, followTurns: 0,
-        pace: npcIds[i] === 'victor' ? 2 : npcIds[i] === 'emil' ? 3 : 1,
-        turnCounter: i,  // stagger start so NPCs don't all move on turn 0
-        idleTimer: 0
-      });
-    }
-    return npcs;
-  }
-
-  function getTimePeriod(t) {
-    if (t < 33) return 'morning';
-    if (t < 66) return 'midday';
-    return 'evening';
-  }
-
-  // --- NPC AI: overworld pathfinding (mirrors enemy drone AI) ---
-
-  function canStepOverworld(npc, nx, ny, state) {
-    if (!isWalkable(state.owMap, nx, ny)) return false;
-    if (state.owPlayer && nx === state.owPlayer.x && ny === state.owPlayer.y) return false;
-    for (var i = 0; i < state.npcs.length; i++) {
-      var other = state.npcs[i];
-      if (other === npc) continue;
-      if (state.day < other.appearsDay) continue;
-      if (other.x === nx && other.y === ny) return false;
-    }
-    return true;
-  }
-
-  function moveNPCToward(npc, tx, ty, state) {
-    if (npc.x === tx && npc.y === ty) return false;
-    var path = findPath(npc.x, npc.y, tx, ty, state.owMap);
-    if (path.length >= 2) {
-      var next = path[1];
-      if (canStepOverworld(npc, next.x, next.y, state)) {
-        npc.x = next.x; npc.y = next.y;
-        return true;
-      }
-    }
-    return false;
-  }
-
-  function randomStepOverworld(npc, state) {
-    var dirs = [[1,0],[-1,0],[0,1],[0,-1]];
-    for (var i = dirs.length - 1; i > 0; i--) {
-      var j = Math.floor(Math.random() * (i + 1));
-      var t = dirs[i]; dirs[i] = dirs[j]; dirs[j] = t;
-    }
-    for (var d = 0; d < dirs.length; d++) {
-      var nx = npc.x + dirs[d][0], ny = npc.y + dirs[d][1];
-      if (canStepOverworld(npc, nx, ny, state)) {
-        npc.x = nx; npc.y = ny;
-        return;
-      }
-    }
-  }
-
-  function resolveNPCGoalPos(npc, state) {
-    var g = npc.goal;
-    if (g === 'home') return npc.homePos;
-    if (g === 'cafe') return npc.cafePos;
-    if (g === 'terminal') return npc.terminalPos;
-    if (g === 'garden') return npc.gardenPos;
-    if (g === 'player' && state.owPlayer) return { x: state.owPlayer.x, y: state.owPlayer.y };
-    return null; // wander
-  }
-
-  function selectNPCGoal(npc, state) {
-    if (state.day < npc.appearsDay) {
-      npc.goal = 'hidden'; npc.x = -1; npc.y = -1;
-      return;
-    }
-    var period = getTimePeriod(state.timeOfDay);
-    var dist = state.owPlayer ? Math.abs(npc.x - state.owPlayer.x) + Math.abs(npc.y - state.owPlayer.y) : 99;
-    // Priority: approach player if NPC wants to talk and player is nearby
-    if (npc.wantsToTalk && !npc.talkedToday && dist < 8) { npc.goal = 'player'; return; }
-
-    // NPC-specific personality
-    switch (npc.id) {
-      case 'lena':
-        if (period === 'midday') npc.goal = dist < 6 ? 'player' : 'cafe';
-        else if (period === 'morning') npc.goal = 'home';
-        else npc.goal = 'home';
-        break;
-      case 'victor':
-        if (period === 'midday') npc.goal = Math.random() < 0.7 ? 'cafe' : 'garden';
-        else if (period === 'evening') npc.goal = 'cafe';
-        else npc.goal = 'wander';
-        break;
-      case 'marta':
-        if (period === 'morning') npc.goal = 'terminal';
-        else if (period === 'midday') npc.goal = 'home';
-        else npc.goal = 'cafe';
-        break;
-      case 'emil':
-        if (period === 'evening') npc.goal = state.systemRevealed ? 'cafe' : 'wander';
-        else npc.goal = 'wander';
-        break;
-      default:
-        npc.goal = 'wander';
-    }
-  }
-
-  function npcOverworldStep(npc, state) {
-    if (npc.x < 0 || npc.y < 0) return;
-    if (state.day < npc.appearsDay) return;
-
-    // Pace: NPC only moves every N player turns
-    npc.turnCounter = (npc.turnCounter || 0) + 1;
-    if (npc.goal !== 'player' && npc.turnCounter % npc.pace !== 0) return;
-
-    // Follow player for max 3 turns, then give up
-    if (npc.goal === 'player') {
-      npc.followTurns = (npc.followTurns || 0) + 1;
-      if (npc.followTurns > 3) {
-        npc.wantsToTalk = false;
-        npc.followTurns = 0;
-        selectNPCGoal(npc, state);
-      }
-    } else {
-      npc.followTurns = 0;
-    }
-
-    var goalPos = resolveNPCGoalPos(npc, state);
-    // If at goal, idle before picking a new one
-    if (goalPos && npc.x === goalPos.x && npc.y === goalPos.y) {
-      if (npc.idleTimer > 0) {
-        npc.idleTimer--;
-        return;
-      }
-      selectNPCGoal(npc, state);
-      npc.idleTimer = FA.rand(2, 6);  // linger 2-6 turns at each destination
-      goalPos = resolveNPCGoalPos(npc, state);
-    }
-
-    if (goalPos) {
-      moveNPCToward(npc, goalPos.x, goalPos.y, state);
-    } else {
-      // Wander: only move sometimes
-      if (Math.random() < 0.4) randomStepOverworld(npc, state);
-    }
-  }
-
-  function talkToNPC(npc, state) {
-    npc.met = true;
-    npc.talkedToday = true;
-    npc.wantsToTalk = false;
-    npc.followTurns = 0;
-    var text = selectDialogue(npc.id) || '...';
-    addSystemBubble(npc.name + ': "' + text + '"', npc.color);
-    if (FA.narrative && FA.narrative.setVar) {
-      FA.narrative.setVar(npc.id + '_met_today', true, 'Met ' + npc.name);
-      var prev = FA.narrative.getVar(npc.id + '_interactions') || 0;
-      FA.narrative.setVar(npc.id + '_interactions', prev + 1, 'Talked to ' + npc.name);
-    }
-    selectNPCGoal(npc, state);
-  }
-
-  function npcOverworldTurn(state) {
-    for (var i = 0; i < state.npcs.length; i++) {
-      npcOverworldStep(state.npcs[i], state);
-    }
-    // NPC auto-initiates dialogue when adjacent to player
-    if (state.owPlayer) {
-      for (var j = 0; j < state.npcs.length; j++) {
-        var npc = state.npcs[j];
-        if (state.day < npc.appearsDay) continue;
-        if (!npc.wantsToTalk || npc.talkedToday) continue;
-        var dist = Math.abs(npc.x - state.owPlayer.x) + Math.abs(npc.y - state.owPlayer.y);
-        if (dist === 1) {
-          talkToNPC(npc, state);
-          break;
-        }
-      }
-    }
-  }
-
-  function updateNPCPositions(state) {
-    // Called on period change or day start: re-evaluate all NPC goals
-    for (var i = 0; i < state.npcs.length; i++) {
-      selectNPCGoal(state.npcs[i], state);
-    }
-  }
-
-  function getNPCAt(state, x, y) {
-    for (var i = 0; i < state.npcs.length; i++) {
-      if (state.day < state.npcs[i].appearsDay) continue;
-      if (state.npcs[i].x === x && state.npcs[i].y === y) return state.npcs[i];
-    }
-    return null;
-  }
-
-  function getAdjacentNPC(state, px, py) {
-    var dirs = [[0,-1],[0,1],[-1,0],[1,0]];
-    for (var d = 0; d < dirs.length; d++) {
-      var npc = getNPCAt(state, px + dirs[d][0], py + dirs[d][1]);
-      if (npc) return npc;
-    }
-    return null;
-  }
+  var SHAKE_INTENSITY = 6;
+  var SENTINEL_SHOOT_RANGE = 6;
+  var EMP_RANGE = 5;
+  var EMP_STUN_TURNS = 3;
+  var CLOAK_TURNS = 6;
+  var FIREWALL_HP = 12;
+  var OVERCLOCK_MULTIPLIER = 3;
+  var PARTICLE_COUNT = 8;
+  var PARTICLE_LIFE = 500;
+  var COMM_INTERVAL = 12;
+  var AMBIENT_THOUGHT_INTERVAL = 20;
+  var CURFEW_DRONE_COUNT = 6;
 
   // ============================================================
   //  GAME START
@@ -431,147 +33,174 @@
   function beginPlaying() {
     var owCfg = FA.lookup('config', 'overworld');
     var econCfg = FA.lookup('config', 'economy');
-    var owMap = parseOverworldMap();
-    var npcs = initNPCs();
+    var townGrid = Core.parseOverworldMap();
+    var npcs = NPC.initNPCs();
+
+    var maps = {};
+    var cfg = FA.lookup('config', 'game');
+    var explored = [];
+    for (var ey = 0; ey < cfg.rows; ey++) {
+      explored[ey] = [];
+      for (var ex = 0; ex < cfg.cols; ex++) explored[ey][ex] = false;
+    }
+    maps.town = { grid: townGrid, entities: npcs, items: [], explored: explored, effects: ['timeOfDay', 'curfew'] };
 
     FA.resetState({
-      screen: 'overworld',
-      owMap: owMap,
-      owPlayer: { x: owCfg.playerStart.x, y: owCfg.playerStart.y },
-      npcs: npcs,
+      screen: 'playing',
+      mapId: 'town',
+      maps: maps,
+      map: townGrid,
+      player: {
+        x: owCfg.playerStart.x, y: owCfg.playerStart.y,
+        hp: 20, maxHp: 20, atk: 5, def: 1,
+        gold: 0, kills: 0,
+        modules: [], cloakTurns: 0, overclockActive: false, firewallHp: 0
+      },
+      depth: 0,
       day: 1, timeOfDay: 0,
       credits: econCfg.startCredits,
       rent: econCfg.baseRent,
       workedToday: false,
       systemRevealed: false,
       systemVisits: 0, totalKills: 0, totalGold: 0,
-      // System state (null until entered)
-      map: null, player: null, enemies: null, items: null, rooms: null,
-      explored: null, depth: 0, systemNPCs: null,
-      // Shared
-      mapVersion: 1, turn: 0,
+      visible: Core.computeVisibility(townGrid, owCfg.playerStart.x, owCfg.playerStart.y, 14),
+      mapVersion: 1, turn: 0, systemTurn: 0,
       systemBubble: null,
       thoughts: [], lastThoughtTurn: -10, bubbleQueue: [],
       shake: 0, shakeX: 0, shakeY: 0,
       particles: [], soundWaves: [],
       _pendingEnd: null, _timeWarned: false, _curfewWarned: false,
-      terminalsHacked: 0, directorMsgShown: {}
+      terminalsHacked: 0, directorMsgShown: {},
+      townReturnPos: null,
+      dreamMap: null, dreamExplored: null, dreamDepth: 0, dreamText: null, dreamTimer: 0
     });
 
     FA.clearEffects();
     var narCfg = FA.lookup('config', 'narrative');
     if (narCfg) FA.narrative.init(narCfg);
 
-    // Reactive NPC behavior via narrative events
     FA.on('narrative:varChanged', function(data) {
       var s = FA.getState();
-      if (!s.npcs || s.screen !== 'overworld') return;
-      // When NPC met today, they stop approaching player
+      var npcs = NPC.getNPCs(s);
+      if (!npcs) return;
       if (data.name.indexOf('_met_today') > -1 && data.value) {
         var npcId = data.name.replace('_met_today', '');
-        for (var j = 0; j < s.npcs.length; j++) {
-          if (s.npcs[j].id === npcId && s.npcs[j].goal === 'player') {
-            selectNPCGoal(s.npcs[j], s);
+        for (var j = 0; j < npcs.length; j++) {
+          if (npcs[j].id === npcId && npcs[j].goal === 'player') {
+            NPC.selectNPCGoal(npcs[j], s);
           }
         }
       }
-      // When system revealed, Emil re-evaluates
       if (data.name === 'system_revealed' && data.value) {
-        for (var k = 0; k < s.npcs.length; k++) {
-          if (s.npcs[k].id === 'emil') selectNPCGoal(s.npcs[k], s);
+        for (var k = 0; k < npcs.length; k++) {
+          if (npcs[k].id === 'emil') NPC.selectNPCGoal(npcs[k], s);
         }
       }
     });
 
-    // When narrative graph transitions, NPCs may want to talk
     FA.on('narrative:transition', function(data) {
       var s = FA.getState();
-      if (!s.npcs || s.screen !== 'overworld') return;
+      var npcs = NPC.getNPCs(s);
+      if (!npcs) return;
       if (data.graph === 'arc') {
-        // Arc transition — all present NPCs react
-        for (var i = 0; i < s.npcs.length; i++) {
-          if (s.day >= s.npcs[i].appearsDay && !s.npcs[i].talkedToday) {
-            s.npcs[i].wantsToTalk = true;
-            s.npcs[i].followTurns = 0;
-            selectNPCGoal(s.npcs[i], s);
+        for (var i = 0; i < npcs.length; i++) {
+          if (s.day >= npcs[i].appearsDay && !npcs[i].talkedToday) {
+            npcs[i].wantsToTalk = true;
+            npcs[i].followTurns = 0;
+            NPC.selectNPCGoal(npcs[i], s);
           }
         }
       } else if (data.graph.indexOf('quest_') === 0) {
-        // Quest transition — only that NPC reacts
         var npcId = data.graph.replace('quest_', '');
-        for (var j = 0; j < s.npcs.length; j++) {
-          if (s.npcs[j].id === npcId && !s.npcs[j].talkedToday) {
-            s.npcs[j].wantsToTalk = true;
-            s.npcs[j].followTurns = 0;
-            selectNPCGoal(s.npcs[j], s);
+        for (var j = 0; j < npcs.length; j++) {
+          if (npcs[j].id === npcId && !npcs[j].talkedToday) {
+            npcs[j].wantsToTalk = true;
+            npcs[j].followTurns = 0;
+            NPC.selectNPCGoal(npcs[j], s);
           }
         }
       }
     });
 
-    updateNPCPositions(FA.getState());
+    NPC.updateNPCPositions(FA.getState());
     var wakeCs = FA.lookup('cutscenes', 'wake');
-    if (wakeCs) startCutscene(wakeCs, FA.getState());
-    triggerThought('morning');
+    if (wakeCs) Core.startCutscene(wakeCs, FA.getState());
+    Core.triggerThought('morning');
   }
 
   // ============================================================
-  //  MOVEMENT DISPATCHER
+  //  UNIFIED MOVEMENT
   // ============================================================
 
   function movePlayer(dx, dy) {
     var state = FA.getState();
-    if (state.screen === 'overworld') overworldMove(dx, dy);
-    else if (state.screen === 'playing') systemMove(dx, dy);
-  }
+    if (!state.player) return;
+    var nx = state.player.x + dx;
+    var ny = state.player.y + dy;
 
-  // ============================================================
-  //  OVERWORLD MOVEMENT & INTERACTION
-  // ============================================================
-
-  function overworldMove(dx, dy) {
-    var state = FA.getState();
-    var nx = state.owPlayer.x + dx;
-    var ny = state.owPlayer.y + dy;
-    if (!isWalkable(state.owMap, nx, ny)) return;
-
-    // Swap positions with friendly NPC (no tile sharing)
-    var npc = getNPCAt(state, nx, ny);
-    if (npc) {
-      npc.x = state.owPlayer.x;
-      npc.y = state.owPlayer.y;
+    // Check entity at target
+    var entity = Core.getEntityAt(nx, ny);
+    if (entity) {
+      if (entity.type === 'enemy') {
+        attackEnemy(state.player, entity);
+        endTurn();
+        return;
+      }
+      if (entity.type === 'npc') {
+        // Swap positions
+        entity.x = state.player.x;
+        entity.y = state.player.y;
+        // Fall through to move player
+      } else if (entity.type === 'system_npc') {
+        // Talk (player stays in place)
+        if (!entity.talked) {
+          entity.talked = true;
+          var text = (entity.systemDialogue && entity.systemDialogue[entity.allegiance]) || '...';
+          Core.addSystemBubble(entity.name + ': "' + text + '"', entity.color);
+          Core.triggerThought('system_npc');
+        }
+        endTurn();
+        return;
+      }
     }
 
-    state.owPlayer.x = nx;
-    state.owPlayer.y = ny;
+    if (!Core.isWalkable(state.map, nx, ny)) return;
+    state.player.x = nx;
+    state.player.y = ny;
     FA.playSound('step');
-    var oldPeriod = getTimePeriod(state.timeOfDay);
-    state.timeOfDay++;
-    state.turn++;
-    var newPeriod = getTimePeriod(state.timeOfDay);
-    if (oldPeriod !== newPeriod) {
-      updateNPCPositions(state);
-      if (FA.narrative && FA.narrative.setVar) FA.narrative.setVar('time_period', newPeriod, 'Period: ' + newPeriod);
+
+    var tile = state.map[ny][nx];
+    var mapData = state.maps[state.mapId];
+
+    // Item pickup (works on any map)
+    for (var j = mapData.items.length - 1; j >= 0; j--) {
+      if (mapData.items[j].x === nx && mapData.items[j].y === ny) {
+        pickupItem(mapData.items[j], j);
+      }
     }
-    npcOverworldTurn(state);
-    checkTimeWarnings(state);
-    checkOverworldThoughts(state);
+
+    // Tile interactions (stairs up, terminals — work on any map that has them)
+    if (tile === 3 && state.mapId !== 'town') { exitSystem('cleared'); return; }
+    if (tile === 4 && state.mapId !== 'town') hackTerminal(nx, ny, state);
+
+    endTurn();
   }
+
+  // ============================================================
+  //  INTERACT (SPACE key — context actions on any map)
+  // ============================================================
 
   function interact() {
     var state = FA.getState();
-    if (state.screen !== 'overworld') return;
 
-    // Dismiss bubbles first
     if ((state.thoughts && state.thoughts.length > 0) || state.systemBubble) {
-      dismissBubbles();
+      Core.dismissBubbles();
       return;
     }
 
-    // Adjacent NPC — player-initiated (costs time, can reveal system)
-    var npc = getAdjacentNPC(state, state.owPlayer.x, state.owPlayer.y);
+    var npc = NPC.getAdjacentNPC(state, state.player.x, state.player.y);
     if (npc) {
-      talkToNPC(npc, state);
+      NPC.talkToNPC(npc, state);
       var econCfg = FA.lookup('config', 'economy');
       if (state.day >= econCfg.systemRevealDay && !state.systemRevealed) {
         if (npc.id === 'victor' || npc.id === 'lena') {
@@ -586,20 +215,25 @@
       return;
     }
 
-    // Tile under player
-    var tile = state.owMap[state.owPlayer.y][state.owPlayer.x];
-    if (tile === 6) goToBed(state);
-    else if (tile === 7) workAtTerminal(state);
-    else if (tile === 4) readNoticeBoard(state);
-    else if (tile === 8) {
-      if (state.systemRevealed) enterSystem(state);
-      else addThought('A sealed maintenance shaft. Nothing to see.');
+    var tile = state.map[state.player.y][state.player.x];
+    // Town tile actions (tile IDs 4-9 have town-specific meanings)
+    if (state.mapId === 'town') {
+      if (tile === 6) showBedChoice(state);
+      else if (tile === 7) workAtTerminal(state);
+      else if (tile === 4) readNoticeBoard(state);
+      else if (tile === 8) {
+        if (state.systemRevealed) enterSystem(state);
+        else Core.addThought('A sealed maintenance shaft. Nothing to see.');
+      }
+    } else {
+      // Dungeon: SPACE on terminal = hack it
+      if (tile === 4) hackTerminal(state.player.x, state.player.y, state);
     }
   }
 
   function workAtTerminal(state) {
     if (state.workedToday) {
-      addSystemBubble('> Shift already completed. Return tomorrow.', '#556');
+      Core.addSystemBubble('> Shift already completed. Return tomorrow.', '#556');
       return;
     }
     var timeCfg = FA.lookup('config', 'time');
@@ -608,25 +242,74 @@
     state.timeOfDay += timeCfg.workTurns;
     state.turn += timeCfg.workTurns;
     state.credits += econCfg.workPay;
-    addSystemBubble('> Shift complete. +' + econCfg.workPay + ' credits.', '#fd0');
-    triggerThought('work');
+    Core.addSystemBubble('> Shift complete. +' + econCfg.workPay + ' credits.', '#fd0');
+    Core.triggerThought('work');
     checkTimeWarnings(state);
   }
 
   function readNoticeBoard(state) {
     var entry = FA.select(FA.lookup('notices', 'board'));
     var text = entry ? entry.text : 'The board is empty.';
-    addSystemBubble('> NOTICE: ' + text, '#aa9a50');
+    Core.addSystemBubble('> NOTICE: ' + text, '#aa9a50');
     state.timeOfDay += 1;
     state.turn += 1;
   }
+
+  // ============================================================
+  //  CHOICE MENU
+  // ============================================================
+
+  function showChoiceMenu(state, title, options) {
+    state.choiceMenu = { title: title, options: options, timer: 0 };
+  }
+
+  function selectChoice(index) {
+    var state = FA.getState();
+    if (!state.choiceMenu) return;
+    var opt = state.choiceMenu.options[index];
+    if (!opt) return;
+    if (opt.enabled === false) return;
+    state.choiceMenu = null;
+    if (opt.action) opt.action(state);
+  }
+
+  function dismissChoice() {
+    var state = FA.getState();
+    state.choiceMenu = null;
+  }
+
+  function showBedChoice(state) {
+    var econCfg = FA.lookup('config', 'economy');
+    var rent = econCfg.baseRent + (state.day - 1) * econCfg.rentIncrease;
+    var canAfford = state.credits >= rent;
+    showChoiceMenu(state, '> LODGING \u2014 Pay ' + rent + ' cr for the night?', [
+      {
+        key: '1',
+        label: canAfford ? 'Pay ' + rent + ' cr & sleep' : 'Not enough credits (' + state.credits + ' cr)',
+        color: canAfford ? '#8878cc' : '#644',
+        enabled: canAfford,
+        action: function(s) { goToBed(s); }
+      },
+      {
+        key: '2',
+        label: 'Cancel',
+        color: '#665',
+        enabled: true,
+        action: function() {}
+      }
+    ]);
+  }
+
+  // ============================================================
+  //  SLEEP / DAY CYCLE
+  // ============================================================
 
   function goToBed(state) {
     var econCfg = FA.lookup('config', 'economy');
     var rent = econCfg.baseRent + (state.day - 1) * econCfg.rentIncrease;
     state.credits -= rent;
     if (state.credits < 0) {
-      triggerEnding(false, 'eviction');
+      Core.triggerEnding(false, 'eviction');
       return;
     }
     state.day++;
@@ -634,13 +317,17 @@
     state.workedToday = false;
     state._timeWarned = false;
     state._curfewWarned = false;
-    // Reset NPC daily state
-    for (var ni = 0; ni < state.npcs.length; ni++) {
-      state.npcs[ni].talkedToday = false;
-      state.npcs[ni].wantsToTalk = true;
-      state.npcs[ni].followTurns = 0;
+
+    // Remove any curfew drones from town
+    removeCurfewDrones(state);
+
+    // Reset NPCs for new day
+    var npcs = NPC.getNPCs(state);
+    for (var ni = 0; ni < npcs.length; ni++) {
+      npcs[ni].talkedToday = false;
+      npcs[ni].wantsToTalk = true;
+      npcs[ni].followTurns = 0;
     }
-    // Narrative day tracking
     if (FA.narrative && FA.narrative.setVar) {
       FA.narrative.setVar('day', state.day, 'New day');
       FA.narrative.setVar('curfew_active', false, 'Day reset');
@@ -651,48 +338,44 @@
     }
     state.rent = econCfg.baseRent + (state.day - 1) * econCfg.rentIncrease;
     state.mapVersion = (state.mapVersion || 0) + 1;
-    updateNPCPositions(state);
-    // Auto-reveal system if NPC already met
+    NPC.updateNPCPositions(state);
     if (state.day >= econCfg.systemRevealDay && !state.systemRevealed) {
-      for (var i = 0; i < state.npcs.length; i++) {
-        if (state.npcs[i].met && (state.npcs[i].id === 'victor' || state.npcs[i].id === 'lena')) {
+      var allNpcs = NPC.getNPCs(state);
+      for (var i = 0; i < allNpcs.length; i++) {
+        if (allNpcs[i].met && (allNpcs[i].id === 'victor' || allNpcs[i].id === 'lena')) {
           state.systemRevealed = true;
           state.mapVersion = (state.mapVersion || 0) + 1;
           break;
         }
       }
     }
-    // Dream snapshot before first system visit
     if (state.systemVisits === 0) {
       dreamSnapshot(state);
-      // Queue day message for after dream
       if (!state.bubbleQueue) state.bubbleQueue = [];
       state.bubbleQueue.push({ type: 'system', text: '> Day ' + state.day + '. Rent: -' + rent + 'cr. Balance: ' + state.credits + 'cr.', color: '#f44' });
     } else {
-      addSystemBubble('> Day ' + state.day + '. Rent: -' + rent + 'cr. Balance: ' + state.credits + 'cr.', '#f44');
+      Core.addSystemBubble('> Day ' + state.day + '. Rent: -' + rent + 'cr. Balance: ' + state.credits + 'cr.', '#f44');
     }
-    triggerThought('morning');
+    Core.triggerThought('morning');
   }
 
   var _dreamTexts = [
-    '// SIGNAL INTERCEPT — DEPTH ',
-    '// UNAUTHORIZED STRUCTURE — DEPTH ',
-    '// ANOMALY DETECTED — DEPTH ',
-    '// SUBSYSTEM ECHO — DEPTH '
+    '// SIGNAL INTERCEPT \u2014 DEPTH ',
+    '// UNAUTHORIZED STRUCTURE \u2014 DEPTH ',
+    '// ANOMALY DETECTED \u2014 DEPTH ',
+    '// SUBSYSTEM ECHO \u2014 DEPTH '
   ];
 
   function dreamSnapshot(state) {
     var cfg = FA.lookup('config', 'game');
     var dreamDepth = FA.rand(1, 3);
-    var floor = generateFloor(cfg.cols, cfg.rows, dreamDepth);
-    // Mark all explored so full map renders
+    var floor = Core.generateFloor(cfg.cols, cfg.rows, dreamDepth);
     for (var y = 0; y < floor.explored.length; y++)
       for (var x = 0; x < floor.explored[y].length; x++)
         floor.explored[y][x] = true;
-    state.map = floor.map;
-    state.explored = floor.explored;
-    state.rooms = floor.rooms;
-    state.depth = dreamDepth;
+    state.dreamMap = floor.map;
+    state.dreamExplored = floor.explored;
+    state.dreamDepth = dreamDepth;
     state.mapVersion = (state.mapVersion || 0) + 1;
     state.dreamTimer = 0;
     state.dreamText = _dreamTexts[FA.rand(0, _dreamTexts.length - 1)] + dreamDepth;
@@ -702,51 +385,80 @@
   function dismissDream() {
     var state = FA.getState();
     if (state.screen !== 'dream') return;
-    state.screen = 'overworld';
-    state.map = null;
-    state.explored = null;
-    state.rooms = null;
-    state.depth = 0;
+    state.screen = 'playing';
+    state.dreamMap = null;
+    state.dreamExplored = null;
+    state.dreamDepth = 0;
     state.dreamText = null;
     state.dreamTimer = 0;
     state.mapVersion = (state.mapVersion || 0) + 1;
-    // Show queued messages
     if (state.bubbleQueue && state.bubbleQueue.length > 0) {
       var next = state.bubbleQueue.shift();
-      if (next.type === 'system') _createSystemBubble(state, next.text, next.color);
-      else _createThought(state, next.text);
+      if (next.type === 'system') Core._createSystemBubble(state, next.text, next.color);
+      else Core._createThought(state, next.text);
     }
   }
 
   function checkTimeWarnings(state) {
     var timeCfg = FA.lookup('config', 'time');
-    if (state.screen !== 'overworld') return;
-    if (state.timeOfDay >= timeCfg.droneTime) {
-      triggerEnding(false, 'curfew');
-      return;
-    }
     if (state.timeOfDay >= timeCfg.curfewTime && !state._curfewWarned) {
       state._curfewWarned = true;
       if (FA.narrative && FA.narrative.setVar) FA.narrative.setVar('curfew_active', true, 'Curfew approaching');
-      addSystemBubble('> CURFEW APPROACHING. Return to quarters.', '#f44');
+      Core.addSystemBubble('> CURFEW APPROACHING. Return to quarters.', '#f44');
+      spawnCurfewDrones(state);
     } else if (state.timeOfDay >= timeCfg.warningTime && !state._timeWarned) {
       state._timeWarned = true;
-      triggerThought('evening');
+      Core.triggerThought('evening');
     }
   }
 
   function checkOverworldThoughts(state) {
     if (state.turn - (state.lastThoughtTurn || 0) < 15) return;
-    var period = getTimePeriod(state.timeOfDay);
-    if (period === 'morning' && state.timeOfDay < 10) triggerThought('morning');
-    else if (period === 'evening') triggerThought('evening');
-    if (Math.abs(state.owPlayer.x - 29) < 5 && Math.abs(state.owPlayer.y - 8) < 4) {
-      triggerThought('cafe');
+    var period = NPC.getTimePeriod(state.timeOfDay);
+    if (period === 'morning' && state.timeOfDay < 10) Core.triggerThought('morning');
+    else if (period === 'evening') Core.triggerThought('evening');
+    if (Math.abs(state.player.x - 29) < 5 && Math.abs(state.player.y - 8) < 4) {
+      Core.triggerThought('cafe');
     }
   }
 
   // ============================================================
-  //  SYSTEM ENTRY / EXIT
+  //  CURFEW DRONES (real enemies on town map)
+  // ============================================================
+
+  function spawnCurfewDrones(state) {
+    var def = FA.lookup('enemies', 'drone');
+    var townEntities = state.maps.town.entities;
+    var townGrid = state.maps.town.grid;
+    var cfg = FA.lookup('config', 'game');
+    for (var i = 0; i < CURFEW_DRONE_COUNT; i++) {
+      var dx, dy, attempts = 0;
+      do {
+        dx = FA.rand(1, cfg.cols - 2);
+        dy = FA.rand(1, cfg.rows - 2);
+        attempts++;
+      } while (attempts < 50 && (!Core.isWalkable(townGrid, dx, dy) ||
+        (state.mapId === 'town' && state.player && Math.abs(dx - state.player.x) + Math.abs(dy - state.player.y) < 5)));
+      townEntities.push({
+        id: FA.uid(), type: 'enemy', curfewDrone: true,
+        x: dx, y: dy,
+        hp: def.hp, maxHp: def.hp, atk: def.atk, def: def.def,
+        char: def.char, color: '#f44', name: 'Curfew Drone',
+        behavior: 'chase', stunTurns: 0,
+        aiState: 'hunting', alertTarget: null, alertTimer: 0, patrolTarget: null
+      });
+    }
+  }
+
+  function removeCurfewDrones(state) {
+    var entities = state.maps.town.entities;
+    for (var i = entities.length - 1; i >= 0; i--) {
+      if (entities[i].curfewDrone) entities.splice(i, 1);
+    }
+  }
+
+  // ============================================================
+  //  SYSTEM ENTRY / EXIT (via changeMap)
   // ============================================================
 
   function enterSystem(state) {
@@ -754,69 +466,72 @@
     var depth = Math.min(state.systemVisits + 1, cfg.maxDepth);
 
     if (state.systemVisits === 0) {
-      showNarrative('arc', 'first_system');
+      Core.showNarrative('arc', 'first_system');
     } else {
       var arcNode = FA.narrative.getNode('arc');
       if (arcNode && arcNode.id === 'first_system') {
         FA.narrative.transition('arc', 'deeper', 'Going deeper');
       }
-      addSystemBubble('> Entering sub-level ' + depth + '.', '#4ef');
+      Core.addSystemBubble('> Entering sub-level ' + depth + '.', '#4ef');
     }
 
     state.systemVisits++;
-    var floor = generateFloor(cfg.cols, cfg.rows, depth);
-    var populated = populateFloor(floor.map, floor.rooms, depth);
+    var floor = Core.generateFloor(cfg.cols, cfg.rows, depth);
+    var populated = Core.populateFloor(floor.map, floor.rooms, depth);
 
-    // Player spawn
     var firstRoom = floor.rooms[0];
     var px = Math.floor(firstRoom.x + firstRoom.w / 2);
     var py = Math.floor(firstRoom.y + firstRoom.h / 2);
     if (floor.map[py][px] !== 0) { px = firstRoom.x + 1; py = firstRoom.y + 1; }
 
-    // Place met NPCs in system
-    var sysNPCs = [];
-    for (var i = 0; i < state.npcs.length; i++) {
-      var npc = state.npcs[i];
+    // Create system NPCs from town NPCs that player has met
+    var townEntities = state.maps.town.entities;
+    for (var i = 0; i < townEntities.length; i++) {
+      var npc = townEntities[i];
+      if (npc.type !== 'npc') continue;
       if (!npc.met || state.day < npc.appearsDay) continue;
       if (depth < 2 && npc.id !== 'lena') continue;
       if (depth < 3 && npc.id === 'emil') continue;
-      var npos = findEmptyInRooms(floor.map, floor.rooms, populated.occupied);
+      var npos = Core.findEmptyInRooms(floor.map, floor.rooms, populated.occupied);
       populated.occupied.push(npos);
-      sysNPCs.push({
-        id: npc.id, name: npc.name, char: npc.char, color: npc.color,
+      populated.entities.push({
+        id: npc.id, type: 'system_npc', name: npc.name, char: npc.char, color: npc.color,
         x: npos.x, y: npos.y, allegiance: npc.allegiance,
         systemDialogue: npc.systemDialogue, talked: false
       });
     }
 
-    state.screen = 'playing';
-    state.map = floor.map;
-    state.explored = floor.explored;
-    state.rooms = floor.rooms;
-    state.player = {
-      x: px, y: py, hp: 20, maxHp: 20, atk: 5, def: 1,
-      gold: 0, kills: 0,
-      modules: [], cloakTurns: 0, overclockActive: false, firewallHp: 0
+    // Store dungeon map in registry
+    state.maps[depth] = {
+      grid: floor.map,
+      entities: populated.entities,
+      items: populated.items,
+      explored: floor.explored,
+      rooms: floor.rooms,
+      effects: depth >= 3 ? ['systemCold', 'corruption'] : ['systemCold']
     };
-    state.enemies = populated.enemies;
-    state.items = populated.items;
-    state.depth = depth;
-    state.systemNPCs = sysNPCs;
+
+    // Save town return position
+    state.townReturnPos = { x: state.player.x, y: state.player.y };
+
+    // Heal to full on system entry, clear temporary buffs
+    state.player.hp = state.player.maxHp;
+    state.player.cloakTurns = 0; state.player.overclockActive = false; state.player.firewallHp = 0;
+
+    // Change to dungeon map
+    Core.changeMap(depth, px, py);
     state.systemTurn = 0;
     state.terminalsHacked = 0;
     state.directorMsgShown = {};
-    state.mapVersion = (state.mapVersion || 0) + 1;
 
-    // Compute initial FOV
     var lightRadius = 10 - depth * 0.5;
-    state.visible = computeVisibility(state.map, px, py, lightRadius);
+    state.visible = Core.computeVisibility(state.map, px, py, lightRadius);
 
     FA.clearEffects();
-    // Narrative: track system entry (don't re-init — preserves vars)
     if (FA.narrative && FA.narrative.setVar) {
       FA.narrative.setVar('system_visits', state.systemVisits, 'Entered system');
     }
-    triggerThought('system_enter');
+    Core.triggerThought('system_enter');
   }
 
   function exitSystem(reason) {
@@ -824,12 +539,13 @@
     var timeCfg = FA.lookup('config', 'time');
     var econCfg = FA.lookup('config', 'economy');
 
-    // Collect loot
-    if (state.player) {
-      state.credits += state.player.gold;
-      state.totalKills = (state.totalKills || 0) + state.player.kills;
-      state.totalGold = (state.totalGold || 0) + state.player.gold;
-    }
+    // Transfer dungeon earnings to persistent economy
+    state.credits += state.player.gold;
+    state.totalKills = (state.totalKills || 0) + state.player.kills;
+    state.totalGold = (state.totalGold || 0) + state.player.gold;
+    // Zero out run counters (already transferred)
+    state.player.gold = 0;
+    state.player.kills = 0;
 
     if (reason === 'ejected') {
       state.credits = Math.max(0, state.credits - econCfg.ejectionPenalty);
@@ -837,88 +553,38 @@
 
     state.timeOfDay += timeCfg.systemTimeCost;
 
-    // Return to overworld
-    state.screen = 'overworld';
-    state.map = null; state.player = null;
-    state.enemies = null; state.items = null;
-    state.rooms = null; state.explored = null;
-    state.systemNPCs = null;
-    state.mapVersion = (state.mapVersion || 0) + 1;
+    // Discard dungeon map
+    delete state.maps[state.mapId];
+
+    // Clear temporary buffs, keep stats/modules/hp
+    state.player.cloakTurns = 0; state.player.overclockActive = false; state.player.firewallHp = 0;
+    state.visible = null;
+
+    // Return to town
+    var returnPos = state.townReturnPos || FA.lookup('config', 'overworld').playerStart;
+    Core.changeMap('town', returnPos.x, returnPos.y);
 
     FA.clearEffects();
 
     if (reason === 'ejected') {
       var narText = FA.lookup('narrativeText', 'ejected');
-      if (narText) addSystemBubble(narText.text, narText.color);
+      if (narText) Core.addSystemBubble(narText.text, narText.color);
       var ejectedCs = FA.lookup('cutscenes', 'ejected');
-      if (ejectedCs) startCutscene(ejectedCs, state);
+      if (ejectedCs) Core.startCutscene(ejectedCs, state);
     }
 
     checkTimeWarnings(state);
   }
 
   // ============================================================
-  //  SYSTEM MOVEMENT
-  // ============================================================
-
-  function systemMove(dx, dy) {
-    var state = FA.getState();
-    if (!state.player) return;
-    var nx = state.player.x + dx;
-    var ny = state.player.y + dy;
-
-    // Attack enemy
-    for (var i = 0; i < state.enemies.length; i++) {
-      if (state.enemies[i].x === nx && state.enemies[i].y === ny) {
-        attackEnemy(state.player, state.enemies[i], i);
-        endTurn();
-        return;
-      }
-    }
-
-    // Bump into system NPC
-    if (state.systemNPCs) {
-      for (var ni = 0; ni < state.systemNPCs.length; ni++) {
-        var sNpc = state.systemNPCs[ni];
-        if (sNpc.x === nx && sNpc.y === ny) {
-          if (!sNpc.talked) {
-            sNpc.talked = true;
-            var text = (sNpc.systemDialogue && sNpc.systemDialogue[sNpc.allegiance]) || '...';
-            addSystemBubble(sNpc.name + ': "' + text + '"', sNpc.color);
-            triggerThought('system_npc');
-          }
-          endTurn();
-          return;
-        }
-      }
-    }
-
-    if (!isWalkable(state.map, nx, ny)) return;
-    state.player.x = nx;
-    state.player.y = ny;
-    FA.playSound('step');
-
-    var tile = state.map[ny][nx];
-    if (tile === 3) { exitSystem('cleared'); return; }
-    if (tile === 4) hackTerminal(nx, ny, state);
-
-    for (var j = state.items.length - 1; j >= 0; j--) {
-      if (state.items[j].x === nx && state.items[j].y === ny) {
-        pickupItem(state.items[j], j);
-      }
-    }
-    endTurn();
-  }
-
-  // ============================================================
   //  COMBAT
   // ============================================================
 
-  function attackEnemy(attacker, target, idx) {
+  function attackEnemy(attacker, target) {
     var state = FA.getState();
     var multiplier = 1;
     if (state.player.overclockActive) {
-      multiplier = 3;
+      multiplier = OVERCLOCK_MULTIPLIER;
       state.player.overclockActive = false;
     }
     var dmg = Math.max(1, Math.floor((attacker.atk - target.def + FA.rand(-1, 2)) * multiplier));
@@ -930,29 +596,40 @@
     var cfg = FA.lookup('config', 'game');
     var ts = cfg.tileSize;
     FA.addFloat(target.x * ts + ts / 2, target.y * ts, label, color, 800);
-    propagateSound(state, target.x, target.y, 8);
+    Core.propagateSound(target.x, target.y, 8);
 
     if (target.hp <= 0) {
-      state.enemies.splice(idx, 1);
+      // Remove from entity list
+      var entities = state.maps[state.mapId].entities;
+      for (var i = 0; i < entities.length; i++) {
+        if (entities[i] === target) { entities.splice(i, 1); break; }
+      }
       state.player.kills++;
+      if (FA.narrative && FA.narrative.setVar) {
+        FA.narrative.setVar('kills', (state.totalKills || 0) + state.player.kills, 'Destroyed ' + target.name);
+      }
       FA.emit('entity:killed', { entity: target });
 
       var bx = target.x * ts + ts / 2, by = target.y * ts + ts / 2;
-      for (var pi = 0; pi < 8; pi++) {
-        var angle = (pi / 8) * Math.PI * 2 + Math.random() * 0.5;
+      for (var pi = 0; pi < PARTICLE_COUNT; pi++) {
+        var angle = (pi / PARTICLE_COUNT) * Math.PI * 2 + Math.random() * 0.5;
         state.particles.push({
           x: bx, y: by,
           vx: Math.cos(angle) * (40 + Math.random() * 30),
           vy: Math.sin(angle) * (40 + Math.random() * 30),
-          life: 500, maxLife: 500, color: target.color
+          life: PARTICLE_LIFE, maxLife: PARTICLE_LIFE, color: target.color
         });
       }
 
-      triggerThought('combat');
+      Core.triggerThought('combat');
 
-      // Revelation ending: final floor cleared
-      if (state.depth >= cfg.maxDepth && state.enemies.length === 0) {
-        triggerEnding(true, 'revelation');
+      // Check victory condition (all enemies dead on final depth)
+      if (state.mapId !== 'town' && state.depth >= cfg.maxDepth) {
+        var hasEnemies = false;
+        for (var ei = 0; ei < entities.length; ei++) {
+          if (entities[ei].type === 'enemy') { hasEnemies = true; break; }
+        }
+        if (!hasEnemies) Core.triggerEnding(true, 'revelation');
       }
     }
   }
@@ -966,7 +643,7 @@
     }
 
     state.player.hp -= dmg;
-    state.shake = 6;
+    state.shake = SHAKE_INTENSITY;
     FA.emit('entity:damaged', { entity: state.player, damage: dmg });
 
     var cfg = FA.lookup('config', 'game');
@@ -974,11 +651,16 @@
     FA.addFloat(state.player.x * ts + ts / 2, state.player.y * ts, '-' + dmg, '#f84', 800);
 
     if (state.player.hp <= 0) {
-      exitSystem('ejected');
+      if (state.mapId === 'town') {
+        // Killed by curfew drones
+        Core.triggerEnding(false, 'curfew');
+      } else {
+        exitSystem('ejected');
+      }
     } else if (state.player.hp <= state.player.maxHp * 0.3) {
-      triggerThought('low_health');
+      Core.triggerThought('low_health');
     } else {
-      triggerThought('damage');
+      Core.triggerThought('damage');
     }
   }
 
@@ -987,7 +669,7 @@
     var dirs = [[1,0],[-1,0],[0,1],[0,-1]];
     for (var d = 0; d < dirs.length; d++) {
       var sx = e.x, sy = e.y;
-      for (var r = 1; r <= 6; r++) {
+      for (var r = 1; r <= SENTINEL_SHOOT_RANGE; r++) {
         sx += dirs[d][0]; sy += dirs[d][1];
         if (sy < 0 || sy >= state.map.length || sx < 0 || sx >= state.map[0].length) break;
         if (state.map[sy][sx] === 1) break;
@@ -997,7 +679,7 @@
           var ts = cfg.tileSize;
           FA.addFloat(e.x * ts + ts / 2, e.y * ts, '!', '#f80', 600);
           applyDamageToPlayer(dmg, e.name, state);
-          propagateSound(state, e.x, e.y, 10);
+          Core.propagateSound(e.x, e.y, 10);
           return;
         }
       }
@@ -1006,20 +688,21 @@
 
   function pickupItem(item, idx) {
     var state = FA.getState();
+    var mapData = state.maps[state.mapId];
     if (item.type === 'module' && state.player.modules.length >= 3) {
       var cfg2 = FA.lookup('config', 'game');
       var ts2 = cfg2.tileSize;
       FA.addFloat(item.x * ts2 + ts2 / 2, item.y * ts2, 'FULL', '#f44', 600);
       return;
     }
-    state.items.splice(idx, 1);
+    mapData.items.splice(idx, 1);
     FA.emit('item:pickup', { item: item });
     var cfg = FA.lookup('config', 'game');
     var ts = cfg.tileSize;
     if (item.type === 'gold') {
       state.player.gold += item.value;
       FA.addFloat(state.player.x * ts + ts / 2, state.player.y * ts, '+' + item.value, '#0ff', 600);
-      triggerThought('pickup_data');
+      Core.triggerThought('pickup_data');
     } else if (item.type === 'potion') {
       var heal = Math.min(item.healAmount, state.player.maxHp - state.player.hp);
       state.player.hp += heal;
@@ -1034,116 +717,20 @@
   //  AI SYSTEM
   // ============================================================
 
-  function hasLOS(map, x1, y1, x2, y2) {
-    var dx = Math.abs(x2 - x1), dy = Math.abs(y2 - y1);
-    var sx = x1 < x2 ? 1 : -1, sy = y1 < y2 ? 1 : -1;
-    var err = dx - dy;
-    var cx = x1, cy = y1;
-    while (true) {
-      if (cx === x2 && cy === y2) return true;
-      var e2 = err * 2;
-      if (e2 > -dy) { err -= dy; cx += sx; }
-      if (e2 < dx) { err += dx; cy += sy; }
-      if (cx === x2 && cy === y2) return true;
-      if (cy < 0 || cy >= map.length || cx < 0 || cx >= map[0].length) return false;
-      if (map[cy][cx] === 1) return false;
-    }
-  }
-
-  function canStep(x, y, state, skipIdx) {
-    if (!isWalkable(state.map, x, y)) return false;
-    if (isOccupied(x, y, skipIdx)) return false;
-    if (state.player && x === state.player.x && y === state.player.y) return false;
-    return true;
-  }
-
-  function moveToward(e, tx, ty, state, skipIdx) {
-    // Use A* pathfinding for smart movement
-    var path = findPath(e.x, e.y, tx, ty, state.map);
-    if (path.length >= 2) {
-      var next = path[1];
-      if (canStep(next.x, next.y, state, skipIdx)) {
-        e.x = next.x; e.y = next.y;
-        return true;
-      }
-    }
-    // Fallback to direct movement if A* blocked by entities
-    var dx = tx - e.x, dy = ty - e.y;
-    var sx = dx > 0 ? 1 : dx < 0 ? -1 : 0;
-    var sy = dy > 0 ? 1 : dy < 0 ? -1 : 0;
-    var moves;
-    if (Math.abs(dx) >= Math.abs(dy)) {
-      moves = [{dx: sx, dy: 0}, {dx: 0, dy: sy || 1}, {dx: 0, dy: -(sy || 1)}];
-    } else {
-      moves = [{dx: 0, dy: sy}, {dx: sx || 1, dy: 0}, {dx: -(sx || 1), dy: 0}];
-    }
-    for (var i = 0; i < moves.length; i++) {
-      if (moves[i].dx === 0 && moves[i].dy === 0) continue;
-      var nx = e.x + moves[i].dx, ny = e.y + moves[i].dy;
-      if (canStep(nx, ny, state, skipIdx)) {
-        e.x = nx; e.y = ny;
-        return true;
-      }
-    }
-    return false;
-  }
-
-  function flankTarget(e, tx, ty, state, skipIdx) {
-    var dx = tx - e.x, dy = ty - e.y;
-    var moves;
-    if (Math.abs(dx) >= Math.abs(dy)) {
-      moves = [{dx: 0, dy: 1}, {dx: 0, dy: -1}];
-    } else {
-      moves = [{dx: 1, dy: 0}, {dx: -1, dy: 0}];
-    }
-    if (Math.random() > 0.5) { var t = moves[0]; moves[0] = moves[1]; moves[1] = t; }
-    for (var i = 0; i < moves.length; i++) {
-      var nx = e.x + moves[i].dx, ny = e.y + moves[i].dy;
-      if (canStep(nx, ny, state, skipIdx)) {
-        e.x = nx; e.y = ny;
-        return true;
-      }
-    }
-    return moveToward(e, tx, ty, state, skipIdx);
-  }
-
-  function randomStep(e, state, skipIdx) {
-    var dirs = [[1,0],[-1,0],[0,1],[0,-1]];
-    for (var i = dirs.length - 1; i > 0; i--) {
-      var j = Math.floor(Math.random() * (i + 1));
-      var t = dirs[i]; dirs[i] = dirs[j]; dirs[j] = t;
-    }
-    for (var d = 0; d < dirs.length; d++) {
-      var nx = e.x + dirs[d][0], ny = e.y + dirs[d][1];
-      if (canStep(nx, ny, state, skipIdx)) {
-        e.x = nx; e.y = ny;
-        return;
-      }
-    }
-  }
-
-  function propagateSound(state, x, y, radius) {
-    if (!state.enemies) return;
-    for (var i = 0; i < state.enemies.length; i++) {
-      var e = state.enemies[i];
-      if (e.aiState === 'hunting') continue;
-      var dist = Math.abs(e.x - x) + Math.abs(e.y - y);
-      if (dist <= radius) {
-        e.aiState = 'alert';
-        e.alertTarget = { x: x, y: y };
-        e.alertTimer = 8;
-      }
-    }
-    if (state.soundWaves) state.soundWaves.push({ tx: x, ty: y, maxR: radius, life: 500 });
-  }
-
-  function computeEnemyAction(e, state) {
+  function computeEnemyAction(e, state, rooms) {
     var p = state.player;
     if (!p) return { type: 'idle' };
     var dist = Math.abs(e.x - p.x) + Math.abs(e.y - p.y);
     var cloaked = p.cloakTurns > 0;
+
+    // Curfew drones always hunt — they have thermal scanners, ignore walls/cloak
+    if (e.curfewDrone) {
+      if (dist === 1) return { type: 'attack' };
+      return { type: 'chase' };
+    }
+
     var sightRange = e.behavior === 'tracker' ? 20 : e.behavior === 'sentinel' ? 6 : 8;
-    var canSee = !cloaked && dist <= sightRange && hasLOS(state.map, e.x, e.y, p.x, p.y);
+    var canSee = !cloaked && dist <= sightRange && Core.hasLOS(state.map, e.x, e.y, p.x, p.y);
 
     if (dist === 1 && !cloaked) {
       e.aiState = 'hunting';
@@ -1184,7 +771,6 @@
       default:
         if (e.behavior === 'sentinel') return { type: 'idle' };
         if (!e.patrolTarget || (e.x === e.patrolTarget.x && e.y === e.patrolTarget.y)) {
-          var rooms = state.rooms;
           if (rooms && rooms.length > 0) {
             var room = rooms[Math.floor(Math.random() * rooms.length)];
             e.patrolTarget = { x: Math.floor(room.x + room.w / 2), y: Math.floor(room.y + room.h / 2) };
@@ -1196,15 +782,20 @@
 
   function enemyTurn() {
     var state = FA.getState();
-    if (state.screen !== 'playing' || !state.player || !state.enemies) return;
+    if (state.screen !== 'playing' || !state.player) return;
     if (state.player.cloakTurns > 0) state.player.cloakTurns--;
 
-    for (var i = 0; i < state.enemies.length; i++) {
+    var mapData = state.maps[state.mapId];
+    var entities = mapData.entities;
+    var rooms = mapData.rooms || null;
+
+    for (var i = 0; i < entities.length; i++) {
       if (state.screen !== 'playing' || !state.player) return;
-      var e = state.enemies[i];
+      var e = entities[i];
+      if (e.type !== 'enemy') continue;
       if (e.stunTurns > 0) { e.stunTurns--; continue; }
 
-      var action = computeEnemyAction(e, state);
+      var action = computeEnemyAction(e, state, rooms);
 
       switch (action.type) {
         case 'shoot':
@@ -1217,32 +808,22 @@
           }
           break;
         case 'chase':
-          moveToward(e, state.player.x, state.player.y, state, i);
+          Core.moveToward(e, state.player.x, state.player.y);
           break;
         case 'flank':
-          flankTarget(e, state.player.x, state.player.y, state, i);
+          Core.flankTarget(e, state.player.x, state.player.y);
           break;
         case 'investigate':
-          moveToward(e, e.alertTarget.x, e.alertTarget.y, state, i);
+          Core.moveToward(e, e.alertTarget.x, e.alertTarget.y);
           break;
         case 'patrol':
-          if (e.patrolTarget) moveToward(e, e.patrolTarget.x, e.patrolTarget.y, state, i);
+          if (e.patrolTarget) Core.moveToward(e, e.patrolTarget.x, e.patrolTarget.y);
           break;
         case 'random':
-          randomStep(e, state, i);
+          Core.randomStep(e);
           break;
       }
     }
-  }
-
-  function isOccupied(x, y, skipIdx) {
-    var enemies = FA.getState().enemies;
-    if (!enemies) return false;
-    for (var i = 0; i < enemies.length; i++) {
-      if (i === skipIdx) continue;
-      if (enemies[i].x === x && enemies[i].y === y) return true;
-    }
-    return false;
   }
 
   // ============================================================
@@ -1252,6 +833,7 @@
   function useModule(slotIdx) {
     var state = FA.getState();
     if (state.screen !== 'playing' || !state.player) return;
+    // modules work everywhere — open world, no mode restrictions
     if (slotIdx >= state.player.modules.length) return;
 
     var mod = state.player.modules[slotIdx];
@@ -1260,27 +842,33 @@
     var ts = cfg.tileSize;
     var px = state.player.x * ts + ts / 2, py = state.player.y * ts;
 
+    var mapData = state.maps[state.mapId];
+
     switch (mod.type) {
       case 'emp':
-        for (var i = 0; i < state.enemies.length; i++) {
-          var e = state.enemies[i];
+        for (var i = 0; i < mapData.entities.length; i++) {
+          var e = mapData.entities[i];
+          if (e.type !== 'enemy') continue;
           var dist = Math.abs(e.x - state.player.x) + Math.abs(e.y - state.player.y);
-          if (dist <= 5) {
-            e.stunTurns = (e.stunTurns || 0) + 3;
+          if (dist <= EMP_RANGE) {
+            e.stunTurns = (e.stunTurns || 0) + EMP_STUN_TURNS;
             FA.addFloat(e.x * ts + ts / 2, e.y * ts, 'STUN', '#ff0', 800);
           }
         }
         FA.addFloat(px, py, 'EMP', '#ff0', 800);
-        propagateSound(state, state.player.x, state.player.y, 12);
+        Core.propagateSound(state.player.x, state.player.y, 12);
         break;
       case 'cloak':
-        state.player.cloakTurns = 6;
+        state.player.cloakTurns = CLOAK_TURNS;
         FA.addFloat(px, py, 'CLOAK', '#88f', 800);
         break;
       case 'scanner':
-        for (var sy = 0; sy < state.explored.length; sy++)
-          for (var sx = 0; sx < state.explored[sy].length; sx++)
-            state.explored[sy][sx] = true;
+        var explored = mapData.explored;
+        if (explored) {
+          for (var sy = 0; sy < explored.length; sy++)
+            for (var sx = 0; sx < explored[sy].length; sx++)
+              explored[sy][sx] = true;
+        }
         FA.addFloat(px, py, 'SCAN', '#0ff', 800);
         break;
       case 'overclock':
@@ -1288,7 +876,7 @@
         FA.addFloat(px, py, 'OC!', '#f44', 800);
         break;
       case 'firewall':
-        state.player.firewallHp = 12;
+        state.player.firewallHp = FIREWALL_HP;
         FA.addFloat(px, py, 'SHIELD', '#4f4', 800);
         break;
     }
@@ -1307,7 +895,6 @@
     var ts = cfg.tileSize;
     var depth = state.depth;
 
-    // Director message
     if (!state.directorMsgShown) state.directorMsgShown = {};
     if (!state.directorMsgShown[depth]) state.directorMsgShown[depth] = 0;
     var dirMsgs = FA.lookup('config', 'director');
@@ -1316,11 +903,12 @@
       var dirMsg = depthMsgs[state.directorMsgShown[depth]];
       state.directorMsgShown[depth]++;
       if (dirMsg !== '...') {
-        addSystemBubble('> "' + dirMsg + '" \u2014 DIRECTOR', '#f80');
+        Core.addSystemBubble('> "' + dirMsg + '" \u2014 DIRECTOR', '#f80');
       }
       return;
     }
 
+    var mapData = state.maps[state.mapId];
     var effects = ['module', 'module', 'reveal', 'stun', 'intel'];
     var effect = FA.pick(effects);
 
@@ -1337,188 +925,102 @@
         }
         break;
       case 'reveal':
-        for (var ry = 0; ry < state.explored.length; ry++)
-          for (var rx = 0; rx < state.explored[ry].length; rx++)
-            state.explored[ry][rx] = true;
+        var explored = mapData.explored;
+        if (explored) {
+          for (var ry = 0; ry < explored.length; ry++)
+            for (var rx = 0; rx < explored[ry].length; rx++)
+              explored[ry][rx] = true;
+        }
         FA.addFloat(x * ts + ts / 2, y * ts, 'MAP', '#0ff', 1000);
         break;
       case 'stun':
-        for (var si = 0; si < state.enemies.length; si++)
-          state.enemies[si].stunTurns = (state.enemies[si].stunTurns || 0) + 3;
+        for (var si = 0; si < mapData.entities.length; si++) {
+          if (mapData.entities[si].type === 'enemy')
+            mapData.entities[si].stunTurns = (mapData.entities[si].stunTurns || 0) + EMP_STUN_TURNS;
+        }
         FA.addFloat(x * ts + ts / 2, y * ts, 'DISRUPT', '#ff0', 1000);
         break;
       case 'intel':
         var intelList = FA.lookup('config', 'terminals').intel;
         var intel = FA.pick(intelList);
-        addSystemBubble('> ' + intel, '#0ff');
+        Core.addSystemBubble('> ' + intel, '#0ff');
         break;
     }
   }
 
   // ============================================================
-  //  NARRATIVE & COMMUNICATION
-  // ============================================================
-
-  function showNarrative(graphId, nodeId) {
-    FA.narrative.transition(graphId, nodeId);
-    var narText = FA.lookup('narrativeText', nodeId);
-    if (narText) addSystemBubble(narText.text, narText.color);
-    var cutscene = FA.lookup('cutscenes', nodeId);
-    var state = FA.getState();
-    if (cutscene && state.screen !== 'cutscene') {
-      startCutscene(cutscene, state);
-    }
-  }
-
-  function selectDialogue(npcId) {
-    var entry = FA.select(FA.lookup('dialogues', npcId));
-    return entry ? entry.text : null;
-  }
-
-  function startCutscene(def, state) {
-    state.cutsceneReturn = state.screen;
-    state.screen = 'cutscene';
-    state.cutscene = {
-      lines: def.lines.slice(),
-      color: def.color || '#4ef',
-      lineDelay: def.lineDelay || 200,
-      timer: 0, done: false
-    };
-  }
-
-  function dismissCutscene() {
-    var state = FA.getState();
-    if (!state.cutscene) return;
-    if (!state.cutscene.done) {
-      var cs = state.cutscene;
-      var ld = cs.lineDelay || 200;
-      var lastIdx = cs.lines.length - 1;
-      cs.timer = lastIdx * ld + TextFX.totalTime(cs.lines[lastIdx]) + 1;
-      cs.done = true;
-      return;
-    }
-    state.screen = state.cutsceneReturn || 'overworld';
-    state.cutscene = null;
-    // Pending game end after cutscene
-    if (state._pendingEnd) {
-      var pe = state._pendingEnd;
-      state._pendingEnd = null;
-      endGame(pe.victory, pe.endingNode);
-    }
-  }
-
-  function triggerEnding(victory, endingNode) {
-    var state = FA.getState();
-    showNarrative('arc', endingNode);
-    if (state.screen === 'cutscene') {
-      state._pendingEnd = { victory: victory, endingNode: endingNode };
-    } else {
-      endGame(victory, endingNode);
-    }
-  }
-
-  function _createSystemBubble(state, text, color) {
-    var maxChars = 90;
-    var words = text.split(' ');
-    var lines = []; var line = '';
-    for (var i = 0; i < words.length; i++) {
-      var test = line ? line + ' ' + words[i] : words[i];
-      if (test.length > maxChars && line.length > 0) { lines.push(line); line = words[i]; }
-      else line = test;
-    }
-    if (line) lines.push(line);
-    state.systemBubble = { lines: lines, color: color || '#4ef', timer: 0, done: false, life: 8000 };
-  }
-
-  function _createThought(state, text) {
-    if (!state.thoughts) state.thoughts = [];
-    state.thoughts = [{ text: text, timer: 0, speed: 30, done: false, life: 8000 }];
-    state.lastThoughtTurn = state.turn;
-  }
-
-  function _isBubbleActive(state) {
-    return state.systemBubble || (state.thoughts && state.thoughts.length > 0);
-  }
-
-  function addSystemBubble(text, color) {
-    var state = FA.getState();
-    if (_isBubbleActive(state)) {
-      if (!state.bubbleQueue) state.bubbleQueue = [];
-      state.bubbleQueue.push({ type: 'system', text: text, color: color });
-      return;
-    }
-    _createSystemBubble(state, text, color);
-  }
-
-  function addThought(text) {
-    var state = FA.getState();
-    if (_isBubbleActive(state)) {
-      if (!state.bubbleQueue) state.bubbleQueue = [];
-      state.bubbleQueue.push({ type: 'thought', text: text });
-      return;
-    }
-    _createThought(state, text);
-  }
-
-  function triggerThought(category) {
-    var state = FA.getState();
-    if (state.turn - (state.lastThoughtTurn || 0) < 5) return;
-    var entry = FA.select(FA.lookup('thoughts', category));
-    if (!entry || !entry.pool || !entry.pool.length) return;
-    addThought(FA.pick(entry.pool));
-  }
-
-  function dismissBubbles() {
-    var state = FA.getState();
-    state.thoughts = [];
-    state.systemBubble = null;
-    // Show next queued bubble
-    if (state.bubbleQueue && state.bubbleQueue.length > 0) {
-      var next = state.bubbleQueue.shift();
-      if (next.type === 'system') _createSystemBubble(state, next.text, next.color);
-      else _createThought(state, next.text);
-    }
-  }
-
-  // ============================================================
-  //  TURN & END GAME
+  //  UNIFIED TURN & END GAME
   // ============================================================
 
   function npcComm(state) {
-    if (!state.npcs || !state.systemNPCs || state.systemNPCs.length === 0) return;
+    var townEntities = state.maps.town.entities;
+    var mapEntities = state.maps[state.mapId].entities;
+    var hasSysNPC = false;
+    for (var si = 0; si < mapEntities.length; si++) {
+      if (mapEntities[si].type === 'system_npc') { hasSysNPC = true; break; }
+    }
+    if (!hasSysNPC) return;
+
     var commsPool = FA.lookup('config', 'systemComms');
     if (!commsPool) return;
-    // Pick a random NPC that has been met
     var candidates = [];
-    for (var i = 0; i < state.npcs.length; i++) {
-      if (state.npcs[i].met) candidates.push(state.npcs[i]);
+    for (var i = 0; i < townEntities.length; i++) {
+      if (townEntities[i].type === 'npc' && townEntities[i].met) candidates.push(townEntities[i]);
     }
     if (candidates.length === 0) return;
     var npc = FA.pick(candidates);
     var pool = commsPool[npc.allegiance];
     if (!pool || pool.length === 0) return;
-    var msg = FA.pick(pool);
-    addSystemBubble('@' + npc.name + ': ' + msg, npc.color);
+    Core.addSystemBubble('@' + npc.name + ': ' + FA.pick(pool), npc.color);
   }
 
   function endTurn() {
     var state = FA.getState();
     if (state.screen !== 'playing') return;
     state.turn++;
-    state.systemTurn = (state.systemTurn || 0) + 1;
+    var mapData = state.maps[state.mapId];
+    var fx = mapData ? mapData.effects || [] : [];
 
-    // Recompute FOV after player action
-    if (state.player) {
-      var lightRadius = 10 - (state.depth || 1) * 0.5;
-      state.visible = computeVisibility(state.map, state.player.x, state.player.y, lightRadius);
+    // Time of day — only on maps with 'timeOfDay' effect
+    var hasTime = fx.indexOf('timeOfDay') !== -1;
+    if (hasTime) {
+      var oldPeriod = NPC.getTimePeriod(state.timeOfDay);
+      state.timeOfDay++;
+      var newPeriod = NPC.getTimePeriod(state.timeOfDay);
+
+      if (state.maps.town) {
+        if (oldPeriod !== newPeriod) {
+          NPC.updateNPCPositions(state);
+          if (FA.narrative && FA.narrative.setVar) FA.narrative.setVar('time_period', newPeriod, 'Period: ' + newPeriod);
+        }
+        NPC.npcOverworldTurn(state);
+      }
+
+      checkTimeWarnings(state);
     }
 
+    // System turn counter — only on maps without time (dungeon)
+    if (!hasTime) {
+      state.systemTurn = (state.systemTurn || 0) + 1;
+    }
+
+    // FOV — computed on every map
+    if (state.player) {
+      var lightRadius = hasTime ? 14 : 10 - (state.depth || 1) * 0.5;
+      state.visible = Core.computeVisibility(state.map, state.player.x, state.player.y, lightRadius);
+    }
+
+    // Enemies act on every map
     enemyTurn();
-    if (state.screen === 'playing' && state.systemTurn > 0) {
-      if (state.systemTurn % 12 === 0) {
+
+    // Thoughts — context depends on map effects
+    if (hasTime) {
+      checkOverworldThoughts(state);
+    } else if (state.screen === 'playing' && state.systemTurn > 0) {
+      if (state.systemTurn % COMM_INTERVAL === 0) {
         npcComm(state);
-      } else if (state.systemTurn % 20 === 0) {
-        triggerThought('ambient');
+      } else if (state.systemTurn % AMBIENT_THOUGHT_INTERVAL === 0) {
+        Core.triggerThought('ambient');
       }
     }
   }
@@ -1541,6 +1043,26 @@
     FA.emit('game:over', { victory: victory, score: state.score });
   }
 
+  function dismissCutscene() {
+    var state = FA.getState();
+    if (!state.cutscene) return;
+    if (!state.cutscene.done) {
+      var cs = state.cutscene;
+      var ld = cs.lineDelay || 200;
+      var lastIdx = cs.lines.length - 1;
+      cs.timer = lastIdx * ld + TextFX.totalTime(cs.lines[lastIdx]) + 1;
+      cs.done = true;
+      return;
+    }
+    state.screen = state.cutsceneReturn || 'playing';
+    state.cutscene = null;
+    if (state._pendingEnd) {
+      var pe = state._pendingEnd;
+      state._pendingEnd = null;
+      endGame(pe.victory, pe.endingNode);
+    }
+  }
+
   // ============================================================
   //  EXPORTS
   // ============================================================
@@ -1553,6 +1075,9 @@
     useModule: useModule,
     dismissCutscene: dismissCutscene,
     dismissDream: dismissDream,
-    dismissBubbles: dismissBubbles
+    dismissBubbles: Core.dismissBubbles,
+    selectChoice: selectChoice,
+    dismissChoice: dismissChoice,
+    _endGame: endGame
   };
 })();

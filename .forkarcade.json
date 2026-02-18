@@ -4,8 +4,11 @@
   "gameFiles": [
     "text-fx.js",
     "data.js",
+    "core.js",
+    "npc.js",
     "game.js",
     "render.js",
+    "render-ui.js",
     "main.js"
   ],
   "slug": "deep-protocol",

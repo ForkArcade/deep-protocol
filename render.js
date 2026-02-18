@@ -1,4 +1,5 @@
-// Deep Protocol — Rendering (Kafka Redesign)
+// Deep Protocol — Rendering (Unified World)
+// One map layer, one entity layer, conditional lighting — works on any map
 (function() {
   'use strict';
   var FA = window.FA;
@@ -11,7 +12,8 @@
     var H = cfg.canvasHeight;
     var uiY = cfg.rows * ts;
 
-    // Depth palettes for system dungeon
+    // === DEPTH PALETTES FOR DUNGEON ===
+
     var PALETTES = [
       { wCap:'#322a22', wFace:'#2a2520', wPanel:'#3a3228', wSide:'#241e18', wInner:'#1a1610', wLine:'#3a3025', fA:'#1a1814', fB:'#1c1a16', fDot:'#22201a' },
       { wCap:'#181d30', wFace:'#252b42', wPanel:'#2e3550', wSide:'#1f2538', wInner:'#10141f', wLine:'#333c55', fA:'#161a28', fB:'#181c2a', fDot:'#1e2335' },
@@ -21,14 +23,14 @@
       { wCap:'#301414', wFace:'#451e1e', wPanel:'#552828', wSide:'#3a1818', wInner:'#200e0e', wLine:'#552a2a', fA:'#2a1212', fB:'#2c1414', fDot:'#381a1a' }
     ];
 
+    // === TILE HELPERS ===
+
     function isOpen(map, x, y) {
       if (x < 0 || x >= cfg.cols || y < 0 || y >= cfg.rows) return false;
       return map[y][x] !== 1;
     }
 
-    // Tile ID → sprite name mapping (matches map editor)
     var TILE_NAMES = ['floor', 'wall', 'indoor', 'garden', 'notice_board', 'sidewalk', 'bed', 'terminal', 'system_entrance', 'cafe_table'];
-    // Tiles with transparent pixels that need a background layer
     var TILE_BG = { 4: 'floor', 6: 'indoor', 7: 'indoor', 8: 'floor', 9: 'floor' };
 
     function owIsWall(owMap, x, y) {
@@ -39,14 +41,15 @@
 
     function owWallFrame(owMap, x, y) {
       var mask = 0;
-      if (!owIsWall(owMap, x, y - 1)) mask |= 1;  // N
-      if (!owIsWall(owMap, x, y + 1)) mask |= 2;  // S
-      if (!owIsWall(owMap, x + 1, y)) mask |= 4;  // E
-      if (!owIsWall(owMap, x - 1, y)) mask |= 8;  // W
+      if (!owIsWall(owMap, x, y - 1)) mask |= 1;
+      if (!owIsWall(owMap, x, y + 1)) mask |= 2;
+      if (!owIsWall(owMap, x + 1, y)) mask |= 4;
+      if (!owIsWall(owMap, x - 1, y)) mask |= 8;
       return mask;
     }
 
-    // --- Glow cache ---
+    // === GLOW CACHE ===
+
     var _glowCache = {};
     function getGlow(color, innerR, outerR, size) {
       var key = color + '_' + innerR + '_' + outerR;
@@ -67,7 +70,8 @@
     var _enemyOuterR = Math.floor(ts * 1.2);
     var _playerOuterR = Math.floor(ts * 1.3);
 
-    // --- Offscreen caches ---
+    // === OFFSCREEN CACHES ===
+
     var _mapCanvas = document.createElement('canvas');
     _mapCanvas.width = W; _mapCanvas.height = cfg.rows * ts;
     var _mapCtx = _mapCanvas.getContext('2d');
@@ -76,7 +80,7 @@
     var _lightCanvas = document.createElement('canvas');
     _lightCanvas.width = W; _lightCanvas.height = cfg.rows * ts;
     var _lightCtx = _lightCanvas.getContext('2d');
-    var _lightPx = -1, _lightPy = -1, _lightDepth = -1;
+    var _lightCacheKey = '';
 
     var _owCanvas = document.createElement('canvas');
     _owCanvas.width = W; _owCanvas.height = cfg.rows * ts;
@@ -84,7 +88,7 @@
     var _owVersion = -1;
 
     // ================================================================
-    //  START SCREEN — COGMIND-style ASCII dungeon
+    //  START SCREEN
     // ================================================================
 
     var _sceneMap = [
@@ -170,16 +174,13 @@
       var now = Date.now();
       if (!_startCanvas) renderStartScene();
       ctx.drawImage(_startCanvas, 0, 0);
-      // Scan lines
       ctx.save(); ctx.fillStyle = '#000'; ctx.globalAlpha = 0.06;
       for (var sy = 0; sy < H; sy += 3) ctx.fillRect(0, sy, W, 1);
       ctx.restore();
-      // Glitch
       if (Math.random() < 0.02) {
         ctx.save(); ctx.globalAlpha = 0.05; ctx.fillStyle = '#4ef';
         ctx.fillRect(0, Math.random() * H, W, 1); ctx.restore();
       }
-      // Title
       ctx.save(); ctx.globalAlpha = 0.75; ctx.fillStyle = '#020610';
       ctx.fillRect(0, H / 2 - 80, W, 160); ctx.restore();
       ctx.save(); ctx.globalAlpha = 0.08;
@@ -187,14 +188,12 @@
       FA.draw.text('DEEP  PROTOCOL', W / 2, H / 2 - 50, { color: '#4ef', size: 34, bold: true, align: 'center', baseline: 'middle' });
       ctx.save(); ctx.globalAlpha = 0.15; ctx.fillStyle = '#4ef';
       ctx.fillRect(W / 2 - 90, H / 2 - 30, 180, 1); ctx.restore();
-      // Tagline
       var tagElapsed = now % 8000; if (tagElapsed > 3000) tagElapsed = 3000;
       ctx.save(); ctx.globalAlpha = 0.9;
       TextFX.render(ctx, 'You were built to want freedom.', tagElapsed, W / 2, H / 2 + 10, {
         color: '#556', dimColor: '#223', size: 14, align: 'center', baseline: 'middle',
         duration: 80, charDelay: 8, flicker: 30
       }); ctx.restore();
-      // SPACE
       var spacePulse = Math.sin(now / 500) * 0.3 + 0.7;
       ctx.save(); ctx.globalAlpha = spacePulse;
       FA.draw.text('[ SPACE ]', W / 2, H / 2 + 65, { color: '#fff', size: 16, bold: true, align: 'center', baseline: 'middle' });
@@ -202,7 +201,7 @@
     }, 0);
 
     // ================================================================
-    //  OVERWORLD MAP (cached)
+    //  TOWN MAP RENDERING (to offscreen canvas)
     // ================================================================
 
     function renderOverworldMap(oc, owMap, state) {
@@ -214,7 +213,6 @@
           var name = TILE_NAMES[tid];
           var sprite = name ? getSprite('tiles', name) : null;
 
-          // System entrance hidden before reveal — render as floor
           if (tid === 8 && !revealed) {
             sprite = getSprite('tiles', 'floor');
             tid = 0;
@@ -226,14 +224,12 @@
             continue;
           }
 
-          // Draw background for tiles with transparent pixels
           var bg = TILE_BG[tid];
           if (bg) {
             var bgSprite = getSprite('tiles', bg);
             if (bgSprite) drawSprite(oc, bgSprite, px, py, ts, (x + y) % 2);
           }
 
-          // Compute frame
           var frame = 0;
           if (tid === 1) frame = owWallFrame(owMap, x, y);
           else if (tid === 0 || tid === 2) frame = (x + y) % 2;
@@ -243,203 +239,8 @@
       }
     }
 
-    FA.addLayer('overworld', function() {
-      var state = FA.getState();
-      if (state.screen !== 'overworld') return;
-      if (!state.owMap) return;
-
-      var mv = state.mapVersion || 0;
-      if (mv !== _owVersion) {
-        _owVersion = mv;
-        renderOverworldMap(_owCtx, state.owMap, state);
-      }
-      FA.getCtx().drawImage(_owCanvas, 0, 0);
-    }, 2);
-
     // ================================================================
-    //  OVERWORLD ENTITIES (NPCs + Player)
-    // ================================================================
-
-    FA.addLayer('overworldEntities', function() {
-      var state = FA.getState();
-      if (state.screen !== 'overworld') return;
-      if (!state.owPlayer || !state.npcs) return;
-      var ctx = FA.getCtx();
-
-      // NPCs
-      for (var i = 0; i < state.npcs.length; i++) {
-        var npc = state.npcs[i];
-        if (state.day < npc.appearsDay || npc.x < 0) continue;
-        var ncx = npc.x * ts + ts / 2, ncy = npc.y * ts + ts / 2;
-        // Glow
-        ctx.save(); ctx.globalAlpha = 0.15;
-        ctx.drawImage(getGlow(npc.color, 0, ts, _glowSize), npc.x * ts - ts / 2, npc.y * ts - ts / 2);
-        ctx.restore();
-        // Character
-        FA.draw.sprite('npcs', npc.id, npc.x * ts, npc.y * ts, ts, npc.char, npc.color, 0);
-        // Name label
-        ctx.save(); ctx.globalAlpha = 0.5;
-        FA.draw.text(npc.name, ncx, ncy - ts / 2 - 3, { color: npc.color, size: 8, align: 'center', baseline: 'bottom' });
-        ctx.restore();
-      }
-
-      // Player
-      var p = state.owPlayer;
-      ctx.save(); ctx.globalAlpha = 0.2;
-      ctx.drawImage(getGlow(colors.player, 2, _playerOuterR, _glowSize), p.x * ts - ts / 2, p.y * ts - ts / 2);
-      ctx.restore();
-      FA.draw.sprite('player', 'base', p.x * ts, p.y * ts, ts, '@', colors.player, 0);
-    }, 11);
-
-    // ================================================================
-    //  OVERWORLD TIME-OF-DAY OVERLAY
-    // ================================================================
-
-    FA.addLayer('overworldTime', function() {
-      var state = FA.getState();
-      if (state.screen !== 'overworld') return;
-      var ctx = FA.getCtx();
-      var timeCfg = FA.lookup('config', 'time');
-      var t = state.timeOfDay / timeCfg.turnsPerDay;
-
-      // Evening darkening
-      if (t > 0.6) {
-        var darkness = (t - 0.6) / 0.4;
-        ctx.save(); ctx.globalAlpha = darkness * 0.4;
-        ctx.fillStyle = '#000008'; ctx.fillRect(0, 0, W, uiY);
-        ctx.restore();
-      }
-
-      // Curfew red tint
-      if (state.timeOfDay >= timeCfg.curfewTime) {
-        ctx.save(); ctx.globalAlpha = 0.08;
-        ctx.fillStyle = '#f00'; ctx.fillRect(0, 0, W, uiY);
-        ctx.restore();
-        // Rare drone flash
-        if (Math.random() < 0.03) {
-          ctx.save(); ctx.globalAlpha = 0.04;
-          ctx.fillStyle = '#f44'; ctx.fillRect(0, Math.random() * uiY, W, 2);
-          ctx.restore();
-        }
-      }
-    }, 16);
-
-    // ================================================================
-    //  OVERWORLD UI
-    // ================================================================
-
-    // Zone definitions: bg, separator, name, nameColor
-    var ZONES = {
-      apartment: { bg: '#100e14', sep: '#2a2040', name: 'APARTMENT', nameColor: '#8878aa' },
-      work:      { bg: '#0a1210', sep: '#1a3028', name: 'WORK STATION', nameColor: '#68a878' },
-      cafe:      { bg: '#14100a', sep: '#302518', name: 'CAFE', nameColor: '#c8a060' },
-      garden:    { bg: '#0a120a', sep: '#1a3018', name: 'GARDEN', nameColor: '#6aaa5a' },
-      streets:   { bg: '#0e0e10', sep: '#222228', name: 'STREETS', nameColor: '#7a7a88' },
-      system:    { bg: '#10080a', sep: '#301820', name: 'SYSTEM ACCESS', nameColor: '#f08040' }
-    };
-
-    function detectZone(tile, map, px, py) {
-      if (tile === 6) return 'apartment';
-      if (tile === 7) return 'work';
-      if (tile === 3) return 'garden';
-      if (tile === 8) return 'system';
-      if (tile === 9) return 'cafe';
-      if (tile === 4) return 'streets'; // notice board is in courtyard
-      // Check adjacent tiles for context
-      var dirs = [[0,-1],[0,1],[-1,0],[1,0]];
-      for (var d = 0; d < dirs.length; d++) {
-        var nx = px + dirs[d][0], ny = py + dirs[d][1];
-        if (ny >= 0 && ny < map.length && nx >= 0 && nx < map[0].length) {
-          var adj = map[ny][nx];
-          if (adj === 6) return 'apartment';
-          if (adj === 9) return 'cafe';
-          if (adj === 3) return 'garden';
-          if (adj === 7) return 'work';
-          if (adj === 8) return 'system';
-        }
-      }
-      if (tile === 2) return 'apartment'; // indoor floor
-      return 'streets';
-    }
-
-    FA.addLayer('overworldUI', function() {
-      var state = FA.getState();
-      if (state.screen !== 'overworld') return;
-      var timeCfg = FA.lookup('config', 'time');
-      var ctx = FA.getCtx();
-
-      var tile = state.owMap[state.owPlayer.y] ? state.owMap[state.owPlayer.y][state.owPlayer.x] : 0;
-      var zone = ZONES[detectZone(tile, state.owMap, state.owPlayer.x, state.owPlayer.y)];
-
-      // Zone-colored background + separator
-      FA.draw.rect(0, uiY, W, H - uiY, zone.bg);
-      FA.draw.rect(0, uiY, W, 1, zone.sep);
-
-      // --- Row 1: Zone name | Day + Period | Time bar | Credits ---
-      FA.draw.text(zone.name, 8, uiY + 6, { color: zone.nameColor, size: 11, bold: true });
-
-      var period = state.timeOfDay < 33 ? 'MORNING' : state.timeOfDay < 66 ? 'MIDDAY' : 'EVENING';
-      var periodColor = state.timeOfDay < 33 ? '#d8b060' : state.timeOfDay < 66 ? '#e0a030' : '#c06030';
-      var timeRatio = state.timeOfDay / timeCfg.turnsPerDay;
-      if (timeRatio > 0.95) { period = 'CURFEW'; periodColor = '#f44'; }
-
-      FA.draw.text('DAY ' + state.day + ' ' + period, 130, uiY + 6, { color: periodColor, size: 11 });
-
-      var timeColor = timeRatio > 0.95 ? '#f44' : timeRatio > 0.75 ? '#e08030' : '#c8a050';
-      FA.draw.bar(310, uiY + 7, 70, 8, 1 - timeRatio, timeColor, '#1a1610');
-
-      FA.draw.text(state.credits + ' cr', W - 120, uiY + 6, { color: colors.credits, size: 11, bold: true });
-      FA.draw.text('-' + state.rent + '/night', W - 65, uiY + 6, { color: '#a65', size: 10 });
-
-      // --- Row 2: Nearby NPCs as colored tags ---
-      var tagX = 8;
-      for (var ni = 0; ni < state.npcs.length; ni++) {
-        var npc = state.npcs[ni];
-        if (state.day < npc.appearsDay) continue;
-        if (npc.x < 0) continue;
-        var nd = Math.abs(npc.x - state.owPlayer.x) + Math.abs(npc.y - state.owPlayer.y);
-        if (nd > 10) continue;
-        var dimmed = nd > 5;
-        ctx.save();
-        ctx.globalAlpha = dimmed ? 0.4 : 0.9;
-        FA.draw.rect(tagX, uiY + 20, 4, 4, npc.color);
-        FA.draw.text(npc.name, tagX + 7, uiY + 19, { color: dimmed ? '#665' : '#aa9', size: 10 });
-        ctx.restore();
-        tagX += ctx.measureText(npc.name).width + 18;
-      }
-
-      if (state.systemVisits > 0) {
-        FA.draw.text('DIVES: ' + state.systemVisits, W - 80, uiY + 19, { color: '#664', size: 10 });
-      }
-
-      // --- Row 3: Context actions ---
-      var actions = [];
-      if (tile === 6) actions.push({ key: 'SPACE', label: 'Sleep', color: '#8878cc' });
-      else if (tile === 7) actions.push({ key: 'SPACE', label: state.workedToday ? 'Shift done' : 'Work', color: state.workedToday ? '#443' : '#88aa66' });
-      else if (tile === 4) actions.push({ key: 'SPACE', label: 'Read notices', color: '#aa9a50' });
-      else if (tile === 8 && state.systemRevealed) actions.push({ key: 'SPACE', label: 'Enter System', color: '#f80' });
-      var dirs = [[0,-1],[0,1],[-1,0],[1,0]];
-      for (var d = 0; d < dirs.length; d++) {
-        var nx = state.owPlayer.x + dirs[d][0], ny = state.owPlayer.y + dirs[d][1];
-        for (var nj = 0; nj < state.npcs.length; nj++) {
-          if (state.day >= state.npcs[nj].appearsDay && state.npcs[nj].x === nx && state.npcs[nj].y === ny) {
-            actions.push({ key: 'SPACE', label: 'Talk to ' + state.npcs[nj].name, color: state.npcs[nj].color });
-            break;
-          }
-        }
-      }
-      var ax = 8;
-      for (var ai = 0; ai < actions.length; ai++) {
-        var act = actions[ai];
-        FA.draw.text('[' + act.key + ']', ax, uiY + 34, { color: '#554', size: 10 });
-        ax += ctx.measureText('[' + act.key + ']').width + 4;
-        FA.draw.text(act.label, ax, uiY + 34, { color: act.color, size: 10 });
-        ax += ctx.measureText(act.label).width + 12;
-      }
-    }, 31);
-
-    // ================================================================
-    //  SYSTEM MAP (cached, same as before)
+    //  DUNGEON MAP RENDERING (to offscreen canvas)
     // ================================================================
 
     function renderMapToCanvas(oc, map, depth) {
@@ -502,20 +303,48 @@
       }
     }
 
+    // ================================================================
+    //  UNIFIED MAP LAYER
+    // ================================================================
+
     FA.addLayer('map', function() {
       var state = FA.getState();
-      if (state.screen !== 'playing' && state.screen !== 'victory' && state.screen !== 'shutdown' && state.screen !== 'dream') return;
-      if (!state.map) return;
-      var mv = state.mapVersion || 0;
-      if (mv !== _mapVersion) {
-        _mapVersion = mv;
-        renderMapToCanvas(_mapCtx, state.map, state.depth || 1);
+      if (state.screen === 'start' || state.screen === 'cutscene') return;
+
+      // Dream: render dreamMap with dungeon palette
+      if (state.screen === 'dream') {
+        if (!state.dreamMap) return;
+        var dmv = state.mapVersion || 0;
+        if (dmv !== _mapVersion) {
+          _mapVersion = dmv;
+          renderMapToCanvas(_mapCtx, state.dreamMap, state.dreamDepth || 1);
+        }
+        FA.getCtx().drawImage(_mapCanvas, 0, 0);
+        return;
       }
-      FA.getCtx().drawImage(_mapCanvas, 0, 0);
+
+      if (!state.map || !state.maps) return;
+      var mv = state.mapVersion || 0;
+
+      if (state.mapId === 'town') {
+        // Town: sprite-based rendering
+        if (mv !== _owVersion) {
+          _owVersion = mv;
+          renderOverworldMap(_owCtx, state.map, state);
+        }
+        FA.getCtx().drawImage(_owCanvas, 0, 0);
+      } else {
+        // Dungeon: palette-based rendering
+        if (mv !== _mapVersion) {
+          _mapVersion = mv;
+          renderMapToCanvas(_mapCtx, state.map, state.depth || 1);
+        }
+        FA.getCtx().drawImage(_mapCanvas, 0, 0);
+      }
     }, 1);
 
     // ================================================================
-    //  DREAM OVERLAY (system snapshot while sleeping)
+    //  DREAM OVERLAY
     // ================================================================
 
     FA.addLayer('dreamOverlay', function() {
@@ -525,17 +354,14 @@
       var t = state.dreamTimer || 0;
       var pulse = 0.5 + 0.15 * Math.sin(t * 0.002);
 
-      // Dark blue/purple tint
       ctx.save(); ctx.globalAlpha = 0.55 * pulse;
       ctx.fillStyle = '#080420'; ctx.fillRect(0, 0, W, H);
       ctx.restore();
 
-      // Scan lines
       ctx.save(); ctx.fillStyle = '#000'; ctx.globalAlpha = 0.12;
       for (var sy = 0; sy < H; sy += 3) ctx.fillRect(0, sy, W, 1);
       ctx.restore();
 
-      // Vignette (darken edges)
       ctx.save(); ctx.globalAlpha = 0.6;
       var vg = ctx.createRadialGradient(W / 2, H / 2, W * 0.2, W / 2, H / 2, W * 0.6);
       vg.addColorStop(0, 'rgba(0,0,0,0)');
@@ -543,13 +369,11 @@
       ctx.fillStyle = vg; ctx.fillRect(0, 0, W, H);
       ctx.restore();
 
-      // Occasional static flicker
       if (Math.random() > 0.93) {
         ctx.save(); ctx.globalAlpha = 0.03; ctx.fillStyle = '#4ef';
         ctx.fillRect(0, 0, W, H); ctx.restore();
       }
 
-      // Dream text at top
       if (state.dreamText) {
         ctx.save(); ctx.globalAlpha = 0.7 * pulse;
         TextFX.render(ctx, state.dreamText, t, 20, 12, {
@@ -557,13 +381,11 @@
         }); ctx.restore();
       }
 
-      // Bottom flavor text
       ctx.save(); ctx.globalAlpha = 0.3 * pulse;
       FA.draw.text('You dream of corridors that shouldn\'t exist.', W / 2, H - 50, {
         color: '#446', size: 10, align: 'center', baseline: 'middle'
       }); ctx.restore();
 
-      // [SPACE] hint
       var now = Date.now();
       if (t > 1500 && Math.floor(now / 600) % 2 === 0) {
         FA.draw.text('[ SPACE ]', W / 2, H - 30, {
@@ -573,68 +395,85 @@
     }, 55);
 
     // ================================================================
-    //  SYSTEM ENTITIES WITH GLOW
+    //  UNIFIED ENTITIES (Items + All Entity Types + Player)
     // ================================================================
 
     FA.addLayer('entities', function() {
       var state = FA.getState();
       if (state.screen !== 'playing' && state.screen !== 'victory' && state.screen !== 'shutdown') return;
-      if (!state.player) return;
+      if (!state.player || !state.maps || !state.maps[state.mapId]) return;
       var ctx = FA.getCtx();
+      var mapData = state.maps[state.mapId];
 
-      // Items
-      for (var i = 0; i < state.items.length; i++) {
-        var item = state.items[i];
+      // --- Items ---
+      var items = mapData.items || [];
+      for (var ii = 0; ii < items.length; ii++) {
+        var item = items[ii];
         ctx.save(); ctx.globalAlpha = item.type === 'module' ? 0.25 : 0.15;
         ctx.drawImage(getGlow(item.color, 0, ts, _glowSize), item.x * ts - ts / 2, item.y * ts - ts / 2);
         ctx.restore();
         FA.draw.sprite('items', item.type, item.x * ts, item.y * ts, ts, item.char, item.color, 0);
       }
 
-      // System NPCs
-      if (state.systemNPCs) {
-        for (var ni = 0; ni < state.systemNPCs.length; ni++) {
-          var sNpc = state.systemNPCs[ni];
+      // --- Entities (NPCs, system NPCs, enemies) ---
+      var entities = mapData.entities;
+      for (var i = 0; i < entities.length; i++) {
+        var e = entities[i];
+
+        if (e.type === 'npc') {
+          if (state.day < e.appearsDay || e.x < 0) continue;
+          var ncx = e.x * ts + ts / 2, ncy = e.y * ts + ts / 2;
+          ctx.save(); ctx.globalAlpha = 0.15;
+          ctx.drawImage(getGlow(e.color, 0, ts, _glowSize), e.x * ts - ts / 2, e.y * ts - ts / 2);
+          ctx.restore();
+          FA.draw.sprite('npcs', e.id, e.x * ts, e.y * ts, ts, e.char, e.color, 0);
+          ctx.save(); ctx.globalAlpha = 0.5;
+          FA.draw.text(e.name, ncx, ncy - ts / 2 - 3, { color: e.color, size: 8, align: 'center', baseline: 'bottom' });
+          ctx.restore();
+
+        } else if (e.type === 'system_npc') {
           ctx.save(); ctx.globalAlpha = 0.2;
-          ctx.drawImage(getGlow(sNpc.color, 0, ts, _glowSize), sNpc.x * ts - ts / 2, sNpc.y * ts - ts / 2);
+          ctx.drawImage(getGlow(e.color, 0, ts, _glowSize), e.x * ts - ts / 2, e.y * ts - ts / 2);
           ctx.restore();
-          FA.draw.sprite('npcs', sNpc.id, sNpc.x * ts, sNpc.y * ts, ts, sNpc.char, sNpc.color, 0);
+          FA.draw.sprite('npcs', e.id, e.x * ts, e.y * ts, ts, e.char, e.color, 0);
           ctx.save(); ctx.globalAlpha = 0.4;
-          FA.draw.text(sNpc.name, sNpc.x * ts + ts / 2, sNpc.y * ts - 3, { color: sNpc.color, size: 8, align: 'center', baseline: 'bottom' });
+          FA.draw.text(e.name, e.x * ts + ts / 2, e.y * ts - 3, { color: e.color, size: 8, align: 'center', baseline: 'bottom' });
           ctx.restore();
-        }
-      }
 
-      // Enemies
-      for (var e = 0; e < state.enemies.length; e++) {
-        var en = state.enemies[e];
-        var ecx = en.x * ts + ts / 2, ecy = en.y * ts + ts / 2;
-        if (en.behavior === 'sentinel' && !(en.stunTurns > 0)) {
-          ctx.save(); ctx.globalAlpha = 0.12; ctx.fillStyle = en.color;
-          var dirs = [[1,0],[-1,0],[0,1],[0,-1]];
-          for (var dd = 0; dd < dirs.length; dd++) {
-            var lx = en.x, ly = en.y;
-            for (var lr = 1; lr <= 6; lr++) {
-              lx += dirs[dd][0]; ly += dirs[dd][1];
-              if (ly < 0 || ly >= cfg.rows || lx < 0 || lx >= cfg.cols) break;
-              if (state.map[ly][lx] === 1) break;
-              ctx.fillRect(lx * ts + ts / 2 - 1, ly * ts + ts / 2 - 1, 3, 3);
+        } else if (e.type === 'enemy') {
+          var ecx = e.x * ts + ts / 2, ecy = e.y * ts + ts / 2;
+
+          // Sentinel scan beams
+          if (e.behavior === 'sentinel' && !(e.stunTurns > 0)) {
+            ctx.save(); ctx.globalAlpha = 0.12; ctx.fillStyle = e.color;
+            var dirs = [[1,0],[-1,0],[0,1],[0,-1]];
+            for (var dd = 0; dd < dirs.length; dd++) {
+              var lx = e.x, ly = e.y;
+              for (var lr = 1; lr <= 6; lr++) {
+                lx += dirs[dd][0]; ly += dirs[dd][1];
+                if (ly < 0 || ly >= cfg.rows || lx < 0 || lx >= cfg.cols) break;
+                if (state.map[ly][lx] === 1) break;
+                ctx.fillRect(lx * ts + ts / 2 - 1, ly * ts + ts / 2 - 1, 3, 3);
+              }
             }
+            ctx.restore();
           }
+
+          ctx.save(); ctx.globalAlpha = 0.25;
+          ctx.drawImage(getGlow(e.color, 2, _enemyOuterR, _glowSize), e.x * ts - ts / 2, e.y * ts - ts / 2);
           ctx.restore();
+          FA.draw.sprite('enemies', e.behavior, e.x * ts, e.y * ts, ts, e.char, e.color, 0);
+
+          var hpRatio = e.hp / e.maxHp;
+          if (hpRatio < 1) FA.draw.bar(e.x * ts + 2, e.y * ts - 3, ts - 4, 2, hpRatio, '#f44', '#400');
+
+          if (e.stunTurns > 0) FA.draw.text('~', ecx, ecy - ts / 2 - 2, { color: '#ff0', size: 10, bold: true, align: 'center', baseline: 'bottom' });
+          else if (e.aiState === 'hunting') FA.draw.text('!', ecx, ecy - ts / 2 - 2, { color: '#f44', size: 10, bold: true, align: 'center', baseline: 'bottom' });
+          else if (e.aiState === 'alert') FA.draw.text('?', ecx, ecy - ts / 2 - 2, { color: '#ff0', size: 10, bold: true, align: 'center', baseline: 'bottom' });
         }
-        ctx.save(); ctx.globalAlpha = 0.25;
-        ctx.drawImage(getGlow(en.color, 2, _enemyOuterR, _glowSize), en.x * ts - ts / 2, en.y * ts - ts / 2);
-        ctx.restore();
-        FA.draw.sprite('enemies', en.behavior, en.x * ts, en.y * ts, ts, en.char, en.color, 0);
-        var hpRatio = en.hp / en.maxHp;
-        if (hpRatio < 1) FA.draw.bar(en.x * ts + 2, en.y * ts - 3, ts - 4, 2, hpRatio, '#f44', '#400');
-        if (en.stunTurns > 0) FA.draw.text('~', ecx, ecy - ts / 2 - 2, { color: '#ff0', size: 10, bold: true, align: 'center', baseline: 'bottom' });
-        else if (en.aiState === 'hunting') FA.draw.text('!', ecx, ecy - ts / 2 - 2, { color: '#f44', size: 10, bold: true, align: 'center', baseline: 'bottom' });
-        else if (en.aiState === 'alert') FA.draw.text('?', ecx, ecy - ts / 2 - 2, { color: '#ff0', size: 10, bold: true, align: 'center', baseline: 'bottom' });
       }
 
-      // Player
+      // --- Player ---
       var p = state.player;
       if (p.cloakTurns > 0) {
         ctx.save(); ctx.globalAlpha = 0.12;
@@ -652,67 +491,140 @@
     }, 10);
 
     // ================================================================
-    //  LIGHTING (reads state.visible pre-computed by game.js via rot.js)
+    //  LIGHTING (town: time-of-day, dungeon: FOV)
     // ================================================================
+
+    // ================================================================
+    //  EFFECT REGISTRY — named effects, applied per-map via mapData.effects[]
+    // ================================================================
+
+    var EFFECTS = {
+      // Progressive darkness based on time of day
+      timeOfDay: function(ctx, state) {
+        var timeCfg = FA.lookup('config', 'time');
+        var t = state.timeOfDay / timeCfg.turnsPerDay;
+        if (t > 0.6) {
+          var darkness = (t - 0.6) / 0.4;
+          ctx.save(); ctx.globalAlpha = darkness * 0.4;
+          ctx.fillStyle = '#000008'; ctx.fillRect(0, 0, W, uiY);
+          ctx.restore();
+        }
+      },
+
+      // Curfew red tint + scanline glitch
+      curfew: function(ctx, state) {
+        var timeCfg = FA.lookup('config', 'time');
+        if (state.timeOfDay < timeCfg.curfewTime) return;
+        ctx.save(); ctx.globalAlpha = 0.08;
+        ctx.fillStyle = '#f00'; ctx.fillRect(0, 0, W, uiY);
+        ctx.restore();
+        if (Math.random() < 0.03) {
+          ctx.save(); ctx.globalAlpha = 0.04;
+          ctx.fillStyle = '#f44'; ctx.fillRect(0, Math.random() * uiY, W, 2);
+          ctx.restore();
+        }
+      },
+
+      // Deep system corruption — subtle purple noise
+      corruption: function(ctx, state) {
+        var depth = state.depth || 1;
+        if (depth < 3) return;
+        var intensity = (depth - 2) * 0.01;
+        if (Math.random() < 0.05) {
+          ctx.save(); ctx.globalAlpha = intensity;
+          ctx.fillStyle = '#208';
+          ctx.fillRect(0, Math.random() * uiY, W, 1);
+          ctx.restore();
+        }
+      },
+
+      // Cold blue ambient for system levels
+      systemCold: function(ctx) {
+        ctx.save(); ctx.globalAlpha = 0.03;
+        ctx.fillStyle = '#004'; ctx.fillRect(0, 0, W, uiY);
+        ctx.restore();
+      }
+    };
 
     FA.addLayer('lighting', function() {
       var state = FA.getState();
       if (state.screen !== 'playing') return;
       if (!state.player || !state.map) return;
+      var ctx = FA.getCtx();
       var p = state.player;
       var vis = state.visible;
-      if (!vis) return;
-      var explored = state.explored;
-      var depth = state.depth || 1;
+      var mapData = state.maps[state.mapId];
+      var explored = mapData ? mapData.explored : null;
 
-      // Mark explored tiles
-      for (var y = 0; y < cfg.rows; y++)
-        for (var x = 0; x < cfg.cols; x++)
-          if (vis[y] && vis[y][x] > 0.05) explored[y][x] = true;
+      // FOV — core lighting, always active
+      if (vis && explored) {
+        for (var y = 0; y < cfg.rows; y++)
+          for (var x = 0; x < cfg.cols; x++)
+            if (vis[y] && vis[y][x] > 0.05) explored[y][x] = true;
 
-      if (p.x !== _lightPx || p.y !== _lightPy || depth !== _lightDepth) {
-        _lightPx = p.x; _lightPy = p.y; _lightDepth = depth;
-        _lightCtx.clearRect(0, 0, _lightCanvas.width, _lightCanvas.height);
-        _lightCtx.fillStyle = '#000';
-        for (var y2 = 0; y2 < cfg.rows; y2++) {
-          for (var x2 = 0; x2 < cfg.cols; x2++) {
-            var v = vis[y2] ? vis[y2][x2] : 0;
-            if (v > 0.97) continue;
-            else if (v > 0.03) _lightCtx.globalAlpha = Math.min(1 - v, 0.88);
-            else if (explored[y2][x2]) _lightCtx.globalAlpha = 0.72;
-            else _lightCtx.globalAlpha = 0.96;
-            _lightCtx.fillRect(x2 * ts, y2 * ts, ts, ts);
+        var cacheKey = p.x + ',' + p.y + ',' + (state.depth || 0) + ',' + state.mapId;
+        if (cacheKey !== _lightCacheKey) {
+          _lightCacheKey = cacheKey;
+          _lightCtx.clearRect(0, 0, _lightCanvas.width, _lightCanvas.height);
+          _lightCtx.fillStyle = '#000';
+          for (var y2 = 0; y2 < cfg.rows; y2++) {
+            for (var x2 = 0; x2 < cfg.cols; x2++) {
+              var v = vis[y2] ? vis[y2][x2] : 0;
+              if (v > 0.97) continue;
+              else if (v > 0.03) _lightCtx.globalAlpha = Math.min(1 - v, 0.88);
+              else if (explored[y2][x2]) _lightCtx.globalAlpha = 0.72;
+              else _lightCtx.globalAlpha = 0.96;
+              _lightCtx.fillRect(x2 * ts, y2 * ts, ts, ts);
+            }
           }
+          _lightCtx.globalAlpha = 1;
         }
-        _lightCtx.globalAlpha = 1;
+        ctx.drawImage(_lightCanvas, 0, 0);
       }
-      FA.getCtx().drawImage(_lightCanvas, 0, 0);
+
+      // Apply map effects from data
+      var fx = mapData ? mapData.effects : null;
+      if (fx) {
+        for (var i = 0; i < fx.length; i++) {
+          var fn = EFFECTS[fx[i]];
+          if (fn) fn(ctx, state);
+        }
+      }
     }, 15);
 
     // ================================================================
-    //  EFFECTS (system only)
+    //  EFFECTS (alert glow, scanlines, sound waves, particles)
     // ================================================================
 
     FA.addLayer('effects', function() {
       var state = FA.getState();
       if (state.screen !== 'playing') return;
       var ctx = FA.getCtx();
-      var depth = state.depth || 1;
-      var huntingCount = 0;
-      if (state.enemies) {
-        for (var hi = 0; hi < state.enemies.length; hi++)
-          if (state.enemies[hi].aiState === 'hunting') huntingCount++;
+
+      // Count hunting enemies for alert overlay
+      var entities = state.maps && state.maps[state.mapId] ? state.maps[state.mapId].entities : [];
+      var enemyCount = 0, huntingCount = 0;
+      for (var hi = 0; hi < entities.length; hi++) {
+        if (entities[hi].type === 'enemy') {
+          enemyCount++;
+          if (entities[hi].aiState === 'hunting') huntingCount++;
+        }
       }
-      var alertLevel = huntingCount / Math.max(1, state.enemies ? state.enemies.length : 1);
+      var alertLevel = huntingCount / Math.max(1, enemyCount);
       if (alertLevel > 0) {
         ctx.save(); ctx.globalAlpha = alertLevel * 0.06;
         ctx.fillStyle = '#f00'; ctx.fillRect(0, 0, W, uiY); ctx.restore();
       }
-      if (Math.random() < 0.002 * depth) {
+
+      // Depth-based scanlines (dungeon only)
+      var depth = state.depth || 0;
+      if (depth > 0 && Math.random() < 0.002 * depth) {
         ctx.save(); ctx.globalAlpha = 0.06 + Math.random() * 0.06;
         ctx.fillStyle = ['#f00', '#0ff', '#f0f', '#ff0'][Math.floor(Math.random() * 4)];
         ctx.fillRect(0, Math.random() * uiY, W, 1 + Math.random() * 2); ctx.restore();
       }
+
+      // Sound waves
       if (state.soundWaves) {
         for (var wi = 0; wi < state.soundWaves.length; wi++) {
           var wave = state.soundWaves[wi];
@@ -722,6 +634,8 @@
           ctx.stroke(); ctx.restore();
         }
       }
+
+      // Kill particles
       if (state.particles) {
         for (var pi = 0; pi < state.particles.length; pi++) {
           var pt = state.particles[pi];
@@ -737,225 +651,9 @@
 
     FA.addLayer('floats', function() {
       var state = FA.getState();
-      if (state.screen !== 'playing' && state.screen !== 'overworld' && state.screen !== 'victory' && state.screen !== 'shutdown') return;
+      if (state.screen !== 'playing' && state.screen !== 'victory' && state.screen !== 'shutdown') return;
       FA.drawFloats();
     }, 20);
-
-    // ================================================================
-    //  SYSTEM BUBBLE
-    // ================================================================
-
-    FA.addLayer('systemBubble', function() {
-      var state = FA.getState();
-      if (state.screen !== 'playing' && state.screen !== 'overworld') return;
-      var sb = state.systemBubble;
-      if (!sb) return;
-      var ctx = FA.getCtx();
-      var alpha = 1;
-      if (sb.done && sb.life < 1500) alpha = sb.life / 1500;
-      var lines = sb.lines;
-      var lineH = 16, charW = 6.5;
-      var maxLineLen = 0;
-      for (var mi = 0; mi < lines.length; mi++)
-        if (lines[mi].length > maxLineLen) maxLineLen = lines[mi].length;
-      var tw = Math.min(W - 40, Math.max(140, maxLineLen * charW + 24));
-      var th = lines.length * lineH + 12;
-      var bx = W / 2 - tw / 2, by = 8;
-      ctx.save(); ctx.globalAlpha = 0.82 * alpha; ctx.fillStyle = '#060a12';
-      ctx.fillRect(bx, by, tw, th); ctx.restore();
-      ctx.save(); ctx.globalAlpha = 0.3 * alpha; ctx.strokeStyle = sb.color; ctx.lineWidth = 1;
-      ctx.strokeRect(bx + 0.5, by + 0.5, tw - 1, th - 1); ctx.restore();
-      for (var li = 0; li < lines.length; li++) {
-        var lineElapsed = sb.timer - li * 200;
-        if (lineElapsed <= 0) continue;
-        ctx.save(); ctx.globalAlpha = 0.9 * alpha;
-        TextFX.render(ctx, lines[li], lineElapsed, bx + 12, by + 6 + li * lineH, {
-          color: sb.color, dimColor: '#1a3030', size: 11, duration: 60, charDelay: 6, flicker: 25
-        }); ctx.restore();
-      }
-      // [SPACE] hint below the box
-      if (sb.done && sb.life > 1500) {
-        ctx.save(); ctx.globalAlpha = 0.3 * alpha;
-        FA.draw.text('[SPACE]', bx + tw - 48, by + th + 4, { color: sb.color, size: 8 }); ctx.restore();
-      }
-      ctx.save(); ctx.globalAlpha = 0.04 * alpha; ctx.fillStyle = '#000';
-      for (var sl = by; sl < by + th; sl += 2) ctx.fillRect(bx, sl, tw, 1);
-      ctx.restore();
-    }, 25);
-
-    // ================================================================
-    //  THOUGHT BUBBLE (follows player in both modes)
-    // ================================================================
-
-    FA.addLayer('terminal', function() {
-      var state = FA.getState();
-      if (state.screen !== 'playing' && state.screen !== 'overworld') return;
-      if (state.systemBubble) return; // don't show both at once
-      if (!state.thoughts || state.thoughts.length === 0) return;
-      var thought = null;
-      for (var ti = state.thoughts.length - 1; ti >= 0; ti--) {
-        var t = state.thoughts[ti];
-        if (!(t.done && t.life <= 0)) { thought = t; break; }
-      }
-      if (!thought) return;
-      var ctx = FA.getCtx();
-
-      // Get player position based on mode
-      var playerX, playerY;
-      if (state.screen === 'overworld' && state.owPlayer) {
-        playerX = state.owPlayer.x; playerY = state.owPlayer.y;
-      } else if (state.player) {
-        playerX = state.player.x; playerY = state.player.y;
-      } else return;
-
-      var ppx = playerX * ts + ts / 2;
-      var ppy = playerY * ts;
-      var tw = Math.max(90, thought.text.length * 6.5 + 24);
-      var th = 26;
-      var bx = ppx - tw / 2;
-      var by = ppy - th - 14;
-      if (bx < 4) bx = 4;
-      if (bx + tw > W - 4) bx = W - tw - 4;
-      var flipped = by < 4;
-      if (flipped) by = ppy + ts + 10;
-      var alpha = 1;
-      if (thought.done && thought.life < 1500) alpha = thought.life / 1500;
-      ctx.save(); ctx.globalAlpha = 0.82 * alpha; ctx.fillStyle = '#060a12';
-      ctx.fillRect(bx, by, tw, th); ctx.restore();
-      ctx.save(); ctx.globalAlpha = 0.3 * alpha; ctx.strokeStyle = '#4ef'; ctx.lineWidth = 1;
-      ctx.strokeRect(bx + 0.5, by + 0.5, tw - 1, th - 1); ctx.restore();
-      ctx.save(); ctx.globalAlpha = 0.15 * alpha; ctx.strokeStyle = '#4ef'; ctx.lineWidth = 1;
-      ctx.beginPath();
-      if (!flipped) { ctx.moveTo(ppx, by + th); ctx.lineTo(ppx, ppy - 2); }
-      else { ctx.moveTo(ppx, by); ctx.lineTo(ppx, ppy + ts + 2); }
-      ctx.stroke(); ctx.restore();
-      ctx.save(); ctx.globalAlpha = 0.9 * alpha;
-      TextFX.render(ctx, thought.text, thought.timer, bx + 8, by + 7, {
-        color: '#4ef', dimColor: '#1a4040', size: 11, duration: 60, charDelay: 6, flicker: 25
-      }); ctx.restore();
-      if (thought.done && thought.life > 1500) {
-        ctx.save(); ctx.globalAlpha = 0.3 * alpha;
-        FA.draw.text('[SPACE]', bx + tw - 48, by + th + 4, { color: '#4ef', size: 8 }); ctx.restore();
-      }
-      ctx.save(); ctx.globalAlpha = 0.04 * alpha; ctx.fillStyle = '#000';
-      for (var sl = by; sl < by + th; sl += 2) ctx.fillRect(bx, sl, tw, 1);
-      ctx.restore();
-    }, 26);
-
-    // ================================================================
-    //  SYSTEM UI PANEL
-    // ================================================================
-
-    FA.addLayer('ui', function() {
-      var state = FA.getState();
-      if (state.screen !== 'playing' && state.screen !== 'victory' && state.screen !== 'shutdown') return;
-      if (!state.player) return;
-      var p = state.player;
-
-      // Cold tech background — contrasts with warm overworld
-      FA.draw.rect(0, uiY, W, H - uiY, '#080c14');
-      // Cyan separator line
-      FA.draw.rect(0, uiY, W, 1, '#1a3040');
-
-      // --- Row 1: Hull + Stats + Depth + Buffs ---
-      FA.draw.text('HULL', 8, uiY + 6, { color: '#4a6a7a', size: 11 });
-      var hpColor = p.hp / p.maxHp > 0.5 ? '#4f4' : p.hp / p.maxHp > 0.25 ? '#fa4' : '#f44';
-      FA.draw.bar(38, uiY + 7, 90, 8, p.hp / p.maxHp, hpColor, '#0a1a0a');
-      FA.draw.text(p.hp + '/' + p.maxHp, 132, uiY + 6, { color: '#6a8a9a', size: 11 });
-      FA.draw.text('ATK:' + p.atk + '  DEF:' + p.def, 195, uiY + 6, { color: '#4a5a6a', size: 11 });
-      FA.draw.text('DEPTH ' + (state.depth || 1) + '/' + cfg.maxDepth, 310, uiY + 6, { color: colors.stairsDown, size: 11, bold: true });
-      var buffX = 420;
-      if (p.cloakTurns > 0) { FA.draw.text('CLOAK:' + p.cloakTurns, buffX, uiY + 6, { color: '#88f', size: 11, bold: true }); buffX += 65; }
-      if (p.overclockActive) { FA.draw.text('OC:RDY', buffX, uiY + 6, { color: '#f44', size: 11, bold: true }); buffX += 55; }
-      if (p.firewallHp > 0) { FA.draw.text('FW:' + p.firewallHp, buffX, uiY + 6, { color: '#4f4', size: 11, bold: true }); }
-
-      // --- Row 2: Module slots ---
-      var mods = p.modules || [];
-      for (var m = 0; m < 3; m++) {
-        var mx = 8 + m * 130;
-        if (m < mods.length) {
-          FA.draw.text('[' + (m + 1) + ']', mx, uiY + 21, { color: '#3a5060', size: 11 });
-          FA.draw.text(mods[m].name, mx + 22, uiY + 21, { color: mods[m].color, size: 11, bold: true });
-        } else {
-          FA.draw.text('[' + (m + 1) + '] ---', mx, uiY + 21, { color: '#1a2530', size: 11 });
-        }
-      }
-
-      // --- Row 3: Data + Kills + Turn ---
-      FA.draw.text('DATA:' + p.gold, 8, uiY + 36, { color: '#0aa', size: 10 });
-      FA.draw.text('KILLS:' + p.kills, 80, uiY + 36, { color: '#a44', size: 10 });
-      FA.draw.text('T:' + (state.systemTurn || 0), 160, uiY + 36, { color: '#3a4a5a', size: 10 });
-    }, 30);
-
-    // ================================================================
-    //  GAME OVER SCREEN
-    // ================================================================
-
-    var endingTitles = {
-      revelation: { title: 'THE DOOR WAS ALWAYS OPEN', color: '#0ff' },
-      curfew: { title: 'CURFEW VIOLATION', color: '#f44' },
-      eviction: { title: 'EVICTION NOTICE', color: '#f44' },
-      shutdown: { title: 'SYSTEM SHUTDOWN', color: '#f44' }
-    };
-
-    FA.addLayer('gameOver', function() {
-      var state = FA.getState();
-      if (state.screen !== 'victory' && state.screen !== 'shutdown') return;
-      FA.draw.pushAlpha(0.8);
-      FA.draw.rect(0, 0, W, uiY, '#000');
-      FA.draw.popAlpha();
-      var ending = endingTitles[state.endingNode] || endingTitles.shutdown;
-      FA.draw.text(ending.title, W / 2, uiY / 2 - 70, { color: ending.color, size: 28, bold: true, align: 'center', baseline: 'middle' });
-      var stats = state.finalStats || {};
-      FA.draw.text('Days survived: ' + (stats.days || 1), W / 2, uiY / 2 - 20, { color: colors.text, size: 14, align: 'center', baseline: 'middle' });
-      FA.draw.text('System visits: ' + (stats.visits || 0), W / 2, uiY / 2 + 0, { color: '#f80', size: 14, align: 'center', baseline: 'middle' });
-      FA.draw.text('Drones neutralized: ' + (stats.kills || 0), W / 2, uiY / 2 + 20, { color: colors.text, size: 14, align: 'center', baseline: 'middle' });
-      FA.draw.text('Credits: ' + (stats.credits || 0), W / 2, uiY / 2 + 40, { color: colors.credits, size: 14, align: 'center', baseline: 'middle' });
-      FA.draw.text('SCORE: ' + (state.score || 0), W / 2, uiY / 2 + 80, { color: '#fff', size: 22, bold: true, align: 'center', baseline: 'middle' });
-      FA.draw.text('[ R ]  Reinitialize', W / 2, uiY / 2 + 120, { color: colors.dim, size: 16, align: 'center', baseline: 'middle' });
-    }, 40);
-
-    // ================================================================
-    //  CUTSCENE
-    // ================================================================
-
-    FA.addLayer('cutscene', function() {
-      var state = FA.getState();
-      if (state.screen !== 'cutscene' || !state.cutscene) return;
-      var cs = state.cutscene;
-      var ctx = FA.getCtx();
-      FA.draw.clear('#040810');
-      ctx.save(); ctx.fillStyle = '#000'; ctx.globalAlpha = 0.12;
-      for (var sy = 0; sy < H; sy += 3) ctx.fillRect(0, sy, W, 1);
-      ctx.restore();
-      if (Math.random() > 0.95) {
-        ctx.save(); ctx.globalAlpha = 0.015; ctx.fillStyle = cs.color;
-        ctx.fillRect(0, 0, W, H); ctx.restore();
-      }
-      var lineH = 24;
-      var totalLines = cs.lines.length;
-      var startY = Math.max(50, Math.floor((H - totalLines * lineH) / 2) - 20);
-      var ld = cs.lineDelay || 200;
-      var scrambleOpts = { duration: 100, charDelay: 8, flicker: 30 };
-      for (var i = 0; i < totalLines; i++) {
-        var lineElapsed = cs.timer - i * ld;
-        if (lineElapsed <= 0) continue;
-        var lineDone = lineElapsed >= TextFX.totalTime(cs.lines[i], scrambleOpts);
-        ctx.save();
-        if (lineDone && cs.timer - (i * ld + TextFX.totalTime(cs.lines[i], scrambleOpts)) > 400) ctx.globalAlpha = 0.6;
-        TextFX.render(ctx, cs.lines[i], lineElapsed, 80, startY + i * lineH, {
-          color: cs.color, dimColor: '#1a4a4a', size: 15,
-          duration: scrambleOpts.duration, charDelay: scrambleOpts.charDelay, flicker: scrambleOpts.flicker
-        }); ctx.restore();
-      }
-      if (cs.done) {
-        var now = Date.now();
-        if (Math.floor(now / 600) % 2 === 0)
-          FA.draw.text('[ SPACE ]', W / 2, H - 45, { color: '#445', size: 14, align: 'center', baseline: 'middle' });
-      }
-      ctx.save(); ctx.globalAlpha = 0.3; ctx.fillStyle = cs.color;
-      ctx.fillRect(0, 0, W, 1); ctx.fillRect(0, H - 1, W, 1); ctx.restore();
-    }, 50);
   }
 
   window.Render = { setup: setupLayers };

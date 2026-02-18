@@ -40,10 +40,10 @@
 
   // === TIME & ECONOMY ===
   FA.register('config', 'time', {
-    turnsPerDay: 100,
-    warningTime: 75,    // sky darkens
-    curfewTime: 95,     // final warning
-    droneTime: 100,     // caught = game over
+    turnsPerDay: 60,
+    warningTime: 40,    // sky darkens
+    curfewTime: 52,     // final warning + drones
+    droneTime: 60,      // (unused — drones kill you)
     workTurns: 10,
     systemTimeCost: 30  // turns consumed by system visit
   });
@@ -101,7 +101,6 @@
     cafePos: { x: 28, y: 6 },
     terminalPos: { x: 18, y: 17 },
     gardenPos: { x: 24, y: 13 },
-    schedule: { morning: 'home', midday: 'cafe', evening: 'home' },
     appearsDay: 1,
     systemDialogue: {
       ally: 'This corridor is clear. I checked. Follow me.',
@@ -116,7 +115,6 @@
     cafePos: { x: 30, y: 8 },
     terminalPos: { x: 21, y: 17 },
     gardenPos: { x: 24, y: 12 },
-    schedule: { morning: 'wander', midday: 'cafe', evening: 'cafe' },
     appearsDay: 2,
     systemDialogue: {
       ally: 'There\'s a terminal two rooms east. It has what you need.',
@@ -131,7 +129,6 @@
     cafePos: { x: 28, y: 8 },
     terminalPos: { x: 18, y: 17 },
     gardenPos: { x: 25, y: 14 },
-    schedule: { morning: 'home', midday: 'home', evening: 'cafe' },
     appearsDay: 1,
     systemDialogue: {
       ally: 'Security clearance granted for this sector. Move quickly.',
@@ -146,7 +143,6 @@
     cafePos: { x: 30, y: 6 },
     terminalPos: { x: 21, y: 17 },
     gardenPos: { x: 23, y: 13 },
-    schedule: { morning: 'wander', midday: 'wander', evening: 'cafe' },
     appearsDay: 3,
     systemDialogue: {
       ally: 'The source is below. Everything you need to know is there. Everything.',
@@ -154,6 +150,38 @@
       neutral: 'I\'ve been here longer than you think. Longer than I think.'
     }
   });
+
+  // === NPC BEHAVIORS (narrative-driven — FA.select, first match wins) ===
+  // schedule: { morning: goal, midday: goal, evening: goal }
+  // goals: home, cafe, terminal, garden, player, wander
+
+  FA.register('behaviors', 'lena', [
+    { node: 'quest_lena:confidant', schedule: { morning: 'player', midday: 'player', evening: 'cafe' } },
+    { node: 'arc:deeper', schedule: { morning: 'garden', midday: 'cafe', evening: 'home' } },
+    { node: 'arc:first_system', schedule: { morning: 'home', midday: 'player', evening: 'home' } },
+    { schedule: { morning: 'home', midday: 'cafe', evening: 'home' } }
+  ]);
+
+  FA.register('behaviors', 'victor', [
+    { node: 'quest_victor:confidant', schedule: { morning: 'terminal', midday: 'player', evening: 'cafe' } },
+    { node: 'arc:deeper', schedule: { morning: 'garden', midday: 'cafe', evening: 'cafe' } },
+    { node: 'arc:first_system', schedule: { morning: 'wander', midday: 'cafe', evening: 'cafe' } },
+    { schedule: { morning: 'wander', midday: 'cafe', evening: 'cafe' } }
+  ]);
+
+  FA.register('behaviors', 'marta', [
+    { node: 'quest_marta:confidant', schedule: { morning: 'player', midday: 'terminal', evening: 'cafe' } },
+    { node: 'arc:deeper', schedule: { morning: 'terminal', midday: 'terminal', evening: 'cafe' } },
+    { node: 'arc:first_system', schedule: { morning: 'terminal', midday: 'home', evening: 'cafe' } },
+    { schedule: { morning: 'terminal', midday: 'home', evening: 'cafe' } }
+  ]);
+
+  FA.register('behaviors', 'emil', [
+    { node: 'quest_emil:confidant', schedule: { morning: 'garden', midday: 'player', evening: 'cafe' } },
+    { node: 'arc:deeper', schedule: { morning: 'wander', midday: 'garden', evening: 'cafe' } },
+    { var: 'system_revealed', eq: true, schedule: { morning: 'wander', midday: 'wander', evening: 'cafe' } },
+    { schedule: { morning: 'wander', midday: 'wander', evening: 'wander' } }
+  ]);
 
   // === NOTICE BOARD (narrative-driven — FA.select) ===
   FA.register('notices', 'board', [
@@ -205,7 +233,7 @@
   // === ENEMIES (System/dungeon) ===
   FA.register('enemies', 'drone', {
     name: 'Drone', char: 'd', color: '#fa3',
-    hp: 6, atk: 3, def: 0, xp: 10, behavior: 'chase'
+    hp: 8, atk: 4, def: 1, xp: 10, behavior: 'chase'
   });
 
   FA.register('enemies', 'sentinel', {
@@ -274,7 +302,7 @@
   // === NARRATIVE (multi-graph) ===
   FA.register('config', 'narrative', {
     variables: {
-      day: 1, system_visits: 0, credits: 0, time_period: 'morning',
+      day: 1, system_visits: 0, credits: 0, kills: 0, time_period: 'morning',
       lena_met_today: false, victor_met_today: false,
       marta_met_today: false, emil_met_today: false,
       lena_interactions: 0, victor_interactions: 0,
