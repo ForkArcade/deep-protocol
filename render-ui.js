@@ -50,6 +50,9 @@
     var H = cfg.canvasHeight;
     var uiY = cfg.rows * ts;
 
+    var _adjDirs = [[0,-1],[0,1],[-1,0],[1,0]];
+    var _actions = [{ label: '', color: '' }, { label: '', color: '' }, { label: '', color: '' }, { label: '', color: '' }, { label: '', color: '' }];
+
     // ================================================================
     //  UNIFIED UI PANEL — same layout in town and dungeon
     // ================================================================
@@ -120,24 +123,26 @@
       // === ROW 3 (y+36): Context actions + NPCs | Stats ===
 
       // Context actions (town: object-based + NPC talk)
-      var actions = [];
+      var actionCount = 0;
       if (inTown) {
         var obj = Core.getObjectAtPos(p.x, p.y);
-        if (obj && obj.type === 'bed') actions.push({ key: 'SPACE', label: 'Lodging (' + state.rent + ' cr)', color: '#8878cc' });
-        else if (obj && obj.type === 'terminal') actions.push({ key: 'SPACE', label: state.workedToday ? 'Shift done' : 'Work', color: state.workedToday ? '#443' : '#88aa66' });
-        else if (obj && obj.type === 'notice_board') actions.push({ key: 'SPACE', label: 'Read notices', color: '#aa9a50' });
-        else if (obj && obj.type === 'system_entrance' && state.systemRevealed) actions.push({ key: 'SPACE', label: 'Enter System', color: '#f80' });
+        if (obj && obj.type === 'bed') { _actions[0].label = 'Lodging (' + state.rent + ' cr)'; _actions[0].color = '#8878cc'; actionCount = 1; }
+        else if (obj && obj.type === 'terminal') { _actions[0].label = state.workedToday ? 'Shift done' : 'Work'; _actions[0].color = state.workedToday ? '#443' : '#88aa66'; actionCount = 1; }
+        else if (obj && obj.type === 'notice_board') { _actions[0].label = 'Read notices'; _actions[0].color = '#aa9a50'; actionCount = 1; }
+        else if (obj && obj.type === 'system_entrance' && state.systemRevealed) { _actions[0].label = 'Enter System'; _actions[0].color = '#f80'; actionCount = 1; }
 
         // Adjacent NPC talk
         var entities = state.maps.town.entities;
-        var adjDirs = [[0,-1],[0,1],[-1,0],[1,0]];
-        for (var d = 0; d < adjDirs.length; d++) {
-          var nx = p.x + adjDirs[d][0], ny = p.y + adjDirs[d][1];
+        for (var d = 0; d < _adjDirs.length; d++) {
+          var nx = p.x + _adjDirs[d][0], ny = p.y + _adjDirs[d][1];
           for (var nj = 0; nj < entities.length; nj++) {
             var adjNpc = entities[nj];
             if (adjNpc.type !== 'npc') continue;
             if (state.day >= adjNpc.appearsDay && adjNpc.x === nx && adjNpc.y === ny) {
-              actions.push({ key: 'SPACE', label: 'Talk to ' + adjNpc.name, color: adjNpc.color });
+              if (actionCount < _actions.length) {
+                _actions[actionCount].label = 'Talk to ' + adjNpc.name; _actions[actionCount].color = adjNpc.color;
+                actionCount++;
+              }
               break;
             }
           }
@@ -145,11 +150,10 @@
       }
 
       var ax = 8;
-      for (var ai = 0; ai < actions.length; ai++) {
-        var act = actions[ai];
-        var keyText = '[' + act.key + ']';
-        FA.draw.text(keyText, ax, uiY + 36, O('#554', 10));
-        ax += getCW(ctx, 10) * keyText.length + 4;
+      for (var ai = 0; ai < actionCount; ai++) {
+        var act = _actions[ai];
+        FA.draw.text('[SPACE]', ax, uiY + 36, O('#554', 10));
+        ax += getCW(ctx, 10) * 7 + 4;
         FA.draw.text(act.label, ax, uiY + 36, O(act.color, 10));
         ax += getCW(ctx, 10) * act.label.length + 12;
       }

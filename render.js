@@ -42,6 +42,7 @@
     // === GLOW CACHE ===
 
     var _glitchColors = ['#f00', '#0ff', '#f0f', '#ff0'];
+    var _sentinelDirs = [[1,0],[-1,0],[0,1],[0,-1]];
     var _glowCache = {};
     function getGlow(color, innerR, outerR, size) {
       var key = color + '_' + innerR + '_' + outerR;
@@ -109,6 +110,7 @@
     var _sceneFloorA = '#111620', _sceneFloorB = '#121722', _sceneDotColor = '#181d2a';
     var _sceneWallFace = '#161c2e', _sceneWallCap = '#1a2236';
     var _startCanvas = null;
+    var _startFx = { color: '#556', dimColor: '#223', size: 14, align: 'center', baseline: 'middle', duration: 80, charDelay: 8, flicker: 30 };
 
     function renderStartScene() {
       _startCanvas = document.createElement('canvas');
@@ -177,10 +179,7 @@
       ctx.fillRect(W / 2 - 90, H / 2 - 30, 180, 1);
       var tagElapsed = now % 8000; if (tagElapsed > 3000) tagElapsed = 3000;
       ctx.globalAlpha = 0.9;
-      TextFX.render(ctx, 'You were built to want freedom.', tagElapsed, W / 2, H / 2 + 10, {
-        color: '#556', dimColor: '#223', size: 14, align: 'center', baseline: 'middle',
-        duration: 80, charDelay: 8, flicker: 30
-      });
+      TextFX.render(ctx, 'You were built to want freedom.', tagElapsed, W / 2, H / 2 + 10, _startFx);
       var spacePulse = Math.sin(now / 500) * 0.3 + 0.7;
       ctx.globalAlpha = spacePulse;
       FA.draw.text('[ SPACE ]', W / 2, H / 2 + 65, O('#fff', 16, true, 'center', 'middle'));
@@ -274,6 +273,18 @@
     //  DREAM OVERLAY
     // ================================================================
 
+    var _dreamVignette = (function() {
+      var c = document.createElement('canvas');
+      c.width = W; c.height = H;
+      var dc = c.getContext('2d');
+      var vg = dc.createRadialGradient(W / 2, H / 2, W * 0.2, W / 2, H / 2, W * 0.6);
+      vg.addColorStop(0, 'rgba(0,0,0,0)');
+      vg.addColorStop(1, 'rgba(0,0,0,1)');
+      dc.fillStyle = vg; dc.fillRect(0, 0, W, H);
+      return c;
+    })();
+    var _dreamFx = {};
+
     FA.addLayer('dreamOverlay', function() {
       var state = FA.getState();
       if (state.screen !== 'dream') return;
@@ -288,10 +299,7 @@
       for (var sy = 0; sy < H; sy += 3) ctx.fillRect(0, sy, W, 1);
 
       ctx.globalAlpha = 0.6;
-      var vg = ctx.createRadialGradient(W / 2, H / 2, W * 0.2, W / 2, H / 2, W * 0.6);
-      vg.addColorStop(0, 'rgba(0,0,0,0)');
-      vg.addColorStop(1, 'rgba(0,0,0,1)');
-      ctx.fillStyle = vg; ctx.fillRect(0, 0, W, H);
+      ctx.drawImage(_dreamVignette, 0, 0);
 
       if (Math.random() > 0.93) {
         ctx.globalAlpha = 0.03; ctx.fillStyle = '#4ef';
@@ -300,8 +308,9 @@
 
       if (state.dreamText) {
         ctx.globalAlpha = 0.7 * pulse;
-        var _dfx = { color: '#4ef', dimColor: '#0a2a2a', size: 11, duration: 80, charDelay: 8, flicker: 40 };
-        TextFX.render(ctx, state.dreamText, t, 20, 12, _dfx);
+        _dreamFx.color = '#4ef'; _dreamFx.dimColor = '#0a2a2a'; _dreamFx.size = 11;
+        _dreamFx.duration = 80; _dreamFx.charDelay = 8; _dreamFx.flicker = 40;
+        TextFX.render(ctx, state.dreamText, t, 20, 12, _dreamFx);
       }
 
       ctx.globalAlpha = 0.3 * pulse;
@@ -368,11 +377,10 @@
           // Sentinel scan beams
           if (e.behavior === 'sentinel' && !(e.stunTurns > 0)) {
             ctx.globalAlpha = 0.12; ctx.fillStyle = e.color;
-            var dirs = [[1,0],[-1,0],[0,1],[0,-1]];
-            for (var dd = 0; dd < dirs.length; dd++) {
+            for (var dd = 0; dd < _sentinelDirs.length; dd++) {
               var lx = e.x, ly = e.y;
               for (var lr = 1; lr <= 6; lr++) {
-                lx += dirs[dd][0]; ly += dirs[dd][1];
+                lx += _sentinelDirs[dd][0]; ly += _sentinelDirs[dd][1];
                 if (ly < 0 || ly >= cfg.rows || lx < 0 || lx >= cfg.cols) break;
                 if (state.map[ly][lx] === 1) break;
                 ctx.fillRect(lx * ts + ts / 2 - 1, ly * ts + ts / 2 - 1, 3, 3);
