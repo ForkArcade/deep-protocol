@@ -216,7 +216,7 @@
     npc.wantsToTalk = false;
     npc.followTurns = 0;
     var text = Core.selectDialogue(npc.id) || '...';
-    Core.addSystemBubble(npc.name + ': "' + text + '"', npc.color);
+    Core.addSystemBubble(npc.name + ': "' + text + '"', npc.color, npc);
     if (FA.narrative && FA.narrative.setVar) {
       FA.narrative.setVar(npc.id + '_met_today', true, 'Met ' + npc.name);
       var prev = FA.narrative.getVar(npc.id + '_interactions') || 0;

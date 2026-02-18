@@ -160,7 +160,7 @@
         if (!entity.talked) {
           entity.talked = true;
           var text = (entity.systemDialogue && entity.systemDialogue[entity.allegiance]) || '...';
-          Core.addSystemBubble(entity.name + ': "' + text + '"', entity.color);
+          Core.addSystemBubble(entity.name + ': "' + text + '"', entity.color, entity);
           Core.triggerThought('system_npc');
         }
         endTurn();

@@ -205,8 +205,24 @@
         if (lines[mi].length > maxLineLen) maxLineLen = lines[mi].length;
       var tw = Math.min(W - 40, Math.max(140, maxLineLen * cw + 24));
       var th = lines.length * lineH + 12;
-      var bx = W / 2 - tw / 2, by = 8;
+      var bx, by;
+      var hasSource = sb.source && typeof sb.source.x === 'number';
+      if (hasSource) {
+        var sx = sb.source.x * ts + ts / 2;
+        var sy = sb.source.y * ts;
+        bx = sx - tw / 2;
+        by = sy - th - 12;
+        if (bx < 4) bx = 4;
+        if (bx + tw > W - 4) bx = W - tw - 4;
+        if (by < 4) by = sy + ts + 10;
+      } else {
+        bx = W / 2 - tw / 2; by = 8;
+      }
       drawBox(ctx, bx, by, tw, th, sb.color, alpha);
+      if (hasSource) {
+        ctx.globalAlpha = 0.5 * alpha;
+        FA.draw.text('v', bx + 3, by + th, O(sb.color, 10));
+      }
       ctx.globalAlpha = 0.9 * alpha;
       for (var li = 0; li < lines.length; li++) {
         var lineElapsed = sb.timer - li * 200;
@@ -216,7 +232,7 @@
       }
       if (sb.done) {
         ctx.globalAlpha = 0.3 * alpha;
-        FA.draw.text('[SPACE]', bx + tw - 48, by + th + 4, O(sb.color, 8));
+        FA.draw.text('[SPACE]', bx + tw - 48, by + th + (hasSource ? 12 : 4), O(sb.color, 8));
       }
       ctx.globalAlpha = 1;
     }, 25);

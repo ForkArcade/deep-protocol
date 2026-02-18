@@ -409,7 +409,7 @@
       else line = test;
     }
     if (line) lines.push(line);
-    state.systemBubble = { lines: lines, color: color || '#4ef', timer: 0, done: false, fadeSteps: BUBBLE_FADE_STEPS };
+    state.systemBubble = { lines: lines, color: color || '#4ef', timer: 0, done: false, fadeSteps: BUBBLE_FADE_STEPS, source: source || null };
   }
 
   function _createThought(state, text) {
@@ -422,14 +422,14 @@
     return state.systemBubble || (state.thoughts && state.thoughts.length > 0);
   }
 
-  function addSystemBubble(text, color) {
+  function addSystemBubble(text, color, source) {
     var state = FA.getState();
     if (_isBubbleActive(state)) {
       if (!state.bubbleQueue) state.bubbleQueue = [];
-      state.bubbleQueue.push({ type: 'system', text: text, color: color });
+      state.bubbleQueue.push({ type: 'system', text: text, color: color, source: source });
       return;
     }
-    _createSystemBubble(state, text, color);
+    _createSystemBubble(state, text, color, source);
   }
 
   function addThought(text) {
@@ -453,7 +453,7 @@
   function _popQueue(state) {
     if (state.bubbleQueue && state.bubbleQueue.length > 0) {
       var next = state.bubbleQueue.shift();
-      if (next.type === 'system') _createSystemBubble(state, next.text, next.color);
+      if (next.type === 'system') _createSystemBubble(state, next.text, next.color, next.source);
       else _createThought(state, next.text);
     }
   }
