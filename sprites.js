@@ -1,8 +1,48 @@
-// sprites.js — ForkArcade pixel art sprites
+// sprites.js — ForkArcade sprite data
 // Generated from _sprites.json by create_sprite tool
+// Runtime (drawSprite, getSprite, spriteFrames) lives in fa-renderer.js
 
 var SPRITE_DEFS = {
   "tiles": {
+    "floor": {
+      "w": 10,
+      "h": 10,
+      "palette": {
+        "A": "#1a1814",
+        "B": "#1c1a16",
+        "D": "#22201a"
+      },
+      "origin": [
+        0,
+        0
+      ],
+      "frames": [
+        [
+          "AAAAAAAAAA",
+          "AAAAAAAAAA",
+          "AAAAAAAAAA",
+          "AAAAAAAAAA",
+          "AAAAAAAAAA",
+          "AAAAAAAAAA",
+          "AAAAAAAAAA",
+          "AAAAAAAAAA",
+          "AAAAAAAAAA",
+          "AAAAAAAAAA"
+        ],
+        [
+          "BBBBBBBBBB",
+          "BBBBBBBBBB",
+          "BBBBBBBBBB",
+          "BBBBBBBBBB",
+          "BBBBBDBBBB",
+          "BBBBBBBBBB",
+          "BBBBBBBBBB",
+          "BBBBBBBBBB",
+          "BBBBBBBBBB",
+          "BBBBBBBBBB"
+        ]
+      ]
+    },
     "wall": {
       "w": 10,
       "h": 10,
@@ -213,45 +253,6 @@ var SPRITE_DEFS = {
         ]
       ]
     },
-    "floor": {
-      "w": 10,
-      "h": 10,
-      "palette": {
-        "A": "#1a1814",
-        "B": "#1c1a16",
-        "D": "#22201a"
-      },
-      "origin": [
-        0,
-        0
-      ],
-      "frames": [
-        [
-          "AAAAAAAAAA",
-          "AAAAAAAAAA",
-          "AAAAAAAAAA",
-          "AAAAAAAAAA",
-          "AAAAAAAAAA",
-          "AAAAAAAAAA",
-          "AAAAAAAAAA",
-          "AAAAAAAAAA",
-          "AAAAAAAAAA",
-          "AAAAAAAAAA"
-        ],
-        [
-          "BBBBBBBBBB",
-          "BBBBBBBBBB",
-          "BBBBBBBBBB",
-          "BBBBBBBBBB",
-          "BBBBBDBBBB",
-          "BBBBBBBBBB",
-          "BBBBBBBBBB",
-          "BBBBBBBBBB",
-          "BBBBBBBBBB",
-          "BBBBBBBBBB"
-        ]
-      ]
-    },
     "indoor": {
       "w": 10,
       "h": 10,
@@ -318,33 +319,6 @@ var SPRITE_DEFS = {
         ]
       ]
     },
-    "notice_board": {
-      "w": 10,
-      "h": 10,
-      "palette": {
-        "B": "#1a1a10",
-        "Y": "#8a7a40",
-        "T": "#aa9a50"
-      },
-      "origin": [
-        0,
-        0
-      ],
-      "frames": [
-        [
-          "..........",
-          "..........",
-          "..BBBBBB..",
-          "..BYYYYB..",
-          "..BYTTYB..",
-          "..BYTTYB..",
-          "..BYYYYB..",
-          "..BYYYYB..",
-          "..BBBBBB..",
-          ".........."
-        ]
-      ]
-    },
     "sidewalk": {
       "w": 10,
       "h": 10,
@@ -371,7 +345,9 @@ var SPRITE_DEFS = {
           "EBBBBBBBBE"
         ]
       ]
-    },
+    }
+  },
+  "objects": {
     "bed": {
       "w": 10,
       "h": 10,
@@ -419,6 +395,33 @@ var SPRITE_DEFS = {
           "..BBBBBB..",
           "..BBBBBB..",
           "..BCCCCB..",
+          "..BBBBBB..",
+          ".........."
+        ]
+      ]
+    },
+    "notice_board": {
+      "w": 10,
+      "h": 10,
+      "palette": {
+        "B": "#1a1a10",
+        "Y": "#8a7a40",
+        "T": "#aa9a50"
+      },
+      "origin": [
+        0,
+        0
+      ],
+      "frames": [
+        [
+          "..........",
+          "..........",
+          "..BBBBBB..",
+          "..BYYYYB..",
+          "..BYTTYB..",
+          "..BYTTYB..",
+          "..BYYYYB..",
+          "..BYYYYB..",
           "..BBBBBB..",
           ".........."
         ]
@@ -477,45 +480,4 @@ var SPRITE_DEFS = {
       ]
     }
   }
-}
-
-function drawSprite(ctx, spriteDef, x, y, size, frame) {
-  if (!spriteDef) return false
-  frame = frame || 0
-  frame = frame % spriteDef.frames.length
-  var key = size + '_' + frame
-  if (!spriteDef._c) spriteDef._c = {}
-  if (!spriteDef._c[key]) {
-    var cv = document.createElement('canvas')
-    cv.width = size
-    cv.height = size
-    var cc = cv.getContext('2d')
-    var pixels = spriteDef.frames[frame]
-    var pw = size / spriteDef.w
-    var ph = size / spriteDef.h
-    for (var row = 0; row < spriteDef.h; row++) {
-      var line = pixels[row]
-      for (var col = 0; col < spriteDef.w; col++) {
-        var ch = line[col]
-        if (ch === ".") continue
-        var color = spriteDef.palette[ch]
-        if (!color) continue
-        cc.fillStyle = color
-        cc.fillRect(col * pw, row * ph, Math.ceil(pw), Math.ceil(ph))
-      }
-    }
-    spriteDef._c[key] = cv
-  }
-  var ox = spriteDef.origin[0] * (size / spriteDef.w)
-  var oy = spriteDef.origin[1] * (size / spriteDef.h)
-  ctx.drawImage(spriteDef._c[key], x - ox, y - oy)
-  return true
-}
-
-function getSprite(category, name) {
-  return SPRITE_DEFS[category] && SPRITE_DEFS[category][name] || null
-}
-
-function spriteFrames(spriteDef) {
-  return spriteDef ? spriteDef.frames.length : 0
 }

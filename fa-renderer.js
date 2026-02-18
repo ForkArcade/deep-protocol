@@ -38,6 +38,49 @@
     }
   };
 
+  // ===== SPRITE RUNTIME =====
+
+  window.drawSprite = function(ctx, spriteDef, x, y, size, frame) {
+    if (!spriteDef) return false;
+    frame = frame || 0;
+    frame = frame % spriteDef.frames.length;
+    var key = size + '_' + frame;
+    if (!spriteDef._c) spriteDef._c = {};
+    if (!spriteDef._c[key]) {
+      var cv = document.createElement('canvas');
+      cv.width = size;
+      cv.height = size;
+      var cc = cv.getContext('2d');
+      var pixels = spriteDef.frames[frame];
+      var pw = size / spriteDef.w;
+      var ph = size / spriteDef.h;
+      for (var row = 0; row < spriteDef.h; row++) {
+        var line = pixels[row];
+        for (var col = 0; col < spriteDef.w; col++) {
+          var ch = line[col];
+          if (ch === '.') continue;
+          var color = spriteDef.palette[ch];
+          if (!color) continue;
+          cc.fillStyle = color;
+          cc.fillRect(col * pw, row * ph, Math.ceil(pw), Math.ceil(ph));
+        }
+      }
+      spriteDef._c[key] = cv;
+    }
+    var ox = spriteDef.origin[0] * (size / spriteDef.w);
+    var oy = spriteDef.origin[1] * (size / spriteDef.h);
+    ctx.drawImage(spriteDef._c[key], x - ox, y - oy);
+    return true;
+  };
+
+  window.getSprite = function(category, name) {
+    return typeof SPRITE_DEFS !== 'undefined' && SPRITE_DEFS[category] && SPRITE_DEFS[category][name] || null;
+  };
+
+  window.spriteFrames = function(spriteDef) {
+    return spriteDef ? spriteDef.frames.length : 0;
+  };
+
   // ===== DRAW HELPERS =====
 
   FA.draw = {
@@ -115,7 +158,7 @@
     },
 
     sprite: function(category, name, x, y, size, fallbackChar, fallbackColor, frame) {
-      var sprite = typeof getSprite === 'function' && getSprite(category, name);
+      var sprite = getSprite(category, name);
       if (sprite) {
         drawSprite(_ctx, sprite, x, y, size, frame);
       } else if (fallbackChar) {
