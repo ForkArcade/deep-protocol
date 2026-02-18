@@ -4,6 +4,14 @@
   'use strict';
   var FA = window.FA;
 
+  // Object pool for FA.draw.text opts — zero allocations per frame
+  var _o = {};
+  function O(color, size, bold, align, baseline) {
+    _o.color = color; _o.size = size; _o.bold = !!bold;
+    _o.align = align || 'left'; _o.baseline = baseline || 'top';
+    return _o;
+  }
+
   function setupLayers() {
     var cfg = FA.lookup('config', 'game');
     var colors = FA.lookup('config', 'colors');
@@ -163,7 +171,7 @@
       ctx.globalAlpha = 0.08;
       ctx.drawImage(getGlow('#4ef', 0, 120, 240), W / 2 - 120, H / 2 - 70);
       ctx.globalAlpha = 1;
-      FA.draw.text('DEEP  PROTOCOL', W / 2, H / 2 - 50, { color: '#4ef', size: 34, bold: true, align: 'center', baseline: 'middle' });
+      FA.draw.text('DEEP  PROTOCOL', W / 2, H / 2 - 50, O('#4ef', 34, true, 'center', 'middle'));
       ctx.globalAlpha = 0.15; ctx.fillStyle = '#4ef';
       ctx.fillRect(W / 2 - 90, H / 2 - 30, 180, 1);
       var tagElapsed = now % 8000; if (tagElapsed > 3000) tagElapsed = 3000;
@@ -174,7 +182,7 @@
       });
       var spacePulse = Math.sin(now / 500) * 0.3 + 0.7;
       ctx.globalAlpha = spacePulse;
-      FA.draw.text('[ SPACE ]', W / 2, H / 2 + 65, { color: '#fff', size: 16, bold: true, align: 'center', baseline: 'middle' });
+      FA.draw.text('[ SPACE ]', W / 2, H / 2 + 65, O('#fff', 16, true, 'center', 'middle'));
       ctx.globalAlpha = 1;
     }, 0);
 
@@ -291,22 +299,19 @@
 
       if (state.dreamText) {
         ctx.globalAlpha = 0.7 * pulse;
-        TextFX.render(ctx, state.dreamText, t, 20, 12, {
-          color: '#4ef', dimColor: '#0a2a2a', size: 11, duration: 80, charDelay: 8, flicker: 40
-        });
+        var _dfx = { color: '#4ef', dimColor: '#0a2a2a', size: 11, duration: 80, charDelay: 8, flicker: 40 };
+        TextFX.render(ctx, state.dreamText, t, 20, 12, _dfx);
       }
 
       ctx.globalAlpha = 0.3 * pulse;
-      FA.draw.text('You dream of corridors that shouldn\'t exist.', W / 2, H - 50, {
-        color: '#446', size: 10, align: 'center', baseline: 'middle'
-      });
+      FA.draw.text('You dream of corridors that shouldn\'t exist.', W / 2, H - 50,
+        O('#446', 10, false, 'center', 'middle'));
       ctx.globalAlpha = 1;
 
       var now = Date.now();
       if (t > 1500 && Math.floor(now / 600) % 2 === 0) {
-        FA.draw.text('[ SPACE ]', W / 2, H - 30, {
-          color: '#335', size: 12, align: 'center', baseline: 'middle'
-        });
+        FA.draw.text('[ SPACE ]', W / 2, H - 30,
+          O('#335', 12, false, 'center', 'middle'));
       }
     }, 55);
 
@@ -344,7 +349,7 @@
           ctx.globalAlpha = 1;
           FA.draw.sprite('npcs', e.id, e.x * ts, e.y * ts, ts, e.char, e.color, 0);
           ctx.globalAlpha = 0.5;
-          FA.draw.text(e.name, ncx, ncy - ts / 2 - 3, { color: e.color, size: 8, align: 'center', baseline: 'bottom' });
+          FA.draw.text(e.name, ncx, ncy - ts / 2 - 3, O(e.color, 8, false, 'center', 'bottom'));
           ctx.globalAlpha = 1;
 
         } else if (e.type === 'system_npc') {
@@ -353,7 +358,7 @@
           ctx.globalAlpha = 1;
           FA.draw.sprite('npcs', e.id, e.x * ts, e.y * ts, ts, e.char, e.color, 0);
           ctx.globalAlpha = 0.4;
-          FA.draw.text(e.name, e.x * ts + ts / 2, e.y * ts - 3, { color: e.color, size: 8, align: 'center', baseline: 'bottom' });
+          FA.draw.text(e.name, e.x * ts + ts / 2, e.y * ts - 3, O(e.color, 8, false, 'center', 'bottom'));
           ctx.globalAlpha = 1;
 
         } else if (e.type === 'enemy') {
@@ -383,9 +388,9 @@
           var hpRatio = e.hp / e.maxHp;
           if (hpRatio < 1) FA.draw.bar(e.x * ts + 2, e.y * ts - 3, ts - 4, 2, hpRatio, '#f44', '#400');
 
-          if (e.stunTurns > 0) FA.draw.text('~', ecx, ecy - ts / 2 - 2, { color: '#ff0', size: 10, bold: true, align: 'center', baseline: 'bottom' });
-          else if (e.aiState === 'hunting') FA.draw.text('!', ecx, ecy - ts / 2 - 2, { color: '#f44', size: 10, bold: true, align: 'center', baseline: 'bottom' });
-          else if (e.aiState === 'alert') FA.draw.text('?', ecx, ecy - ts / 2 - 2, { color: '#ff0', size: 10, bold: true, align: 'center', baseline: 'bottom' });
+          if (e.stunTurns > 0) FA.draw.text('~', ecx, ecy - ts / 2 - 2, O('#ff0', 10, true, 'center', 'bottom'));
+          else if (e.aiState === 'hunting') FA.draw.text('!', ecx, ecy - ts / 2 - 2, O('#f44', 10, true, 'center', 'bottom'));
+          else if (e.aiState === 'alert') FA.draw.text('?', ecx, ecy - ts / 2 - 2, O('#ff0', 10, true, 'center', 'bottom'));
         }
       }
 

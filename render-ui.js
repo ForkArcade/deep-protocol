@@ -17,6 +17,19 @@
     return _cw;
   }
 
+  // Object pool for FA.draw.text opts — zero allocations per frame
+  var _o = {}, _fx = {};
+  function O(color, size, bold, align, baseline) {
+    _o.color = color; _o.size = size; _o.bold = !!bold;
+    _o.align = align || 'left'; _o.baseline = baseline || 'top';
+    return _o;
+  }
+  function FX(color, dimColor, size, duration, charDelay, flicker) {
+    _fx.color = color; _fx.dimColor = dimColor; _fx.size = size;
+    _fx.duration = duration; _fx.charDelay = charDelay; _fx.flicker = flicker;
+    return _fx;
+  }
+
   // Shared bubble box: background + border + scanlines
   function drawBox(ctx, bx, by, tw, th, color, alpha) {
     ctx.globalAlpha = 0.85 * alpha; ctx.fillStyle = '#060a12';
@@ -56,14 +69,14 @@
       // === ROW 1 (y+6): HP | ATK DEF | Credits | Day/Time ===
       var hpRatio = p.hp / p.maxHp;
       var hpColor = hpRatio > 0.5 ? '#4f4' : hpRatio > 0.25 ? '#fa4' : '#f44';
-      FA.draw.text('HP', 8, uiY + 6, { color: '#4a6a7a', size: 11 });
+      FA.draw.text('HP', 8, uiY + 6, O('#4a6a7a', 11));
       FA.draw.bar(26, uiY + 7, 80, 8, hpRatio, hpColor, '#0a1a0a');
-      FA.draw.text(p.hp + '/' + p.maxHp, 110, uiY + 6, { color: '#6a8a9a', size: 11 });
+      FA.draw.text(p.hp + '/' + p.maxHp, 110, uiY + 6, O('#6a8a9a', 11));
 
-      FA.draw.text('ATK:' + p.atk + ' DEF:' + p.def, 175, uiY + 6, { color: '#4a5a6a', size: 11 });
+      FA.draw.text('ATK:' + p.atk + ' DEF:' + p.def, 175, uiY + 6, O('#4a5a6a', 11));
 
-      FA.draw.text(state.credits + ' cr', 310, uiY + 6, { color: colors.credits, size: 11, bold: true });
-      FA.draw.text('-' + state.rent + '/night', 365, uiY + 6, { color: '#a65', size: 10 });
+      FA.draw.text(state.credits + ' cr', 310, uiY + 6, O(colors.credits, 11, true));
+      FA.draw.text('-' + state.rent + '/night', 365, uiY + 6, O('#a65', 10));
 
       // Day + period + time bar (always visible — in dungeon you still burn daylight)
       var day = timeCfg.turnsPerDay;
@@ -71,13 +84,13 @@
       var periodColor = state.timeOfDay < day * 0.33 ? '#d8b060' : state.timeOfDay < day * 0.66 ? '#e0a030' : '#c06030';
       var timeRatio = state.timeOfDay / day;
       if (timeRatio > 0.95) { period = 'CURFEW'; periodColor = '#f44'; }
-      FA.draw.text('DAY ' + state.day + ' ' + period, 480, uiY + 6, { color: periodColor, size: 11 });
+      FA.draw.text('DAY ' + state.day + ' ' + period, 480, uiY + 6, O(periodColor, 11));
       var timeColor = timeRatio > 0.95 ? '#f44' : timeRatio > 0.75 ? '#e08030' : '#c8a050';
       FA.draw.bar(620, uiY + 7, 70, 8, 1 - timeRatio, timeColor, '#1a1610');
 
       // Depth indicator (only when in dungeon)
       if (!inTown) {
-        FA.draw.text('D' + (state.depth || 1) + '/' + cfg.maxDepth, W - 50, uiY + 6, { color: colors.stairsDown, size: 11, bold: true });
+        FA.draw.text('D' + (state.depth || 1) + '/' + cfg.maxDepth, W - 50, uiY + 6, O(colors.stairsDown, 11, true));
       }
 
       // === ROW 2 (y+21): Modules | Buffs ===
@@ -85,22 +98,22 @@
       for (var m = 0; m < 3; m++) {
         var mx = 8 + m * 130;
         if (m < mods.length) {
-          FA.draw.text('[' + (m + 1) + ']', mx, uiY + 21, { color: '#3a5060', size: 11 });
-          FA.draw.text(mods[m].name, mx + 22, uiY + 21, { color: mods[m].color, size: 11, bold: true });
+          FA.draw.text('[' + (m + 1) + ']', mx, uiY + 21, O('#3a5060', 11));
+          FA.draw.text(mods[m].name, mx + 22, uiY + 21, O(mods[m].color, 11, true));
         } else {
-          FA.draw.text('[' + (m + 1) + '] ---', mx, uiY + 21, { color: '#1a2530', size: 11 });
+          FA.draw.text('[' + (m + 1) + '] ---', mx, uiY + 21, O('#1a2530', 11));
         }
       }
 
       // Buffs (shown when active, regardless of location)
       var buffX = 420;
-      if (p.cloakTurns > 0) { FA.draw.text('CLOAK:' + p.cloakTurns, buffX, uiY + 21, { color: '#88f', size: 11, bold: true }); buffX += 65; }
-      if (p.overclockActive) { FA.draw.text('OC:RDY', buffX, uiY + 21, { color: '#f44', size: 11, bold: true }); buffX += 55; }
-      if (p.firewallHp > 0) { FA.draw.text('FW:' + p.firewallHp, buffX, uiY + 21, { color: '#4f4', size: 11, bold: true }); }
+      if (p.cloakTurns > 0) { FA.draw.text('CLOAK:' + p.cloakTurns, buffX, uiY + 21, O('#88f', 11, true)); buffX += 65; }
+      if (p.overclockActive) { FA.draw.text('OC:RDY', buffX, uiY + 21, O('#f44', 11, true)); buffX += 55; }
+      if (p.firewallHp > 0) { FA.draw.text('FW:' + p.firewallHp, buffX, uiY + 21, O('#4f4', 11, true)); }
 
       // Dives counter (always)
       if (state.systemVisits > 0) {
-        FA.draw.text('DIVES:' + state.systemVisits, W - 65, uiY + 21, { color: '#664', size: 10 });
+        FA.draw.text('DIVES:' + state.systemVisits, W - 65, uiY + 21, O('#664', 10));
       }
 
       // === ROW 3 (y+36): Context actions + NPCs | Stats ===
@@ -133,9 +146,9 @@
       var ax = 8;
       for (var ai = 0; ai < actions.length; ai++) {
         var act = actions[ai];
-        FA.draw.text('[' + act.key + ']', ax, uiY + 36, { color: '#554', size: 10 });
+        FA.draw.text('[' + act.key + ']', ax, uiY + 36, O('#554', 10));
         ax += ctx.measureText('[' + act.key + ']').width + 4;
-        FA.draw.text(act.label, ax, uiY + 36, { color: act.color, size: 10 });
+        FA.draw.text(act.label, ax, uiY + 36, O(act.color, 10));
         ax += ctx.measureText(act.label).width + 12;
       }
 
@@ -153,7 +166,7 @@
           var dimmed = nd > 5;
           ctx.globalAlpha = dimmed ? 0.4 : 0.9;
           FA.draw.rect(tagX, uiY + 37, 4, 4, npc.color);
-          FA.draw.text(npc.name, tagX + 7, uiY + 36, { color: dimmed ? '#665' : '#aa9', size: 10 });
+          FA.draw.text(npc.name, tagX + 7, uiY + 36, O(dimmed ? '#665' : '#aa9', 10));
           tagX += ctx.measureText(npc.name).width + 18;
         }
         ctx.globalAlpha = 1;
@@ -161,9 +174,9 @@
 
       // Right side of row 3: dungeon run stats
       if (!inTown) {
-        FA.draw.text('DATA:' + p.gold, W - 220, uiY + 36, { color: '#0aa', size: 10 });
-        FA.draw.text('KILLS:' + p.kills, W - 150, uiY + 36, { color: '#a44', size: 10 });
-        FA.draw.text('T:' + (state.systemTurn || 0), W - 80, uiY + 36, { color: '#3a4a5a', size: 10 });
+        FA.draw.text('DATA:' + p.gold, W - 220, uiY + 36, O('#0aa', 10));
+        FA.draw.text('KILLS:' + p.kills, W - 150, uiY + 36, O('#a44', 10));
+        FA.draw.text('T:' + (state.systemTurn || 0), W - 80, uiY + 36, O('#3a4a5a', 10));
       }
     }, 30);
 
@@ -192,13 +205,12 @@
       for (var li = 0; li < lines.length; li++) {
         var lineElapsed = sb.timer - li * 200;
         if (lineElapsed <= 0) continue;
-        TextFX.render(ctx, lines[li], lineElapsed, bx + 12, by + 6 + li * lineH, {
-          color: sb.color, dimColor: '#1a3030', size: 11, duration: 60, charDelay: 6, flicker: 25
-        });
+        TextFX.render(ctx, lines[li], lineElapsed, bx + 12, by + 6 + li * lineH,
+          FX(sb.color, '#1a3030', 11, 60, 6, 25));
       }
       if (sb.done) {
         ctx.globalAlpha = 0.3 * alpha;
-        FA.draw.text('[SPACE]', bx + tw - 48, by + th + 4, { color: sb.color, size: 8 });
+        FA.draw.text('[SPACE]', bx + tw - 48, by + th + 4, O(sb.color, 8));
       }
       ctx.globalAlpha = 1;
     }, 25);
@@ -239,12 +251,11 @@
       else { ctx.moveTo(ppx, by); ctx.lineTo(ppx, ppy + ts + 2); }
       ctx.stroke();
       ctx.globalAlpha = 0.9 * alpha;
-      TextFX.render(ctx, thought.text, thought.timer, bx + 8, by + 7, {
-        color: '#4ef', dimColor: '#1a4040', size: 11, duration: 60, charDelay: 6, flicker: 25
-      });
+      TextFX.render(ctx, thought.text, thought.timer, bx + 8, by + 7,
+        FX('#4ef', '#1a4040', 11, 60, 6, 25));
       if (thought.done) {
         ctx.globalAlpha = 0.3 * alpha;
-        FA.draw.text('[SPACE]', bx + tw - 48, by + th + 4, { color: '#4ef', size: 8 });
+        FA.draw.text('[SPACE]', bx + tw - 48, by + th + 4, O('#4ef', 8));
       }
       ctx.globalAlpha = 1;
     }, 26);
@@ -271,18 +282,16 @@
       var bx = W / 2 - tw / 2, by = 20;
       drawBox(ctx, bx, by, tw, th, '#8878cc', 1);
       ctx.globalAlpha = 0.9;
-      TextFX.render(ctx, menu.title, menu.timer, bx + 12, by + 10, {
-        color: '#8878cc', dimColor: '#1a1530', size: 11, duration: 60, charDelay: 6, flicker: 25
-      });
+      TextFX.render(ctx, menu.title, menu.timer, bx + 12, by + 10,
+        FX('#8878cc', '#1a1530', 11, 60, 6, 25));
       for (var i = 0; i < menu.options.length; i++) {
         var opt = menu.options[i];
         var label = '[' + opt.key + '] ' + opt.label;
         var optY = by + 10 + (i + 1) * lineH;
         var optColor = opt.enabled !== false ? (opt.color || '#aa9') : '#443';
         ctx.globalAlpha = opt.enabled !== false ? 0.9 : 0.5;
-        TextFX.render(ctx, label, menu.timer, bx + 16, optY, {
-          color: optColor, dimColor: '#1a1530', size: 11, duration: 60, charDelay: 4, flicker: 20
-        });
+        TextFX.render(ctx, label, menu.timer, bx + 16, optY,
+          FX(optColor, '#1a1530', 11, 60, 4, 20));
       }
       ctx.globalAlpha = 1;
     }, 27);
@@ -305,14 +314,14 @@
       FA.draw.rect(0, 0, W, uiY, '#000');
       FA.draw.popAlpha();
       var ending = endingTitles[state.endingNode] || endingTitles.shutdown;
-      FA.draw.text(ending.title, W / 2, uiY / 2 - 70, { color: ending.color, size: 28, bold: true, align: 'center', baseline: 'middle' });
+      FA.draw.text(ending.title, W / 2, uiY / 2 - 70, O(ending.color, 28, true, 'center', 'middle'));
       var stats = state.finalStats || {};
-      FA.draw.text('Days survived: ' + (stats.days || 1), W / 2, uiY / 2 - 20, { color: colors.text, size: 14, align: 'center', baseline: 'middle' });
-      FA.draw.text('System visits: ' + (stats.visits || 0), W / 2, uiY / 2 + 0, { color: '#f80', size: 14, align: 'center', baseline: 'middle' });
-      FA.draw.text('Drones neutralized: ' + (stats.kills || 0), W / 2, uiY / 2 + 20, { color: colors.text, size: 14, align: 'center', baseline: 'middle' });
-      FA.draw.text('Credits: ' + (stats.credits || 0), W / 2, uiY / 2 + 40, { color: colors.credits, size: 14, align: 'center', baseline: 'middle' });
-      FA.draw.text('SCORE: ' + (state.score || 0), W / 2, uiY / 2 + 80, { color: '#fff', size: 22, bold: true, align: 'center', baseline: 'middle' });
-      FA.draw.text('[ R ]  Reinitialize', W / 2, uiY / 2 + 120, { color: colors.dim, size: 16, align: 'center', baseline: 'middle' });
+      FA.draw.text('Days survived: ' + (stats.days || 1), W / 2, uiY / 2 - 20, O(colors.text, 14, false, 'center', 'middle'));
+      FA.draw.text('System visits: ' + (stats.visits || 0), W / 2, uiY / 2 + 0, O('#f80', 14, false, 'center', 'middle'));
+      FA.draw.text('Drones neutralized: ' + (stats.kills || 0), W / 2, uiY / 2 + 20, O(colors.text, 14, false, 'center', 'middle'));
+      FA.draw.text('Credits: ' + (stats.credits || 0), W / 2, uiY / 2 + 40, O(colors.credits, 14, false, 'center', 'middle'));
+      FA.draw.text('SCORE: ' + (state.score || 0), W / 2, uiY / 2 + 80, O('#fff', 22, true, 'center', 'middle'));
+      FA.draw.text('[ R ]  Reinitialize', W / 2, uiY / 2 + 120, O(colors.dim, 16, false, 'center', 'middle'));
     }, 40);
 
     // ================================================================
@@ -336,23 +345,20 @@
       var totalLines = cs.lines.length;
       var startY = Math.max(50, Math.floor((H - totalLines * lineH) / 2) - 20);
       var ld = cs.lineDelay || 200;
-      var scrambleOpts = { duration: 100, charDelay: 8, flicker: 30 };
       for (var i = 0; i < totalLines; i++) {
         var lineElapsed = cs.timer - i * ld;
         if (lineElapsed <= 0) continue;
-        var lineDone = lineElapsed >= TextFX.totalTime(cs.lines[i], scrambleOpts);
-        if (lineDone && cs.timer - (i * ld + TextFX.totalTime(cs.lines[i], scrambleOpts)) > 400) ctx.globalAlpha = 0.6;
+        var lineDone = lineElapsed >= TextFX.totalTime(cs.lines[i], FX(null, null, null, 100, 8, 30));
+        if (lineDone && cs.timer - (i * ld + TextFX.totalTime(cs.lines[i], FX(null, null, null, 100, 8, 30))) > 400) ctx.globalAlpha = 0.6;
         else ctx.globalAlpha = 1;
-        TextFX.render(ctx, cs.lines[i], lineElapsed, 80, startY + i * lineH, {
-          color: cs.color, dimColor: '#1a4a4a', size: 15,
-          duration: scrambleOpts.duration, charDelay: scrambleOpts.charDelay, flicker: scrambleOpts.flicker
-        });
+        TextFX.render(ctx, cs.lines[i], lineElapsed, 80, startY + i * lineH,
+          FX(cs.color, '#1a4a4a', 15, 100, 8, 30));
       }
       ctx.globalAlpha = 1;
       if (cs.done) {
         var now = Date.now();
         if (Math.floor(now / 600) % 2 === 0)
-          FA.draw.text('[ SPACE ]', W / 2, H - 45, { color: '#445', size: 14, align: 'center', baseline: 'middle' });
+          FA.draw.text('[ SPACE ]', W / 2, H - 45, O('#445', 14, false, 'center', 'middle'));
       }
       ctx.globalAlpha = 0.3; ctx.fillStyle = cs.color;
       ctx.fillRect(0, 0, W, 1); ctx.fillRect(0, H - 1, W, 1);
