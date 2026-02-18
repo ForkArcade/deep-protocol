@@ -54,15 +54,15 @@
       ctx.fillText(text.substring(0, settledCount), startX, y);
     }
 
-    // Scrambling tail — only unsettled chars
+    // Scrambling tail — one fillText for entire unsettled portion
     ctx.fillStyle = dimColor;
+    var scramble = '';
     for (var i = settledCount; i < text.length; i++) {
-      if (text.charAt(i) === ' ') continue;
-      var cx = startX + i * cw;
+      if (text.charAt(i) === ' ') { scramble += ' '; continue; }
       var idx = ((tick + i * 13 + i * i * 7) % CL + CL) % CL;
-      var jitter = ((tick + i) % 3) - 1;
-      ctx.fillText(CHARS.charAt(idx), cx, y + jitter);
+      scramble += CHARS.charAt(idx);
     }
+    ctx.fillText(scramble, startX + settledCount * cw, y);
   }
 
   function totalTime(text, opts) {
