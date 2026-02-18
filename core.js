@@ -401,7 +401,9 @@
   // ============================================================
 
   function _createSystemBubble(state, text, color, source) {
-    var words = text.split(' ');
+    var bubbleColor = source ? source.color : (color || '#4ef');
+    var fullText = source ? source.name + ': "' + text + '"' : text;
+    var words = fullText.split(' ');
     var lines = []; var line = '';
     for (var i = 0; i < words.length; i++) {
       var test = line ? line + ' ' + words[i] : words[i];
@@ -409,7 +411,7 @@
       else line = test;
     }
     if (line) lines.push(line);
-    state.systemBubble = { lines: lines, color: color || '#4ef', timer: 0, done: false, fadeSteps: BUBBLE_FADE_STEPS, source: source || null };
+    state.systemBubble = { lines: lines, color: bubbleColor, timer: 0, done: false, fadeSteps: BUBBLE_FADE_STEPS, source: source || null };
   }
 
   function _createThought(state, text) {
