@@ -160,18 +160,22 @@
     for (var y2 = 0; y2 < rows; y2++)
       for (var x2 = 0; x2 < cols; x2++) _vis[y2][x2] = 0;
     // Reuse FOV object if same map
-    if (_fovMap !== map) {
+    var _newFov = _fovMap !== map;
+    if (_newFov) {
       _fovMap = map;
       _fovObj = new ROT.FOV.PreciseShadowcasting(function(x, y) {
         if (x < 0 || x >= cols || y < 0 || y >= rows) return false;
         return map[y][x] !== 1;
       });
     }
+    var _ft0 = performance.now();
     _fovObj.compute(px, py, radius, function(x, y, r) {
       if (x < 0 || x >= cols || y < 0 || y >= rows) return;
       var light = r < 2 ? 1 : Math.max(0, 1 - (r - 2) / (radius - 2));
       if (light > _vis[y][x]) _vis[y][x] = light;
     });
+    var _ft1 = performance.now();
+    if (_ft1 - _ft0 > 5) console.log('[FOV] compute=' + (_ft1 - _ft0).toFixed(1) + 'ms new=' + _newFov + ' r=' + radius + ' map=' + cols + 'x' + rows);
     return _vis;
   }
 
