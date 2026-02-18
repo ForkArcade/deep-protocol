@@ -143,20 +143,36 @@
   //  FOV (rot.js)
   // ============================================================
 
+  var _fovMap = null;
+  var _fovObj = null;
+  var _vis = null;
+  var _visRows = 0;
+  var _visCols = 0;
+
   function computeVisibility(map, px, py, radius) {
     var rows = map.length, cols = map[0].length;
-    var vis = [];
-    for (var y = 0; y < rows; y++) { vis[y] = []; for (var x = 0; x < cols; x++) vis[y][x] = 0; }
-    var fov = new ROT.FOV.PreciseShadowcasting(function(x, y) {
-      if (x < 0 || x >= cols || y < 0 || y >= rows) return false;
-      return map[y][x] !== 1;
-    });
-    fov.compute(px, py, radius, function(x, y, r, visibility) {
+    // Reuse vis array if dimensions match, otherwise allocate
+    if (!_vis || _visRows !== rows || _visCols !== cols) {
+      _vis = [];
+      for (var y = 0; y < rows; y++) { _vis[y] = new Array(cols); }
+      _visRows = rows; _visCols = cols;
+    }
+    for (var y2 = 0; y2 < rows; y2++)
+      for (var x2 = 0; x2 < cols; x2++) _vis[y2][x2] = 0;
+    // Reuse FOV object if same map
+    if (_fovMap !== map) {
+      _fovMap = map;
+      _fovObj = new ROT.FOV.PreciseShadowcasting(function(x, y) {
+        if (x < 0 || x >= cols || y < 0 || y >= rows) return false;
+        return map[y][x] !== 1;
+      });
+    }
+    _fovObj.compute(px, py, radius, function(x, y, r) {
       if (x < 0 || x >= cols || y < 0 || y >= rows) return;
       var light = r < 2 ? 1 : Math.max(0, 1 - (r - 2) / (radius - 2));
-      if (light > vis[y][x]) vis[y][x] = light;
+      if (light > _vis[y][x]) _vis[y][x] = light;
     });
-    return vis;
+    return _vis;
   }
 
   // ============================================================
