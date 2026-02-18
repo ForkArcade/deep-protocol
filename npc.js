@@ -109,7 +109,7 @@
 
   function moveNPCToward(npc, tx, ty) {
     if (npc.x === tx && npc.y === ty) return false;
-    return Core.moveToward(npc, tx, ty);
+    return Core.moveTowardSimple(npc, tx, ty);
   }
 
   // ============================================================
