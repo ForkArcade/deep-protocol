@@ -441,36 +441,25 @@
       else line = test;
     }
     if (line) lines.push(line);
-    state.systemBubble = { lines: lines, color: bubbleColor, timer: 0, done: false, fadeSteps: BUBBLE_FADE_STEPS, source: source || null };
+    state.systemBubble = { lines: lines, color: bubbleColor, timer: 0, done: false, source: source || null };
   }
 
   function _createThought(state, text) {
     if (!state.thoughts) state.thoughts = [];
-    state.thoughts = [{ text: text, timer: 0, speed: THOUGHT_REVEAL_SPEED, done: false, fadeSteps: THOUGHT_FADE_STEPS }];
+    state.thoughts = [{ text: text, timer: 0, speed: THOUGHT_REVEAL_SPEED, done: false }];
     state.lastThoughtTurn = state.turn;
   }
 
-  function _isBubbleActive(state) {
-    return state.systemBubble || (state.thoughts && state.thoughts.length > 0);
-  }
-
+  // Only ONE message at a time — new message replaces current, no queue
   function addSystemBubble(text, color, source) {
     var state = FA.getState();
-    if (_isBubbleActive(state)) {
-      if (!state.bubbleQueue) state.bubbleQueue = [];
-      state.bubbleQueue.push({ type: 'system', text: text, color: color, source: source });
-      return;
-    }
+    state.thoughts = [];
     _createSystemBubble(state, text, color, source);
   }
 
   function addThought(text) {
     var state = FA.getState();
-    if (_isBubbleActive(state)) {
-      if (!state.bubbleQueue) state.bubbleQueue = [];
-      state.bubbleQueue.push({ type: 'thought', text: text });
-      return;
-    }
+    if (state.systemBubble) return; // system bubble has priority
     _createThought(state, text);
   }
 
@@ -482,40 +471,22 @@
     addThought(FA.pick(entry.pool));
   }
 
-  function _popQueue(state) {
-    if (state.bubbleQueue && state.bubbleQueue.length > 0) {
-      var next = state.bubbleQueue.shift();
-      if (next.type === 'system') _createSystemBubble(state, next.text, next.color, next.source);
-      else _createThought(state, next.text);
-    }
-  }
-
   function dismissBubbles() {
     var state = FA.getState();
     state.thoughts = [];
     state.systemBubble = null;
-    _popQueue(state);
   }
 
-  // Called each turn — fade done bubbles, auto-dismiss when gone
+  // Called each turn — auto-dismiss done bubbles
   function tickBubbles() {
     var state = FA.getState();
     if (state.systemBubble && state.systemBubble.done) {
-      state.systemBubble.fadeSteps--;
-      if (state.systemBubble.fadeSteps <= 0) {
-        state.systemBubble = null;
-        _popQueue(state);
-      }
+      state.systemBubble = null;
     }
     if (state.thoughts) {
       for (var i = state.thoughts.length - 1; i >= 0; i--) {
-        var t = state.thoughts[i];
-        if (t.done) {
-          t.fadeSteps--;
-          if (t.fadeSteps <= 0) { state.thoughts.splice(i, 1); }
-        }
+        if (state.thoughts[i].done) state.thoughts.splice(i, 1);
       }
-      if (state.thoughts.length === 0 && !state.systemBubble) _popQueue(state);
     }
   }
 
@@ -591,8 +562,6 @@
     triggerThought: triggerThought,
     dismissBubbles: dismissBubbles,
     tickBubbles: tickBubbles,
-    _createSystemBubble: _createSystemBubble,
-    _createThought: _createThought,
     // Narrative
     showNarrative: showNarrative,
     selectDialogue: selectDialogue,

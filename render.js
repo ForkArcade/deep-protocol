@@ -119,6 +119,7 @@
     var _slCtx = _scanlineCanvas.getContext('2d');
     _slCtx.fillStyle = '#000';
     for (var _sy = 0; _sy < H; _sy += 3) _slCtx.fillRect(0, _sy, W, 1);
+    Render.scanlineCanvas = _scanlineCanvas;
 
     function renderStartScene() {
       _startCanvas = document.createElement('canvas');
@@ -691,5 +692,5 @@
     }, 20);
   }
 
-  window.Render = { setup: setupLayers };
+  window.Render = { setup: setupLayers, scanlineCanvas: null };
 })();

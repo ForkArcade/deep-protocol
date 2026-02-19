@@ -5,8 +5,7 @@
   var FA = window.FA;
   var Core = window.Core;
 
-  // Fade steps: 2 turns full, then ease-out over 3 turns
-  var STEP_ALPHA = [0, 0.1, 0.3, 0.7, 1, 1];
+  // No fade — bubbles dismiss instantly when done
 
   // Measured char width per font size (cached on first use)
   var _cwCache = {};
@@ -207,7 +206,6 @@
       if (!sb) return;
       var ctx = FA.getCtx();
       var cw = getCW(ctx);
-      var alpha = sb.done ? (STEP_ALPHA[sb.fadeSteps] || 0.1) : 1;
       var lines = sb.lines;
       var lineH = 16;
       var maxLineLen = 0;
@@ -228,13 +226,13 @@
       } else {
         bx = W / 2 - tw / 2; by = 8;
       }
-      drawBox(ctx, bx, by, tw, th, sb.color, alpha);
+      drawBox(ctx, bx, by, tw, th, sb.color, 1);
       if (hasSource) {
         var flipped = by > sy;
         var px = Math.max(bx + 8, Math.min(bx + tw - 8, sx));
-        drawPointer(ctx, px, by, th, flipped, sb.color, alpha);
+        drawPointer(ctx, px, by, th, flipped, sb.color, 1);
       }
-      ctx.globalAlpha = 0.9 * alpha;
+      ctx.globalAlpha = 0.9;
       for (var li = 0; li < lines.length; li++) {
         var lineElapsed = sb.timer - li * 200;
         if (lineElapsed <= 0) continue;
@@ -242,7 +240,7 @@
           FX(sb.color, '#1a3030', 11, 60, 6, 25));
       }
       if (sb.done) {
-        ctx.globalAlpha = 0.3 * alpha;
+        ctx.globalAlpha = 0.3;
         FA.draw.text('[SPACE]', bx + tw - 48, by + th + 4, O(sb.color, 8));
       }
       ctx.globalAlpha = 1;
@@ -257,11 +255,7 @@
       if (state.screen !== 'playing') return;
       if (state.systemBubble) return;
       if (!state.thoughts || state.thoughts.length === 0) return;
-      var thought = null;
-      for (var ti = state.thoughts.length - 1; ti >= 0; ti--) {
-        var t = state.thoughts[ti];
-        if (t.fadeSteps > 0 || !t.done) { thought = t; break; }
-      }
+      var thought = state.thoughts[0];
       if (!thought) return;
       if (!state.player) return;
       var ctx = FA.getCtx();
@@ -276,15 +270,14 @@
       if (bx + tw > W - 4) bx = W - tw - 4;
       var flipped = by < 4;
       if (flipped) by = ppy + ts + 10;
-      var alpha = thought.done ? (STEP_ALPHA[thought.fadeSteps] || 0.1) : 1;
-      drawBox(ctx, bx, by, tw, th, '#4ef', alpha);
+      drawBox(ctx, bx, by, tw, th, '#4ef', 1);
       var px = Math.max(bx + 8, Math.min(bx + tw - 8, ppx));
-      drawPointer(ctx, px, by, th, flipped, '#4ef', alpha);
-      ctx.globalAlpha = 0.9 * alpha;
+      drawPointer(ctx, px, by, th, flipped, '#4ef', 1);
+      ctx.globalAlpha = 0.9;
       TextFX.render(ctx, thought.text, thought.timer, bx + 8, by + 7,
         FX('#4ef', '#1a4040', 11, 60, 6, 25));
       if (thought.done) {
-        ctx.globalAlpha = 0.3 * alpha;
+        ctx.globalAlpha = 0.3;
         FA.draw.text('[SPACE]', bx + tw - 48, by + th + 4, O('#4ef', 8));
       }
       ctx.globalAlpha = 1;
@@ -364,8 +357,8 @@
       var cs = state.cutscene;
       var ctx = FA.getCtx();
       FA.draw.clear('#040810');
-      ctx.fillStyle = '#000'; ctx.globalAlpha = 0.12;
-      for (var sy = 0; sy < H; sy += 3) ctx.fillRect(0, sy, W, 1);
+      ctx.globalAlpha = 0.12;
+      ctx.drawImage(Render.scanlineCanvas, 0, 0);
       if (Math.random() > 0.95) {
         ctx.globalAlpha = 0.015; ctx.fillStyle = cs.color;
         ctx.fillRect(0, 0, W, H);

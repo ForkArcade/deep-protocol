@@ -71,7 +71,7 @@
       visible: Core.computeVisibility(townGrid, playerStart.x, playerStart.y, 14),
       mapVersion: 1, turn: 0, systemTurn: 0,
       systemBubble: null,
-      thoughts: [], lastThoughtTurn: -10, bubbleQueue: [],
+      thoughts: [], lastThoughtTurn: -10,
       shake: 0, shakeX: 0, shakeY: 0,
       particles: [], soundWaves: [],
       _pendingEnd: null, _timeWarned: false, _curfewWarned: false,

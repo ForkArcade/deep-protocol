@@ -80,8 +80,7 @@
     }
     if (state.systemVisits === 0) {
       dreamSnapshot(state);
-      if (!state.bubbleQueue) state.bubbleQueue = [];
-      state.bubbleQueue.push({ type: 'system', text: '> Day ' + state.day + '. Rent: -' + rent + 'cr. Balance: ' + state.credits + 'cr.', color: '#f44' });
+      state._pendingDayMsg = '> Day ' + state.day + '. Rent: -' + rent + 'cr. Balance: ' + state.credits + 'cr.';
     } else {
       Core.addSystemBubble('> Day ' + state.day + '. Rent: -' + rent + 'cr. Balance: ' + state.credits + 'cr.', '#f44');
     }
@@ -124,10 +123,9 @@
     state.dreamText = null;
     state.dreamTimer = 0;
     state.mapVersion = (state.mapVersion || 0) + 1;
-    if (state.bubbleQueue && state.bubbleQueue.length > 0) {
-      var next = state.bubbleQueue.shift();
-      if (next.type === 'system') Core._createSystemBubble(state, next.text, next.color);
-      else Core._createThought(state, next.text);
+    if (state._pendingDayMsg) {
+      Core.addSystemBubble(state._pendingDayMsg, '#f44');
+      state._pendingDayMsg = null;
     }
   }
 
