@@ -74,6 +74,7 @@
     _lightCanvas.width = W; _lightCanvas.height = cfg.rows * ts;
     var _lightCtx = _lightCanvas.getContext('2d');
     var _lightCacheKey = '';
+    var _lightImageData = null;
 
     // ================================================================
     //  START SCREEN
@@ -450,7 +451,6 @@
           var timeCfg = FA.lookup('config', 'time');
           if (state.timeOfDay < timeCfg.warningTime) return;
           var t = Math.min(1, (state.timeOfDay - timeCfg.warningTime) / (timeCfg.curfewTime - timeCfg.warningTime));
-          // Rebuild smoke patches only when t changes (per turn, not per frame)
           if (t !== _lastSmokeT) {
             _lastSmokeT = t;
             _cc.clearRect(0, 0, W, uiY);
@@ -572,21 +572,34 @@
         var cacheKey = p.x + ',' + p.y + ',' + (state.depth || 0) + ',' + state.mapId + ',' + (state.mapVersion || 0);
         if (cacheKey !== _lightCacheKey) {
           _lightCacheKey = cacheKey;
-          _lightCtx.clearRect(0, 0, _lightCanvas.width, _lightCanvas.height);
-          _lightCtx.fillStyle = '#000';
+          // Use ImageData instead of 1000 fillRect calls
+          var lw = cfg.cols * ts, lh = cfg.rows * ts;
+          if (!_lightImageData || _lightImageData.width !== lw) {
+            _lightImageData = _lightCtx.createImageData(lw, lh);
+          }
+          var ld = _lightImageData.data;
           for (var y2 = 0; y2 < cfg.rows; y2++) {
             for (var x2 = 0; x2 < cfg.cols; x2++) {
               var v = vis[y2] ? vis[y2][x2] : 0;
               var sv = slMap[y2][x2];
               if (sv > v) v = sv;
-              if (v > 0.97) continue;
-              else if (v > 0.03) _lightCtx.globalAlpha = Math.min(1 - v, 0.88);
-              else if (explored[y2][x2]) _lightCtx.globalAlpha = 0.72;
-              else _lightCtx.globalAlpha = 0.96;
-              _lightCtx.fillRect(x2 * ts, y2 * ts, ts, ts);
+              var alpha;
+              if (v > 0.97) alpha = 0;
+              else if (v > 0.03) alpha = Math.min(1 - v, 0.88) * 255 | 0;
+              else if (explored[y2][x2]) alpha = 184; // 0.72 * 255
+              else alpha = 245; // 0.96 * 255
+              // Fill tile block in ImageData
+              var bx = x2 * ts, by = y2 * ts;
+              for (var py = by; py < by + ts; py++) {
+                var rowOff = py * lw * 4 + bx * 4;
+                for (var px = 0; px < ts; px++) {
+                  var off = rowOff + px * 4;
+                  ld[off + 3] = alpha; // r,g,b stay 0 (black)
+                }
+              }
             }
           }
-          _lightCtx.globalAlpha = 1;
+          _lightCtx.putImageData(_lightImageData, 0, 0);
         }
         ctx.drawImage(_lightCanvas, 0, 0);
       }
