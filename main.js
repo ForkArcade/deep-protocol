@@ -155,9 +155,7 @@
     }
   });
 
-  var _frameTimes = [];
   FA.setRender(function() {
-    var _rt0 = performance.now();
     FA.draw.clear(colors.bg);
     var state = FA.getState();
     var ctx = FA.getCtx();
@@ -165,15 +163,6 @@
     if (sx || sy) ctx.translate(sx, sy);
     FA.renderLayers();
     if (sx || sy) ctx.translate(-sx, -sy);
-    var _rt1 = performance.now();
-    var ms = _rt1 - _rt0;
-    _frameTimes.push(ms);
-    if (_frameTimes.length >= 60) {
-      var max = 0, sum = 0;
-      for (var fi = 0; fi < _frameTimes.length; fi++) { sum += _frameTimes[fi]; if (_frameTimes[fi] > max) max = _frameTimes[fi]; }
-      if (max > 4) console.log('[RENDER] avg=' + (sum / 60).toFixed(1) + 'ms max=' + max.toFixed(1) + 'ms');
-      _frameTimes.length = 0;
-    }
   });
 
   // Hot-reload maps from editor (fa-map-update dispatched by SDK)

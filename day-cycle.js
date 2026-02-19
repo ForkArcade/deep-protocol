@@ -5,14 +5,18 @@
   var FA = window.FA;
   var Core = window.Core;
   var NPC = window.NPC;
+  var timeCfg = FA.lookup('config', 'time');
+  var econCfg = FA.lookup('config', 'economy');
+  var gameCfg = FA.lookup('config', 'game');
+
+  function getRent(state) { return econCfg.baseRent + (state.day - 1) * econCfg.rentIncrease; }
 
   // ============================================================
   //  BED / SLEEP
   // ============================================================
 
   function showBedChoice(state) {
-    var econCfg = FA.lookup('config', 'economy');
-    var rent = econCfg.baseRent + (state.day - 1) * econCfg.rentIncrease;
+    var rent = getRent(state);
     var canAfford = state.credits >= rent;
     window.Game._showChoiceMenu(state, '> LODGING \u2014 Pay ' + rent + ' cr for the night?', [
       {
@@ -33,8 +37,7 @@
   }
 
   function goToBed(state) {
-    var econCfg = FA.lookup('config', 'economy');
-    var rent = econCfg.baseRent + (state.day - 1) * econCfg.rentIncrease;
+    var rent = getRent(state);
     state.credits -= rent;
     if (state.credits < 0) {
       Core.triggerEnding(false, 'eviction');
@@ -62,7 +65,7 @@
         FA.narrative.setVar(nid + '_met_today', false, 'Day reset');
       }
     }
-    state.rent = econCfg.baseRent + (state.day - 1) * econCfg.rentIncrease;
+    state.rent = getRent(state);
     state.mapVersion = (state.mapVersion || 0) + 1;
     NPC.updateNPCPositions(state);
     if (state.day >= econCfg.systemRevealDay && !state.systemRevealed) {
@@ -97,9 +100,8 @@
   ];
 
   function dreamSnapshot(state) {
-    var cfg = FA.lookup('config', 'game');
     var dreamDepth = FA.rand(1, 3);
-    var floor = Core.generateFloor(cfg.cols, cfg.rows, dreamDepth);
+    var floor = Core.generateFloor(gameCfg.cols, gameCfg.rows, dreamDepth);
     for (var y = 0; y < floor.explored.length; y++)
       for (var x = 0; x < floor.explored[y].length; x++)
         floor.explored[y][x] = true;
@@ -134,7 +136,6 @@
   // ============================================================
 
   function checkTimeWarnings(state) {
-    var timeCfg = FA.lookup('config', 'time');
     if (state.timeOfDay >= timeCfg.curfewTime && !state._curfewWarned) {
       state._curfewWarned = true;
       if (FA.narrative && FA.narrative.setVar) FA.narrative.setVar('curfew_active', true, 'Curfew approaching');
@@ -166,13 +167,12 @@
     var townEntities = state.maps.town.entities;
     var townGrid = state.maps.town.grid;
     var townZones = state.maps.town.zones || null;
-    var cfg = FA.lookup('config', 'game');
-    var curfewCount = FA.lookup('config', 'economy').curfewDrones;
+    var curfewCount = econCfg.curfewDrones;
     for (var i = 0; i < curfewCount; i++) {
       var dx, dy, attempts = 0;
       do {
-        dx = FA.rand(1, cfg.cols - 2);
-        dy = FA.rand(1, cfg.rows - 2);
+        dx = FA.rand(1, gameCfg.cols - 2);
+        dy = FA.rand(1, gameCfg.rows - 2);
         attempts++;
       } while (attempts < 50 && (!Core.isWalkable(townGrid, dx, dy) ||
         (townZones && townZones[dy] && townZones[dy][dx] === 'h') ||

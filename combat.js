@@ -4,6 +4,8 @@
   'use strict';
   var FA = window.FA;
   var Core = window.Core;
+  var cfg = FA.lookup('config', 'game');
+  var ts = cfg.tileSize;
 
   var SHAKE_INTENSITY = 6;
   var SENTINEL_SHOOT_RANGE = 6;
@@ -28,8 +30,6 @@
 
     var label = multiplier > 1 ? 'OC -' + dmg : '-' + dmg;
     var color = multiplier > 1 ? '#f80' : '#f44';
-    var cfg = FA.lookup('config', 'game');
-    var ts = cfg.tileSize;
     FA.addFloat(target.x * ts + ts / 2, target.y * ts, label, color, 800);
     Core.propagateSound(target.x, target.y, 8);
 
@@ -83,9 +83,6 @@
     state.player.hp -= dmg;
     state.shake = SHAKE_INTENSITY;
     FA.emit('entity:damaged', { entity: state.player, damage: dmg });
-
-    var cfg = FA.lookup('config', 'game');
-    var ts = cfg.tileSize;
     FA.addFloat(state.player.x * ts + ts / 2, state.player.y * ts, '-' + dmg, '#f84', 800);
 
     if (state.player.hp <= 0) {
@@ -109,8 +106,6 @@
         if (state.map[sy][sx] === 1) break;
         if (sx === state.player.x && sy === state.player.y) {
           var dmg = Math.max(1, e.atk - state.player.def + FA.rand(-1, 1));
-          var cfg = FA.lookup('config', 'game');
-          var ts = cfg.tileSize;
           FA.addFloat(e.x * ts + ts / 2, e.y * ts, '!', '#f80', 600);
           applyDamageToPlayer(dmg, e.name, state);
           Core.propagateSound(e.x, e.y, 10);
@@ -128,15 +123,11 @@
     var state = FA.getState();
     var mapData = state.maps[state.mapId];
     if (item.type === 'module' && state.player.modules.length >= 3) {
-      var cfg2 = FA.lookup('config', 'game');
-      var ts2 = cfg2.tileSize;
-      FA.addFloat(item.x * ts2 + ts2 / 2, item.y * ts2, 'FULL', '#f44', 600);
+      FA.addFloat(item.x * ts + ts / 2, item.y * ts, 'FULL', '#f44', 600);
       return;
     }
     mapData.items.splice(idx, 1);
     FA.emit('item:pickup', { item: item });
-    var cfg = FA.lookup('config', 'game');
-    var ts = cfg.tileSize;
     if (item.type === 'gold') {
       state.player.gold += item.value;
       FA.addFloat(state.player.x * ts + ts / 2, state.player.y * ts, '+' + item.value, '#0ff', 600);

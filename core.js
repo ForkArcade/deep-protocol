@@ -143,6 +143,7 @@
   //  FOV (rot.js)
   // ============================================================
 
+  var _fovMapVersion = -1;
   var _fovMap = null;
   var _fovObj = null;
   var _vis = null;
@@ -159,24 +160,23 @@
     }
     for (var y2 = 0; y2 < rows; y2++)
       for (var x2 = 0; x2 < cols; x2++) _vis[y2][x2] = 0;
-    // Reuse FOV object if same map
-    var _newFov = _fovMap !== map;
-    if (_newFov) {
-      if (_fovMap) console.log('[FOV] map ref changed! old rows[0]===new rows[0]? ' + (_fovMap[0] === map[0]));
+    // Reuse FOV object if map version unchanged (reference can change without content change)
+    var curVer = FA.getState().mapVersion || 0;
+    if (_fovMapVersion !== curVer) {
+      _fovMapVersion = curVer;
       _fovMap = map;
       _fovObj = new ROT.FOV.PreciseShadowcasting(function(x, y) {
         if (x < 0 || x >= cols || y < 0 || y >= rows) return false;
-        return map[y][x] !== 1;
+        return _fovMap[y][x] !== 1;
       });
+    } else {
+      _fovMap = map;
     }
-    var _ft0 = performance.now();
     _fovObj.compute(px, py, radius, function(x, y, r) {
       if (x < 0 || x >= cols || y < 0 || y >= rows) return;
       var light = r < 2 ? 1 : Math.max(0, 1 - (r - 2) / (radius - 2));
       if (light > _vis[y][x]) _vis[y][x] = light;
     });
-    var _ft1 = performance.now();
-    if (_ft1 - _ft0 > 5) console.log('[FOV] compute=' + (_ft1 - _ft0).toFixed(1) + 'ms new=' + _newFov + ' r=' + radius + ' map=' + cols + 'x' + rows);
     return _vis;
   }
 
@@ -184,13 +184,14 @@
   //  PATHFINDING (rot.js)
   // ============================================================
 
+  var _pathMap = null, _pathBuf = [];
+  function _passable(x, y) { return isWalkable(_pathMap, x, y); }
+  function _collect(x, y) { _pathBuf.push({ x: x, y: y }); }
+
   function findPath(fromX, fromY, toX, toY, map) {
-    var path = [];
-    var astar = new ROT.Path.AStar(toX, toY, function(x, y) {
-      return isWalkable(map, x, y);
-    }, { topology: 4 });
-    astar.compute(fromX, fromY, function(x, y) { path.push({ x: x, y: y }); });
-    return path;
+    _pathMap = map; _pathBuf = [];
+    new ROT.Path.AStar(toX, toY, _passable, { topology: 4 }).compute(fromX, fromY, _collect);
+    return _pathBuf;
   }
 
   // ============================================================
@@ -351,13 +352,21 @@
 
   function moveToward(e, tx, ty) {
     var state = FA.getState();
+    // Close range: always fresh pathfind
+    if (Math.abs(e.x - tx) + Math.abs(e.y - ty) <= 5) e._path = null;
+    // Follow cached path
+    var cp = e._path;
+    if (cp && cp.i < cp.p.length) {
+      var cn = cp.p[cp.i];
+      if (canStep(cn.x, cn.y, e)) { e.x = cn.x; e.y = cn.y; cp.i++; return true; }
+      e._path = null;
+    }
+    // Compute fresh
     var path = findPath(e.x, e.y, tx, ty, state.map);
-    if (path.length >= 2) {
-      var next = path[1];
-      if (canStep(next.x, next.y, e)) {
-        e.x = next.x; e.y = next.y;
-        return true;
-      }
+    if (path.length >= 2 && canStep(path[1].x, path[1].y, e)) {
+      e.x = path[1].x; e.y = path[1].y;
+      e._path = path.length > 2 ? { p: path, i: 2 } : null;
+      return true;
     }
     return stepToward(e, tx, ty);
   }

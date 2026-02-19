@@ -5,6 +5,14 @@
   var FA = window.FA;
   var Core = window.Core;
   var NPC = window.NPC;
+  var cfg = FA.lookup('config', 'game');
+  var econCfg = FA.lookup('config', 'economy');
+  var timeCfg = FA.lookup('config', 'time');
+
+  function getPlayerStart() {
+    if (typeof getMap === 'function') { var md = getMap('overworld'); if (md && md.playerStart) return md.playerStart; }
+    return { x: 13, y: 1 };
+  }
 
   var COMM_INTERVAL = 12;
   var AMBIENT_THOUGHT_INTERVAL = 20;
@@ -22,21 +30,15 @@
   }
 
   function beginPlaying() {
-    var playerStart = { x: 13, y: 1 };
+    var playerStart = getPlayerStart();
     var townObjects = [];
-    if (typeof getMap === 'function') {
-      var mapDef = getMap('overworld');
-      if (mapDef && mapDef.playerStart) playerStart = mapDef.playerStart;
-    }
     if (typeof getMapObjects === 'function') {
       townObjects = getMapObjects('overworld');
     }
-    var econCfg = FA.lookup('config', 'economy');
     var townGrid = Core.parseOverworldMap();
     var npcs = NPC.initNPCs();
 
     var maps = {};
-    var cfg = FA.lookup('config', 'game');
     var explored = [];
     for (var ey = 0; ey < cfg.rows; ey++) {
       explored[ey] = [];
@@ -203,7 +205,6 @@
     var npc = NPC.getAdjacentNPC(state, state.player.x, state.player.y);
     if (npc) {
       NPC.talkToNPC(npc, state);
-      var econCfg = FA.lookup('config', 'economy');
       if (state.day >= econCfg.systemRevealDay && !state.systemRevealed) {
         if (npc.id === 'victor' || npc.id === 'lena') {
           state.systemRevealed = true;
@@ -239,8 +240,6 @@
       Core.addSystemBubble('> Shift already completed. Return tomorrow.', '#556');
       return;
     }
-    var timeCfg = FA.lookup('config', 'time');
-    var econCfg = FA.lookup('config', 'economy');
     state.workedToday = true;
     state.timeOfDay += timeCfg.workTurns;
     state.turn += timeCfg.workTurns;
@@ -286,7 +285,6 @@
   // ============================================================
 
   function enterSystem(state) {
-    var cfg = FA.lookup('config', 'game');
     var depth = Math.min(state.systemVisits + 1, cfg.maxDepth);
 
     if (state.systemVisits === 0) {
@@ -356,8 +354,6 @@
 
   function exitSystem(reason) {
     var state = FA.getState();
-    var timeCfg = FA.lookup('config', 'time');
-    var econCfg = FA.lookup('config', 'economy');
 
     state.credits += state.player.gold;
     state.totalKills = (state.totalKills || 0) + state.player.kills;
@@ -374,12 +370,7 @@
     state.visible = null;
 
     var dungeonMapId = state.mapId;
-    var fallbackStart = { x: 13, y: 1 };
-    if (typeof getMap === 'function') {
-      var md = getMap('overworld');
-      if (md && md.playerStart) fallbackStart = md.playerStart;
-    }
-    var returnPos = state.townReturnPos || fallbackStart;
+    var returnPos = state.townReturnPos || getPlayerStart();
     Core.changeMap('town', returnPos.x, returnPos.y);
     delete state.maps[dungeonMapId];
 
@@ -451,17 +442,10 @@
 
       if (state.maps.town) {
         if (oldPeriod !== newPeriod) {
-          var _t0 = performance.now();
           NPC.updateNPCPositions(state);
-          var _t1 = performance.now();
           if (FA.narrative && FA.narrative.setVar) FA.narrative.setVar('time_period', newPeriod, 'Period: ' + newPeriod);
-          var _t2 = performance.now();
-          console.log('[PERF] period change: updateNPC=' + (_t1 - _t0).toFixed(1) + 'ms, setVar=' + (_t2 - _t1).toFixed(1) + 'ms');
         }
-        var _t3 = performance.now();
         NPC.npcOverworldTurn(state);
-        var _t4 = performance.now();
-        if (_t4 - _t3 > 1) console.log('[PERF] npcTurn=' + (_t4 - _t3).toFixed(1) + 'ms');
       }
 
       DayCycle.checkTimeWarnings(state);
@@ -472,17 +456,11 @@
     }
 
     if (state.player) {
-      var _t5 = performance.now();
       var lightRadius = hasTime ? 14 : 10 - (state.depth || 1) * 0.5;
       state.visible = Core.computeVisibility(state.map, state.player.x, state.player.y, lightRadius);
-      var _t6 = performance.now();
-      if (_t6 - _t5 > 1) console.log('[PERF] FOV=' + (_t6 - _t5).toFixed(1) + 'ms');
     }
 
-    var _t7 = performance.now();
     Combat.enemyTurn();
-    var _t8 = performance.now();
-    if (_t8 - _t7 > 1) console.log('[PERF] enemyTurn=' + (_t8 - _t7).toFixed(1) + 'ms');
 
     if (hasTime) {
       DayCycle.checkOverworldThoughts(state);

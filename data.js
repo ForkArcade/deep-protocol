@@ -65,6 +65,17 @@ var GAME_DATA = {
       blocking: 9
     },
 
+    lights: {
+      objects: {
+        terminal: { radius: 3, color: '#005878' },
+        system_entrance: { radius: 2, color: '#603010' }
+      },
+      tiles: {
+        3: { radius: 2.5, color: '#604020' },
+        4: { radius: 3, color: '#004858' }
+      }
+    },
+
     npcRoles: ['ally', 'ally', 'traitor', 'neutral'],
 
     director: {

@@ -474,6 +474,65 @@
       }
     };
 
+    // === LIGHT SOURCES ===
+    var _lsVer = -1, _lsMapId = '', _lsList = [];
+    var _lightsCfg = null;
+
+    function collectLights(state) {
+      var mv = state.mapVersion || 0;
+      if (mv === _lsVer && state.mapId === _lsMapId) return _lsList;
+      _lsVer = mv; _lsMapId = state.mapId; _lsList = [];
+      if (!_lightsCfg) _lightsCfg = FA.lookup('config', 'lights');
+      if (!_lightsCfg) return _lsList;
+      var mapData = state.maps[state.mapId], objs = mapData ? mapData.objects : null;
+      if (_lightsCfg.objects && objs) {
+        for (var i = 0; i < objs.length; i++) {
+          var ld = _lightsCfg.objects[objs[i].type];
+          if (ld && !(objs[i].type === 'system_entrance' && !state.systemRevealed))
+            _lsList.push({ x: objs[i].x, y: objs[i].y, r: ld.radius, c: ld.color });
+        }
+      }
+      if (_lightsCfg.tiles && state.map) {
+        for (var y = 0; y < cfg.rows; y++)
+          for (var x = 0; x < cfg.cols; x++) {
+            var td = _lightsCfg.tiles[state.map[y][x]];
+            if (td) _lsList.push({ x: x, y: y, r: td.radius, c: td.color });
+          }
+      }
+      return _lsList;
+    }
+
+    var _slVer = -1, _slMapId = '', _slMap = null;
+
+    function computeStaticLights(state) {
+      var mv = state.mapVersion || 0;
+      if (mv === _slVer && state.mapId === _slMapId) return _slMap;
+      _slVer = mv; _slMapId = state.mapId;
+      var rows = cfg.rows, cols = cfg.cols;
+      if (!_slMap) {
+        _slMap = [];
+        for (var y = 0; y < rows; y++) _slMap[y] = new Array(cols);
+      }
+      for (var y2 = 0; y2 < rows; y2++)
+        for (var x2 = 0; x2 < cols; x2++) _slMap[y2][x2] = 0;
+      var lights = collectLights(state);
+      if (lights.length === 0 || !state.map) return _slMap;
+      var map = state.map;
+      var fov = new ROT.FOV.PreciseShadowcasting(function(x, y) {
+        if (x < 0 || x >= cols || y < 0 || y >= rows) return false;
+        return map[y][x] !== 1;
+      });
+      for (var li = 0; li < lights.length; li++) {
+        var l = lights[li], lr = l.r;
+        fov.compute(l.x, l.y, Math.ceil(lr), function(x, y, dist) {
+          if (x < 0 || x >= cols || y < 0 || y >= rows) return;
+          var val = Math.max(0, 0.6 * (1 - dist / lr));
+          if (val > _slMap[y][x]) _slMap[y][x] = val;
+        });
+      }
+      return _slMap;
+    }
+
     FA.addLayer('lighting', function() {
       var state = FA.getState();
       if (state.screen !== 'playing') return;
@@ -484,13 +543,14 @@
       var mapData = state.maps[state.mapId];
       var explored = mapData ? mapData.explored : null;
 
-      // FOV — core lighting, always active
+      // FOV + static lights — combined lighting
       if (vis && explored) {
+        var slMap = computeStaticLights(state);
         for (var y = 0; y < cfg.rows; y++)
           for (var x = 0; x < cfg.cols; x++)
-            if (vis[y] && vis[y][x] > 0.05) explored[y][x] = true;
+            if ((vis[y] && vis[y][x] > 0.05) || slMap[y][x] > 0.05) explored[y][x] = true;
 
-        var cacheKey = p.x + ',' + p.y + ',' + (state.depth || 0) + ',' + state.mapId;
+        var cacheKey = p.x + ',' + p.y + ',' + (state.depth || 0) + ',' + state.mapId + ',' + (state.mapVersion || 0);
         if (cacheKey !== _lightCacheKey) {
           _lightCacheKey = cacheKey;
           _lightCtx.clearRect(0, 0, _lightCanvas.width, _lightCanvas.height);
@@ -498,6 +558,8 @@
           for (var y2 = 0; y2 < cfg.rows; y2++) {
             for (var x2 = 0; x2 < cfg.cols; x2++) {
               var v = vis[y2] ? vis[y2][x2] : 0;
+              var sv = slMap[y2][x2];
+              if (sv > v) v = sv;
               if (v > 0.97) continue;
               else if (v > 0.03) _lightCtx.globalAlpha = Math.min(1 - v, 0.88);
               else if (explored[y2][x2]) _lightCtx.globalAlpha = 0.72;
@@ -518,6 +580,7 @@
           if (fn) fn(ctx, state);
         }
       }
+
     }, 15);
 
     // ================================================================

@@ -4,6 +4,8 @@
   'use strict';
   var FA = window.FA;
   var Core = window.Core;
+  var cfg = FA.lookup('config', 'game');
+  var ts = cfg.tileSize;
 
   var EMP_RANGE = 5;
   var EMP_STUN_TURNS = 3;
@@ -21,8 +23,6 @@
 
     var mod = state.player.modules[slotIdx];
     state.player.modules.splice(slotIdx, 1);
-    var cfg = FA.lookup('config', 'game');
-    var ts = cfg.tileSize;
     var px = state.player.x * ts + ts / 2, py = state.player.y * ts;
 
     var mapData = state.maps[state.mapId];
@@ -73,8 +73,6 @@
     state.map[y][x] = 5;
     state.mapVersion = (state.mapVersion || 0) + 1;
     state.terminalsHacked = (state.terminalsHacked || 0) + 1;
-    var cfg = FA.lookup('config', 'game');
-    var ts = cfg.tileSize;
     var depth = state.depth;
 
     if (!state.directorMsgShown) state.directorMsgShown = {};
