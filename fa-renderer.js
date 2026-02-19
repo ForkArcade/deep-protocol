@@ -41,7 +41,7 @@
   // ===== SPRITE RUNTIME =====
 
   window.drawSprite = function(ctx, spriteDef, x, y, size, frame) {
-    if (!spriteDef || typeof SPRITESHEET === 'undefined' || !SPRITESHEET.complete) return false;
+    if (!spriteDef || typeof SPRITESHEET === 'undefined' || !SPRITESHEET.complete || !SPRITESHEET.naturalWidth) return false;
     frame = (frame || 0) % spriteDef.frames.length;
     var key = size + '_' + frame;
     if (!spriteDef._c) spriteDef._c = {};

@@ -440,23 +440,37 @@
         }
       },
 
-      // Curfew — pulsing siren + smoke patches
-      curfew: function(ctx, state) {
-        var timeCfg = FA.lookup('config', 'time');
-        if (state.timeOfDay < timeCfg.warningTime) return;
-        var t = Math.min(1, (state.timeOfDay - timeCfg.warningTime) / (timeCfg.curfewTime - timeCfg.warningTime));
-        var pulse = 0.5 + 0.5 * Math.sin(Date.now() * 0.002);
-        ctx.globalCompositeOperation = 'lighter';
-        ctx.fillStyle = '#f00'; ctx.globalAlpha = t * 0.2 * pulse;
-        ctx.fillRect(0, 0, W, uiY);
-        ctx.fillStyle = '#f10';
-        for (var ni = 0; ni < Math.floor(t * 8); ni++) {
-          ctx.globalAlpha = t * (0.02 + Math.random() * 0.05);
-          ctx.fillRect(Math.random() * W, Math.random() * uiY, 30 + Math.random() * 60, 10 + Math.random() * 25);
-        }
-        ctx.globalCompositeOperation = 'source-over';
-        ctx.globalAlpha = 1;
-      },
+      // Curfew — pulsing siren + smoke patches (offscreen to avoid composite mode switching)
+      curfew: (function() {
+        var _curfewCanvas = document.createElement('canvas');
+        _curfewCanvas.width = W; _curfewCanvas.height = uiY;
+        var _cc = _curfewCanvas.getContext('2d');
+        var _lastSmokeT = -1;
+        return function(ctx, state) {
+          var timeCfg = FA.lookup('config', 'time');
+          if (state.timeOfDay < timeCfg.warningTime) return;
+          var t = Math.min(1, (state.timeOfDay - timeCfg.warningTime) / (timeCfg.curfewTime - timeCfg.warningTime));
+          // Rebuild smoke patches only when t changes (per turn, not per frame)
+          if (t !== _lastSmokeT) {
+            _lastSmokeT = t;
+            _cc.clearRect(0, 0, W, uiY);
+            _cc.fillStyle = '#f00';
+            _cc.globalAlpha = t * 0.25;
+            _cc.fillRect(0, 0, W, uiY);
+            var smokeCount = Math.floor(t * 8);
+            _cc.fillStyle = '#f10';
+            for (var ni = 0; ni < smokeCount; ni++) {
+              _cc.globalAlpha = t * (0.03 + Math.random() * 0.06);
+              _cc.fillRect(Math.random() * W, Math.random() * uiY, 30 + Math.random() * 60, 10 + Math.random() * 25);
+            }
+            _cc.globalAlpha = 1;
+          }
+          var pulse = 0.5 + 0.5 * Math.sin(Date.now() * 0.002);
+          ctx.globalAlpha = pulse;
+          ctx.drawImage(_curfewCanvas, 0, 0);
+          ctx.globalAlpha = 1;
+        };
+      })(),
 
       // Deep system corruption — subtle purple noise
       corruption: function(ctx, state) {
