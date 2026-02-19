@@ -440,16 +440,21 @@
         }
       },
 
-      // Curfew red tint + scanline glitch
+      // Curfew — pulsing siren + smoke patches
       curfew: function(ctx, state) {
         var timeCfg = FA.lookup('config', 'time');
-        if (state.timeOfDay < timeCfg.curfewTime) return;
-        ctx.globalAlpha = 0.08;
-        ctx.fillStyle = '#f00'; ctx.fillRect(0, 0, W, uiY);
-        if (Math.random() < 0.03) {
-          ctx.globalAlpha = 0.04;
-          ctx.fillStyle = '#f44'; ctx.fillRect(0, Math.random() * uiY, W, 2);
+        if (state.timeOfDay < timeCfg.warningTime) return;
+        var t = Math.min(1, (state.timeOfDay - timeCfg.warningTime) / (timeCfg.curfewTime - timeCfg.warningTime));
+        var pulse = 0.5 + 0.5 * Math.sin(Date.now() * 0.002);
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.fillStyle = '#f00'; ctx.globalAlpha = t * 0.2 * pulse;
+        ctx.fillRect(0, 0, W, uiY);
+        ctx.fillStyle = '#f10';
+        for (var ni = 0; ni < Math.floor(t * 8); ni++) {
+          ctx.globalAlpha = t * (0.02 + Math.random() * 0.05);
+          ctx.fillRect(Math.random() * W, Math.random() * uiY, 30 + Math.random() * 60, 10 + Math.random() * 25);
         }
+        ctx.globalCompositeOperation = 'source-over';
         ctx.globalAlpha = 1;
       },
 

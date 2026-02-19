@@ -53,7 +53,7 @@ var GAME_DATA = {
       rentIncrease: 5,
       ejectionPenalty: 40,
       systemRevealDay: 3,
-      curfewDrones: 6
+      curfewDrones: 12
     },
 
     dungeonTiles: {
