@@ -79,7 +79,6 @@
       if (_updateFn) _updateFn(FIXED_DT);
       _accumulator -= FIXED_DT;
     }
-
     if (_renderFn) _renderFn();
     requestAnimationFrame(_tick);
   }

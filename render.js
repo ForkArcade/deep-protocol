@@ -113,6 +113,13 @@
     var _startCanvas = null;
     var _startFx = { color: '#556', dimColor: '#223', size: 14, align: 'center', baseline: 'middle', duration: 80, charDelay: 8, flicker: 30 };
 
+    // Precomputed scanline overlay — avoids ~167 fillRect calls per frame
+    var _scanlineCanvas = document.createElement('canvas');
+    _scanlineCanvas.width = W; _scanlineCanvas.height = H;
+    var _slCtx = _scanlineCanvas.getContext('2d');
+    _slCtx.fillStyle = '#000';
+    for (var _sy = 0; _sy < H; _sy += 3) _slCtx.fillRect(0, _sy, W, 1);
+
     function renderStartScene() {
       _startCanvas = document.createElement('canvas');
       _startCanvas.width = W; _startCanvas.height = H;
@@ -164,8 +171,8 @@
       var now = Date.now();
       if (!_startCanvas) renderStartScene();
       ctx.drawImage(_startCanvas, 0, 0);
-      ctx.fillStyle = '#000'; ctx.globalAlpha = 0.06;
-      for (var sy = 0; sy < H; sy += 3) ctx.fillRect(0, sy, W, 1);
+      ctx.globalAlpha = 0.06;
+      ctx.drawImage(_scanlineCanvas, 0, 0);
       if (Math.random() < 0.02) {
         ctx.globalAlpha = 0.05; ctx.fillStyle = '#4ef';
         ctx.fillRect(0, Math.random() * H, W, 1);
@@ -296,8 +303,8 @@
       ctx.globalAlpha = 0.55 * pulse;
       ctx.fillStyle = '#080420'; ctx.fillRect(0, 0, W, H);
 
-      ctx.fillStyle = '#000'; ctx.globalAlpha = 0.12;
-      for (var sy = 0; sy < H; sy += 3) ctx.fillRect(0, sy, W, 1);
+      ctx.globalAlpha = 0.12;
+      ctx.drawImage(_scanlineCanvas, 0, 0);
 
       ctx.globalAlpha = 0.6;
       ctx.drawImage(_dreamVignette, 0, 0);

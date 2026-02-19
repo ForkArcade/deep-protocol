@@ -14,7 +14,7 @@
     _canvas = document.getElementById(canvasId);
     _canvas.width = width;
     _canvas.height = height;
-    _ctx = _canvas.getContext('2d');
+    _ctx = _canvas.getContext('2d', { alpha: false });
     return _ctx;
   };
 
