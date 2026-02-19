@@ -9,7 +9,7 @@
 
   var TILES = FA.lookup('config', 'dungeonTiles');
   var FIND_EMPTY_MAX_ATTEMPTS = 200;
-  var BUBBLE_MAX_CHARS = 65;
+  var BUBBLE_MAX_CHARS = 36;
   var BUBBLE_FADE_STEPS = 5;
   var BUBBLE_LINE_DELAY = 200;
   var THOUGHT_FADE_STEPS = 5;

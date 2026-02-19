@@ -42,6 +42,16 @@
     ctx.globalAlpha = 1;
   }
 
+  function drawPointer(ctx, px, by, th, flipped, color, alpha) {
+    ctx.globalAlpha = 0.85 * alpha; ctx.fillStyle = '#060a12';
+    ctx.beginPath();
+    if (!flipped) { ctx.moveTo(px - 4, by + th); ctx.lineTo(px + 4, by + th); ctx.lineTo(px, by + th + 7); }
+    else { ctx.moveTo(px - 4, by); ctx.lineTo(px + 4, by); ctx.lineTo(px, by - 7); }
+    ctx.closePath(); ctx.fill();
+    ctx.globalAlpha = 0.3 * alpha; ctx.strokeStyle = color; ctx.lineWidth = 1;
+    ctx.stroke();
+  }
+
   function setupUILayers() {
     var cfg = FA.lookup('config', 'game');
     var colors = FA.lookup('config', 'colors');
@@ -220,8 +230,9 @@
       }
       drawBox(ctx, bx, by, tw, th, sb.color, alpha);
       if (hasSource) {
-        ctx.globalAlpha = 0.5 * alpha;
-        FA.draw.text('v', bx + 3, by + th, O(sb.color, 10));
+        var flipped = by > sy;
+        var px = Math.max(bx + 8, Math.min(bx + tw - 8, sx));
+        drawPointer(ctx, px, by, th, flipped, sb.color, alpha);
       }
       ctx.globalAlpha = 0.9 * alpha;
       for (var li = 0; li < lines.length; li++) {
@@ -232,7 +243,7 @@
       }
       if (sb.done) {
         ctx.globalAlpha = 0.3 * alpha;
-        FA.draw.text('[SPACE]', bx + tw - 48, by + th + (hasSource ? 12 : 4), O(sb.color, 8));
+        FA.draw.text('[SPACE]', bx + tw - 48, by + th + 4, O(sb.color, 8));
       }
       ctx.globalAlpha = 1;
     }, 25);
@@ -267,11 +278,8 @@
       if (flipped) by = ppy + ts + 10;
       var alpha = thought.done ? (STEP_ALPHA[thought.fadeSteps] || 0.1) : 1;
       drawBox(ctx, bx, by, tw, th, '#4ef', alpha);
-      ctx.globalAlpha = 0.15 * alpha; ctx.strokeStyle = '#4ef'; ctx.lineWidth = 1;
-      ctx.beginPath();
-      if (!flipped) { ctx.moveTo(ppx, by + th); ctx.lineTo(ppx, ppy - 2); }
-      else { ctx.moveTo(ppx, by); ctx.lineTo(ppx, ppy + ts + 2); }
-      ctx.stroke();
+      var px = Math.max(bx + 8, Math.min(bx + tw - 8, ppx));
+      drawPointer(ctx, px, by, th, flipped, '#4ef', alpha);
       ctx.globalAlpha = 0.9 * alpha;
       TextFX.render(ctx, thought.text, thought.timer, bx + 8, by + 7,
         FX('#4ef', '#1a4040', 11, 60, 6, 25));
