@@ -210,19 +210,16 @@
           // Blocking placeholder → floor
           if (tid === 9) tid = 0;
 
-          // Resolve sprite name + frame based on tileset
-          var spriteName, frame = 0, spriteCategory;
+          // Resolve sprite name based on tileset
+          var spriteName, spriteCategory;
           if (tilesetName === 'overworld') {
             spriteName = OW_TILE_NAMES[tid];
-            if (tid === 1) frame = wallFrame(map, x, y);
-            else if (tid === 0 || tid === 2) frame = (x + y) % 2;
           } else {
-            // Dungeon tileset
-            if (tid === 0) { spriteName = 'dungeon_floor'; frame = (x + y) % 2; }
-            else if (tid === 1) { spriteName = 'dungeon_wall'; frame = wallFrame(map, x, y); }
+            if (tid === 0) spriteName = 'dungeon_floor';
+            else if (tid === 1) spriteName = 'dungeon_wall';
             else if (tid === 3) { spriteName = 'dungeon_stairs'; spriteCategory = 'objects'; }
-            else if (tid === 4) { spriteName = 'dungeon_terminal'; spriteCategory = 'objects'; frame = 0; }
-            else if (tid === 5) { spriteName = 'dungeon_terminal'; spriteCategory = 'objects'; frame = 1; }
+            else if (tid === 4) { spriteName = 'dungeon_terminal'; spriteCategory = 'objects'; }
+            else if (tid === 5) { spriteName = 'dungeon_terminal'; spriteCategory = 'objects'; }
           }
 
           var sprite = spriteName ? getSprite(spriteCategory || 'tiles', spriteName) : null;
@@ -231,6 +228,11 @@
             oc.fillRect(px, py, ts, ts);
             continue;
           }
+          // Frame from tiling method
+          var frame = 0;
+          if (sprite.tiling === 'autotile') frame = wallFrame(map, x, y);
+          else if (sprite.tiling === 'checker') frame = (x + y) % 2;
+          if (tid === 5) frame = 1; // terminal used state
           drawSprite(oc, sprite, px, py, ts, frame);
         }
       }

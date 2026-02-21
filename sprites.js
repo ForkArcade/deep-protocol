@@ -17,12 +17,12 @@ var SPRITE_DEFS = {
     "dungeon_terminal": {w:10, h:10, origin:[0,0], frames:[136,137]}
   },
   "tiles": {
-    "floor": {w:10, h:10, origin:[0,0], frames:[5,6]},
-    "wall": {w:10, h:10, origin:[0,0], frames:[7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22]},
-    "indoor": {w:10, h:10, origin:[0,0], frames:[23,24]},
+    "floor": {w:10, h:10, origin:[0,0], frames:[5,6], tiling:'checker'},
+    "wall": {w:10, h:10, origin:[0,0], frames:[7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22], tiling:'autotile'},
+    "indoor": {w:10, h:10, origin:[0,0], frames:[23,24], tiling:'checker'},
     "garden": {w:10, h:10, origin:[0,0], frames:[25]},
     "sidewalk": {w:10, h:10, origin:[0,0], frames:[26]},
-    "dungeon_floor": {w:10, h:10, origin:[0,0], frames:[27,28]},
-    "dungeon_wall": {w:10, h:10, origin:[0,0], frames:[29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44]},
+    "dungeon_floor": {w:10, h:10, origin:[0,0], frames:[27,28], tiling:'checker'},
+    "dungeon_wall": {w:10, h:10, origin:[0,0], frames:[29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44], tiling:'autotile'},
   }
 };
