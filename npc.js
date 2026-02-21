@@ -325,6 +325,12 @@
   // ============================================================
 
   function talkToNPC(npc, state) {
+    // Busy with job — brush off, don't count as interaction
+    if (npc.currentJob && npc.jobTimer > 0) {
+      var bLines = FA.lookup('config', 'busyLines') || {};
+      Core.addSystemBubble(bLines[npc.currentJob.id] || bLines._default || 'Busy.', null, npc);
+      return;
+    }
     npc.met = true;
     npc.talkedToday = true;
     npc.wantsToTalk = false;
@@ -332,6 +338,17 @@
     applyMood(npc, 'talked_friend');
     var entry = Core.selectDialogue(npc.id);
     var text = entry ? entry.text : '...';
+    // Mood overrides (only for dialogues without choices)
+    if (!entry || !entry.choices) {
+      var moodsCfg = FA.lookup('config', 'moods');
+      var mThresh = moodsCfg && moodsCfg.thresholds ? moodsCfg.thresholds : { low: 30, high: 70 };
+      var moodDlg = FA.lookup('config', 'moodDialogues');
+      if (moodDlg && npc.mood < mThresh.low && moodDlg.low) {
+        text = moodDlg.low[npc.id] || moodDlg.low._default || text;
+      } else if (moodDlg && npc.mood > mThresh.high && moodDlg.high) {
+        text = moodDlg.high[npc.id] || text;
+      }
+    }
     Core.addSystemBubble(text, null, npc);
     if (FA.narrative && FA.narrative.setVar) {
       FA.narrative.setVar(npc.id + '_met_today', true, 'Met ' + npc.name);

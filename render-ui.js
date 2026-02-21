@@ -138,6 +138,7 @@
         if (obj && obj.type === 'bed') { _actions[0].label = 'Lodging (' + state.rent + ' cr)'; _actions[0].color = '#8878cc'; actionCount = 1; }
         else if (obj && obj.type === 'terminal') { _actions[0].label = state.workedToday ? 'Shift done' : 'Work'; _actions[0].color = state.workedToday ? '#443' : '#88aa66'; actionCount = 1; }
         else if (obj && obj.type === 'notice_board') { _actions[0].label = 'Read notices'; _actions[0].color = '#aa9a50'; actionCount = 1; }
+        else if (obj && obj.type === 'cafe_table') { var cafeCfg = FA.lookup('config', 'cafe'); if (cafeCfg) { _actions[0].label = 'Eat (' + cafeCfg.cost + ' cr)'; _actions[0].color = '#e8a040'; actionCount = 1; } }
         else if (obj && obj.type === 'system_entrance' && state.systemRevealed) { _actions[0].label = 'Enter System'; _actions[0].color = '#f80'; actionCount = 1; }
 
         // Adjacent NPC talk
@@ -180,9 +181,14 @@
           if (nd > 10) continue;
           var dimmed = nd > 5;
           ctx.globalAlpha = dimmed ? 0.4 : 0.9;
-          FA.draw.rect(tagX, uiY + 37, 4, 4, npc.color);
+          var moodCfg = FA.lookup('config', 'moods');
+          var mLow = moodCfg && moodCfg.thresholds ? moodCfg.thresholds.low : 30;
+          var mHigh = moodCfg && moodCfg.thresholds ? moodCfg.thresholds.high : 70;
+          var dotColor = !dimmed && npc.mood < mLow ? '#f44' : !dimmed && npc.mood > mHigh ? '#4f4' : npc.color;
+          FA.draw.rect(tagX, uiY + 37, 4, 4, dotColor);
           var npcLabel = npc.name;
           if (!dimmed && npc.currentJob) npcLabel += ' [' + npc.currentJob.id + ']';
+          if (!dimmed) { var mc = npc.mood > mHigh ? '+' : npc.mood < mLow ? '-' : ''; if (mc) npcLabel += mc; }
           FA.draw.text(npcLabel, tagX + 7, uiY + 36, O(dimmed ? '#665' : '#aa9', 10));
           tagX += getCW(ctx, 10) * npcLabel.length + 18;
         }

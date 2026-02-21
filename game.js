@@ -53,6 +53,9 @@
     if (narData.needs) FA.register('config', 'needs', narData.needs);
     if (narData.jobs) FA.register('config', 'jobs', narData.jobs);
     if (narData.moods) FA.register('config', 'moods', narData.moods);
+    if (narData.cafe) FA.register('config', 'cafe', narData.cafe);
+    if (narData.busyLines) FA.register('config', 'busyLines', narData.busyLines);
+    if (narData.moodDialogues) FA.register('config', 'moodDialogues', narData.moodDialogues);
   }
 
   function beginPlaying() {
@@ -268,6 +271,7 @@
         if (obj.type === 'bed') DayCycle.showBedChoice(state);
         else if (obj.type === 'terminal') workAtTerminal(state);
         else if (obj.type === 'notice_board') readNoticeBoard(state);
+        else if (obj.type === 'cafe_table') eatAtCafe(state);
         else if (obj.type === 'system_entrance') {
           if (state.systemRevealed) enterSystem(state);
           else Core.addThought('A sealed maintenance shaft. Nothing to see.');
@@ -277,6 +281,35 @@
       var tile = state.map[state.player.y][state.player.x];
       if (tile === 4) Systems.hackTerminal(state.player.x, state.player.y, state);
     }
+  }
+
+  function eatAtCafe(state) {
+    var cfg = FA.lookup('config', 'cafe');
+    if (!cfg) return;
+    var cost = cfg.cost;
+    var canAfford = state.credits >= cost;
+    Game._showChoiceMenu(state, '> CAFE \u2014 Order food?', [
+      {
+        label: canAfford ? 'Eat (' + cost + ' cr)' : 'Not enough credits',
+        color: canAfford ? '#e8a040' : '#644',
+        enabled: canAfford,
+        action: function(s) {
+          s.credits -= cost;
+          s.player.hp = Math.min(s.player.maxHp, s.player.hp + cfg.hpRestore);
+          s.timeOfDay += cfg.timeCost;
+          s.turn += cfg.timeCost;
+          Core.addSystemBubble('> ' + cfg.text + ' +' + cfg.hpRestore + ' HP.', '#e8a040');
+          Core.triggerThought('cafe');
+          DayCycle.checkTimeWarnings(s);
+        }
+      },
+      {
+        label: 'Leave',
+        color: '#665',
+        enabled: true,
+        action: function() {}
+      }
+    ]);
   }
 
   function workAtTerminal(state) {
@@ -572,6 +605,16 @@
           if (FA.narrative && FA.narrative.setVar) FA.narrative.setVar('time_period', newPeriod, 'Period: ' + newPeriod);
         }
         NPC.npcOverworldTurn(state);
+      }
+
+      // Hunger: HP decays based on needs config
+      var hungerCfg = FA.lookup('config', 'needs');
+      if (hungerCfg && hungerCfg.hunger) {
+        state._hungerAccum = (state._hungerAccum || 0) + hungerCfg.hunger.decay;
+        if (state._hungerAccum >= 1 && state.player.hp > 1) {
+          state.player.hp--;
+          state._hungerAccum = 0;
+        }
       }
 
       DayCycle.checkTimeWarnings(state);

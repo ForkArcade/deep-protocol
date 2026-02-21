@@ -107,7 +107,36 @@
     "talked_friend": 10,
     "got_hurt": -20,
     "worked": 3,
-    "curfew_near": -10
+    "curfew_near": -10,
+    "thresholds": { "low": 30, "high": 70 }
+  },
+  "cafe": {
+    "cost": 5,
+    "hpRestore": 5,
+    "timeCost": 2,
+    "text": "Warm food. A rare comfort."
+  },
+  "busyLines": {
+    "eat": "Can't talk. Eating.",
+    "work": "Working. Come back later.",
+    "patrol": "On patrol. Not now.",
+    "talk": "In the middle of something.",
+    "_default": "Busy."
+  },
+  "moodDialogues": {
+    "low": {
+      "lena": "Not now. Everything feels wrong today.",
+      "victor": "Leave me alone. I can't think straight.",
+      "marta": "I don't have time for this. Not today.",
+      "emil": "The walls are closing in. Or maybe that's just me.",
+      "_default": "Not in the mood."
+    },
+    "high": {
+      "lena": "Good to see you. I heard something interesting at the terminal.",
+      "victor": "Today doesn't feel so bad. Almost like we could belong here.",
+      "marta": "The numbers look manageable. That's rare. Enjoy it.",
+      "emil": "The door was always open. Today I almost believe that's a good thing."
+    }
   },
   "actors": {
     "lena": {
