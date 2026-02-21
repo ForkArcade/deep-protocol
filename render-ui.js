@@ -181,8 +181,10 @@
           var dimmed = nd > 5;
           ctx.globalAlpha = dimmed ? 0.4 : 0.9;
           FA.draw.rect(tagX, uiY + 37, 4, 4, npc.color);
-          FA.draw.text(npc.name, tagX + 7, uiY + 36, O(dimmed ? '#665' : '#aa9', 10));
-          tagX += getCW(ctx, 10) * npc.name.length + 18;
+          var npcLabel = npc.name;
+          if (!dimmed && npc.currentJob) npcLabel += ' [' + npc.currentJob.id + ']';
+          FA.draw.text(npcLabel, tagX + 7, uiY + 36, O(dimmed ? '#665' : '#aa9', 10));
+          tagX += getCW(ctx, 10) * npcLabel.length + 18;
         }
         ctx.globalAlpha = 1;
       }
@@ -292,16 +294,17 @@
       if (state.screen !== 'playing' || !state.choiceMenu) return;
       var menu = state.choiceMenu;
       menu.timer = (menu.timer || 0);
+      var sel = menu.selectedIndex || 0;
       var ctx = FA.getCtx();
       var cw = getCW(ctx);
       var lineH = 18;
       var maxLen = menu.title.length;
       for (var oi = 0; oi < menu.options.length; oi++) {
-        var optText = '[' + menu.options[oi].key + '] ' + menu.options[oi].label;
+        var optText = '  ' + menu.options[oi].label;
         if (optText.length > maxLen) maxLen = optText.length;
       }
       var tw = Math.min(W - 40, Math.max(180, maxLen * cw + 32));
-      var th = (1 + menu.options.length) * lineH + 20;
+      var th = (1 + menu.options.length) * lineH + 34;
       var bx = W / 2 - tw / 2, by = 20;
       drawBox(ctx, bx, by, tw, th, '#8878cc', 1);
       ctx.globalAlpha = 0.9;
@@ -309,13 +312,17 @@
         FX('#8878cc', '#1a1530', 11, 60, 6, 25));
       for (var i = 0; i < menu.options.length; i++) {
         var opt = menu.options[i];
-        var label = '[' + opt.key + '] ' + opt.label;
+        var selected = i === sel;
+        var prefix = selected ? '> ' : '  ';
+        var label = prefix + opt.label;
         var optY = by + 10 + (i + 1) * lineH;
         var optColor = opt.enabled !== false ? (opt.color || '#aa9') : '#443';
-        ctx.globalAlpha = opt.enabled !== false ? 0.9 : 0.5;
+        ctx.globalAlpha = opt.enabled !== false ? (selected ? 1.0 : 0.5) : 0.3;
         TextFX.render(ctx, label, menu.timer, bx + 16, optY,
           FX(optColor, '#1a1530', 11, 60, 4, 20));
       }
+      ctx.globalAlpha = 0.3;
+      FA.draw.text('[W/S] Select  [SPACE] Confirm', bx + 12, by + th - 16, O('#665', 8));
       ctx.globalAlpha = 1;
     }, 27);
 

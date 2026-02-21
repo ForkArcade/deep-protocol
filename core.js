@@ -507,7 +507,7 @@
 
   function selectDialogue(npcId) {
     var entry = FA.select(FA.lookup('dialogues', npcId));
-    return entry ? entry.text : null;
+    return entry || null;
   }
 
   function startCutscene(def, state) {

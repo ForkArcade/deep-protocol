@@ -6,6 +6,8 @@
   var Core = window.Core;
   var NPC = window.NPC;
   var cfg = FA.lookup('config', 'game');
+  var _scriptBase = (document.currentScript && document.currentScript.src)
+    ? document.currentScript.src.replace(/[^\/]*$/, '') : './';
   var econCfg = FA.lookup('config', 'economy');
   var timeCfg = FA.lookup('config', 'time');
 
@@ -44,10 +46,17 @@
     if (narData.director) FA.register('config', 'director', narData.director);
     var narrativeText = narData.narrativeText || {};
     for (id in narrativeText) FA.register('narrativeText', id, narrativeText[id]);
+    var relEffects = narData.relationshipEffects || {};
+    for (id in relEffects) FA.register('relationshipEffects', id, relEffects[id]);
+    var actors = narData.actors || {};
+    for (id in actors) FA.register('actors', id, actors[id]);
+    if (narData.needs) FA.register('config', 'needs', narData.needs);
+    if (narData.jobs) FA.register('config', 'jobs', narData.jobs);
+    if (narData.moods) FA.register('config', 'moods', narData.moods);
   }
 
   function beginPlaying() {
-    fetch('./_narrative.json')
+    fetch(_scriptBase + '_narrative.json')
       .then(function(r) { return r.json(); })
       .then(function(narData) {
         _registerNarrative(narData);
@@ -158,6 +167,11 @@
             NPC.selectNPCGoal(npcs[j], s);
           }
         }
+        // Show relationship level-up thought
+        var effects = FA.lookup('relationshipEffects', npcId);
+        if (effects && effects[data.to]) {
+          Core.addThought(effects[data.to]);
+        }
       }
     };
     FA.on('narrative:transition', _onTransition);
@@ -228,7 +242,7 @@
     var state = FA.getState();
 
     if ((state.thoughts && state.thoughts.length > 0) || state.systemBubble) {
-      Core.dismissBubbles();
+      dismissBubblesWithChoices();
       return;
     }
 
@@ -292,15 +306,47 @@
   // ============================================================
 
   function showChoiceMenu(state, title, options) {
-    state.choiceMenu = { title: title, options: options, timer: 0 };
+    state.choiceMenu = { title: title, options: options, timer: 0, selectedIndex: 0 };
   }
 
+  function choiceUp() {
+    var state = FA.getState();
+    if (!state.choiceMenu) return;
+    var menu = state.choiceMenu;
+    menu.selectedIndex = (menu.selectedIndex - 1 + menu.options.length) % menu.options.length;
+    // Skip disabled options
+    var attempts = menu.options.length;
+    while (menu.options[menu.selectedIndex].enabled === false && attempts-- > 0) {
+      menu.selectedIndex = (menu.selectedIndex - 1 + menu.options.length) % menu.options.length;
+    }
+  }
+
+  function choiceDown() {
+    var state = FA.getState();
+    if (!state.choiceMenu) return;
+    var menu = state.choiceMenu;
+    menu.selectedIndex = (menu.selectedIndex + 1) % menu.options.length;
+    var attempts = menu.options.length;
+    while (menu.options[menu.selectedIndex].enabled === false && attempts-- > 0) {
+      menu.selectedIndex = (menu.selectedIndex + 1) % menu.options.length;
+    }
+  }
+
+  function confirmChoice() {
+    var state = FA.getState();
+    if (!state.choiceMenu) return;
+    var opt = state.choiceMenu.options[state.choiceMenu.selectedIndex];
+    if (!opt || opt.enabled === false) return;
+    state.choiceMenu = null;
+    if (opt.action) opt.action(state);
+  }
+
+  // Legacy support
   function selectChoice(index) {
     var state = FA.getState();
     if (!state.choiceMenu) return;
     var opt = state.choiceMenu.options[index];
-    if (!opt) return;
-    if (opt.enabled === false) return;
+    if (!opt || opt.enabled === false) return;
     state.choiceMenu = null;
     if (opt.action) opt.action(state);
   }
@@ -311,11 +357,56 @@
   }
 
   // ============================================================
+  //  DIALOGUE CHOICE FLOW
+  // ============================================================
+
+  function dismissBubblesWithChoices() {
+    var state = FA.getState();
+    Core.dismissBubbles();
+    // After bubble dismiss, show pending dialogue choices if any
+    var pending = state._pendingDialogueChoice;
+    if (pending) {
+      state._pendingDialogueChoice = null;
+      var options = [];
+      for (var i = 0; i < pending.choices.length; i++) {
+        (function(choice, npcId, npcName, source) {
+          options.push({
+            label: choice.label,
+            color: '#aa9',
+            enabled: true,
+            action: function(s) {
+              // Apply relationship delta
+              if (FA.narrative && FA.narrative.setVar) {
+                var delta = choice.relationship || 0;
+                var prev = FA.narrative.getVar(npcId + '_interactions') || 0;
+                var next = Math.max(0, prev + delta);
+                if (next !== prev) {
+                  FA.narrative.setVar(npcId + '_interactions', next, 'Talked to ' + npcName);
+                }
+              }
+              // Show NPC reply if exists
+              if (choice.reply) {
+                Core.addSystemBubble(choice.reply, null, source);
+              }
+            }
+          });
+        })(pending.choices[i], pending.npcId, pending.npcName, pending.source);
+      }
+      showChoiceMenu(state, '> ' + pending.npcName, options);
+    }
+  }
+
+  // ============================================================
   //  SYSTEM ENTRY / EXIT
   // ============================================================
 
   function enterSystem(state) {
     var depth = Math.min(state.systemVisits + 1, cfg.maxDepth);
+    // Emil confidant: skip depth 1 (start at depth 2)
+    if (depth === 1 && FA.narrative && FA.narrative.graphs.quest_emil &&
+        FA.narrative.graphs.quest_emil.currentNode === 'confidant') {
+      depth = 2;
+    }
 
     if (state.systemVisits === 0) {
       Core.showNarrative('arc', 'first_system');
@@ -373,6 +464,11 @@
     state.directorMsgShown = {};
 
     var lightRadius = 10 - depth * 0.5;
+    // Victor confidant: +2 visibility radius in dungeon
+    if (FA.narrative && FA.narrative.graphs.quest_victor &&
+        FA.narrative.graphs.quest_victor.currentNode === 'confidant') {
+      lightRadius += 2;
+    }
     state.visible = Core.computeVisibility(state.map, px, py, lightRadius);
 
     FA.clearEffects();
@@ -487,6 +583,11 @@
 
     if (state.player) {
       var lightRadius = hasTime ? 14 : 10 - (state.depth || 1) * 0.5;
+      // Victor confidant: +2 visibility in dungeon
+      if (!hasTime && FA.narrative && FA.narrative.graphs.quest_victor &&
+          FA.narrative.graphs.quest_victor.currentNode === 'confidant') {
+        lightRadius += 2;
+      }
       state.visible = Core.computeVisibility(state.map, state.player.x, state.player.y, lightRadius);
     }
 
@@ -564,8 +665,11 @@
     useModule: useModuleAndEnd,
     dismissCutscene: dismissCutscene,
     dismissDream: DayCycle.dismissDream,
-    dismissBubbles: Core.dismissBubbles,
+    dismissBubbles: dismissBubblesWithChoices,
     selectChoice: selectChoice,
+    choiceUp: choiceUp,
+    choiceDown: choiceDown,
+    confirmChoice: confirmChoice,
     dismissChoice: dismissChoice,
     _endGame: endGame,
     _handlePlayerDeath: handlePlayerDeath,

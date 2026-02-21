@@ -49,11 +49,11 @@
     // All gameplay (town + dungeon)
     if (state.screen !== 'playing') return;
 
-    // Choice menu active — handle selection
+    // Choice menu active — W/S navigate, Space confirms
     if (state.choiceMenu) {
-      if (data.action === 'mod1') { Game.selectChoice(0); return; }
-      if (data.action === 'mod2') { Game.selectChoice(1); return; }
-      if (data.action === 'start') { Game.dismissChoice(); return; }
+      if (data.action === 'up') { Game.choiceUp(); return; }
+      if (data.action === 'down') { Game.choiceDown(); return; }
+      if (data.action === 'start') { Game.confirmChoice(); return; }
       return;
     }
 

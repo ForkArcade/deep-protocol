@@ -8,7 +8,7 @@
 
   // === CONSTANTS ===
 
-  var NPC_FOLLOW_MAX_TURNS = 3;
+  var NPC_FOLLOW_MAX_TURNS = 20;
   var NPC_IDLE_MIN = 2;
   var NPC_IDLE_MAX = 6;
   var NPC_APPROACH_RADIUS = 8;
@@ -17,6 +17,72 @@
 
   // Goal name → zone key mapping
   var GOAL_ZONES = { home: 'h', cafe: 'c', terminal: 'w', garden: 'g' };
+
+  // Job zone → NPC goal mapping
+  var JOB_ZONE_TO_GOAL = { cafe: 'cafe', terminal: 'terminal' };
+
+  // ============================================================
+  //  NEEDS / JOBS / MOOD SIMULATION
+  // ============================================================
+
+  function tickNeeds(npc) {
+    if (!npc.needs) return;
+    var needsDefs = FA.lookup('config', 'needs');
+    if (!needsDefs) return;
+    for (var id in npc.needs) {
+      var def = needsDefs[id];
+      if (def) npc.needs[id] = Math.max(0, npc.needs[id] - def.decay);
+    }
+  }
+
+  function getMostUrgentNeed(npc) {
+    if (!npc.needs) return null;
+    var lowest = null, lowestVal = 999;
+    for (var id in npc.needs) {
+      if (npc.needs[id] < lowestVal) {
+        lowestVal = npc.needs[id];
+        lowest = id;
+      }
+    }
+    return lowest;
+  }
+
+  function pickJob(npc) {
+    var jobs = FA.lookup('config', 'jobs');
+    if (!jobs) return null;
+    var need = getMostUrgentNeed(npc);
+    if (!need) return null;
+    // Check priorities first
+    if (npc.priorities) {
+      for (var i = 0; i < npc.priorities.length; i++) {
+        var job = jobs[npc.priorities[i]];
+        if (job && job.fulfills === need) return { id: npc.priorities[i], def: job };
+      }
+    }
+    // Fallback: any job that fulfills the need
+    for (var jid in jobs) {
+      if (jobs[jid].fulfills === need) return { id: jid, def: jobs[jid] };
+    }
+    return null;
+  }
+
+  function applyMood(npc, event) {
+    var moods = FA.lookup('config', 'moods');
+    if (!moods || moods[event] === undefined) return;
+    npc.mood = Math.max(0, Math.min(100, (npc.mood || 50) + moods[event]));
+  }
+
+  function completeJob(npc) {
+    if (!npc.currentJob || !npc.needs) return;
+    var job = npc.currentJob;
+    if (job.def.fulfills && npc.needs[job.def.fulfills] !== undefined) {
+      npc.needs[job.def.fulfills] = Math.min(100, npc.needs[job.def.fulfills] + job.def.restore);
+    }
+    if (job.id === 'eat') applyMood(npc, 'had_meal');
+    if (job.id === 'work') applyMood(npc, 'worked');
+    npc.currentJob = null;
+    npc.jobTimer = 0;
+  }
 
   // Cached zone cells (built once per game start)
   var _zoneCells = null;
@@ -63,6 +129,14 @@
     for (var i = 0; i < spawner.schedule.length; i++) {
       var entry = spawner.schedule[i];
       var def = FA.lookup('npcs', entry.id);
+      var actor = FA.lookup('actors', entry.id);
+      // Deep copy needs from actor data
+      var needs = null, priorities = null;
+      if (actor && actor.needs) {
+        needs = {};
+        for (var k in actor.needs) needs[k] = actor.needs[k];
+        priorities = actor.priorities || [];
+      }
       npcs.push({
         id: entry.id, type: 'npc', name: def.name, char: def.char, color: def.color,
         x: def.homePos.x, y: def.homePos.y,
@@ -75,7 +149,12 @@
         wantsToTalk: true, followTurns: 0,
         pace: def.pace || 1,
         turnCounter: i,
-        idleTimer: 0
+        idleTimer: 0,
+        needs: needs,
+        priorities: priorities,
+        mood: 50,
+        currentJob: null,
+        jobTimer: 0
       });
     }
     return npcs;
@@ -163,6 +242,24 @@
       npc.goal = 'wander';
     }
 
+    // Schedule says 'player' — ensure NPC will initiate talk on arrival
+    if (npc.goal === 'player' && !npc.talkedToday) {
+      npc.wantsToTalk = true;
+      npc.followTurns = 0;
+    }
+
+    // Needs-driven: when schedule says 'wander', pick a job based on needs
+    if (npc.goal === 'wander' && npc.needs) {
+      var job = pickJob(npc);
+      if (job) {
+        npc.currentJob = job;
+        npc.jobTimer = 0;
+        if (job.def.zone && JOB_ZONE_TO_GOAL[job.def.zone]) {
+          npc.goal = JOB_ZONE_TO_GOAL[job.def.zone];
+        }
+      }
+    }
+
     // Compute target position from zone
     npc.goalPos = computeGoalPos(npc, state);
   }
@@ -174,6 +271,9 @@
   function npcOverworldStep(npc, state) {
     if (npc.x < 0 || npc.y < 0) return;
     if (state.day < npc.appearsDay) return;
+
+    // Tick needs every step (even if NPC skips movement due to pace)
+    tickNeeds(npc);
 
     npc.turnCounter = (npc.turnCounter || 0) + 1;
     if (npc.goal !== 'player' && npc.turnCounter % npc.pace !== 0) return;
@@ -191,13 +291,26 @@
 
     var goalPos = resolveNPCGoalPos(npc, state);
     if (goalPos && npc.x === goalPos.x && npc.y === goalPos.y) {
-      if (npc.idleTimer > 0) {
-        npc.idleTimer--;
-        return;
+      // Job completion: NPC is at zone doing a job
+      if (npc.currentJob) {
+        npc.jobTimer = (npc.jobTimer || 0) + 1;
+        if (npc.jobTimer >= npc.currentJob.def.duration) {
+          completeJob(npc);
+          selectNPCGoal(npc, state);
+          npc.idleTimer = FA.rand(NPC_IDLE_MIN, NPC_IDLE_MAX);
+          goalPos = resolveNPCGoalPos(npc, state);
+        } else {
+          return; // Still working
+        }
+      } else {
+        if (npc.idleTimer > 0) {
+          npc.idleTimer--;
+          return;
+        }
+        selectNPCGoal(npc, state);
+        npc.idleTimer = FA.rand(NPC_IDLE_MIN, NPC_IDLE_MAX);
+        goalPos = resolveNPCGoalPos(npc, state);
       }
-      selectNPCGoal(npc, state);
-      npc.idleTimer = FA.rand(NPC_IDLE_MIN, NPC_IDLE_MAX);
-      goalPos = resolveNPCGoalPos(npc, state);
     }
 
     if (goalPos) {
@@ -216,12 +329,27 @@
     npc.talkedToday = true;
     npc.wantsToTalk = false;
     npc.followTurns = 0;
-    var text = Core.selectDialogue(npc.id) || '...';
+    applyMood(npc, 'talked_friend');
+    var entry = Core.selectDialogue(npc.id);
+    var text = entry ? entry.text : '...';
     Core.addSystemBubble(text, null, npc);
     if (FA.narrative && FA.narrative.setVar) {
       FA.narrative.setVar(npc.id + '_met_today', true, 'Met ' + npc.name);
-      var prev = FA.narrative.getVar(npc.id + '_interactions') || 0;
-      FA.narrative.setVar(npc.id + '_interactions', prev + 1, 'Talked to ' + npc.name);
+    }
+    // If dialogue has choices, queue them for after bubble dismiss
+    if (entry && entry.choices && entry.choices.length > 0) {
+      state._pendingDialogueChoice = {
+        npcId: npc.id,
+        npcName: npc.name,
+        choices: entry.choices,
+        source: npc
+      };
+    } else {
+      // No choices — auto-increment interaction counter
+      if (FA.narrative && FA.narrative.setVar) {
+        var prev = FA.narrative.getVar(npc.id + '_interactions') || 0;
+        FA.narrative.setVar(npc.id + '_interactions', prev + 1, 'Talked to ' + npc.name);
+      }
     }
     selectNPCGoal(npc, state);
   }
@@ -293,6 +421,7 @@
     updateNPCPositions: updateNPCPositions,
     getNPCAt: getNPCAt,
     getAdjacentNPC: getAdjacentNPC,
-    talkToNPC: talkToNPC
+    talkToNPC: talkToNPC,
+    applyMood: applyMood
   };
 })();

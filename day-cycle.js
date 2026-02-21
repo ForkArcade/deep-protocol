@@ -9,7 +9,15 @@
   var econCfg = FA.lookup('config', 'economy');
   var gameCfg = FA.lookup('config', 'game');
 
-  function getRent(state) { return econCfg.baseRent + (state.day - 1) * econCfg.rentIncrease; }
+  function getRent(state) {
+    var rent = econCfg.baseRent + (state.day - 1) * econCfg.rentIncrease;
+    // Marta confidant: rent discount
+    if (FA.narrative && FA.narrative.graphs.quest_marta &&
+        FA.narrative.graphs.quest_marta.currentNode === 'confidant') {
+      rent = Math.max(10, rent - 10);
+    }
+    return rent;
+  }
 
   // ============================================================
   //  BED / SLEEP
@@ -138,6 +146,8 @@
       state._curfewWarned = true;
       if (FA.narrative && FA.narrative.setVar) FA.narrative.setVar('curfew_active', true, 'Curfew approaching');
       Core.addSystemBubble('> CURFEW APPROACHING. Return to quarters.', '#f44');
+      var npcs = NPC.getNPCs(state);
+      for (var ci = 0; ci < npcs.length; ci++) NPC.applyMood(npcs[ci], 'curfew_near');
       spawnCurfewDrones(state);
     } else if (state.timeOfDay >= timeCfg.warningTime && !state._timeWarned) {
       state._timeWarned = true;
@@ -166,6 +176,11 @@
     var townGrid = state.maps.town.grid;
     var townZones = state.maps.town.zones || null;
     var curfewCount = econCfg.curfewDrones;
+    // Lena confidant: fewer drones
+    if (FA.narrative && FA.narrative.graphs.quest_lena &&
+        FA.narrative.graphs.quest_lena.currentNode === 'confidant') {
+      curfewCount = Math.max(4, curfewCount - 4);
+    }
     for (var i = 0; i < curfewCount; i++) {
       var dx, dy, attempts = 0;
       do {

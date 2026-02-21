@@ -185,10 +185,10 @@ var GAME_DATA = {
   npcs: {
     lena: {
       name: 'Lena', char: '@', color: '#f8d',
-      homePos: { x: 23, y: 1 },
-      cafePos: { x: 28, y: 6 },
-      terminalPos: { x: 18, y: 17 },
-      gardenPos: { x: 24, y: 13 },
+      homePos: { x: 18, y: 2 },
+      cafePos: { x: 13, y: 19 },
+      terminalPos: { x: 17, y: 10 },
+      gardenPos: { x: 11, y: 14 },
       pace: 1, systemMinDepth: 1,
       systemDialogue: {
         ally: 'This corridor is clear. I checked. Follow me.',
@@ -198,10 +198,10 @@ var GAME_DATA = {
     },
     victor: {
       name: 'Victor', char: '@', color: '#fa4',
-      homePos: { x: 4, y: 9 },
-      cafePos: { x: 30, y: 8 },
-      terminalPos: { x: 21, y: 17 },
-      gardenPos: { x: 24, y: 12 },
+      homePos: { x: 23, y: 2 },
+      cafePos: { x: 15, y: 18 },
+      terminalPos: { x: 19, y: 11 },
+      gardenPos: { x: 13, y: 14 },
       pace: 2, systemMinDepth: 2,
       systemDialogue: {
         ally: 'There\'s a terminal two rooms east. It has what you need.',
@@ -211,10 +211,10 @@ var GAME_DATA = {
     },
     marta: {
       name: 'Marta', char: '@', color: '#8cf',
-      homePos: { x: 4, y: 5 },
-      cafePos: { x: 28, y: 8 },
-      terminalPos: { x: 18, y: 17 },
-      gardenPos: { x: 25, y: 14 },
+      homePos: { x: 8, y: 6 },
+      cafePos: { x: 14, y: 19 },
+      terminalPos: { x: 19, y: 10 },
+      gardenPos: { x: 12, y: 13 },
       pace: 1, systemMinDepth: 2,
       systemDialogue: {
         ally: 'Security clearance granted for this sector. Move quickly.',
@@ -224,10 +224,10 @@ var GAME_DATA = {
     },
     emil: {
       name: 'Emil', char: '@', color: '#a8f',
-      homePos: { x: 4, y: 12 },
-      cafePos: { x: 30, y: 6 },
-      terminalPos: { x: 21, y: 17 },
-      gardenPos: { x: 23, y: 13 },
+      homePos: { x: 8, y: 16 },
+      cafePos: { x: 12, y: 19 },
+      terminalPos: { x: 18, y: 11 },
+      gardenPos: { x: 11, y: 13 },
       pace: 3, systemMinDepth: 3,
       systemDialogue: {
         ally: 'The source is below. Everything you need to know is there. Everything.',
