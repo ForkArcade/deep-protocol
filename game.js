@@ -29,7 +29,39 @@
     FA.clearEffects();
   }
 
+  function _registerNarrative(narData) {
+    FA.narrative.init(narData);
+    var id;
+    var behaviors = narData.behaviors || {};
+    for (id in behaviors) FA.register('behaviors', id, behaviors[id]);
+    var dialogues = narData.dialogues || {};
+    for (id in dialogues) FA.register('dialogues', id, dialogues[id]);
+    var thoughts = narData.thoughts || {};
+    for (id in thoughts) FA.register('thoughts', id, thoughts[id]);
+    var cutscenes = narData.cutscenes || {};
+    for (id in cutscenes) FA.register('cutscenes', id, cutscenes[id]);
+    if (narData.notices) FA.register('notices', 'board', narData.notices);
+    if (narData.director) FA.register('config', 'director', narData.director);
+    var narrativeText = narData.narrativeText || {};
+    for (id in narrativeText) FA.register('narrativeText', id, narrativeText[id]);
+  }
+
   function beginPlaying() {
+    fetch('./_narrative.json')
+      .then(function(r) { return r.json(); })
+      .then(function(narData) {
+        _registerNarrative(narData);
+        _startPlaying();
+      })
+      .catch(function(err) {
+        console.warn('[FA] _narrative.json not found, using data.js fallback', err);
+        var narCfg = FA.lookup('config', 'narrative');
+        if (narCfg) FA.narrative.init(narCfg);
+        _startPlaying();
+      });
+  }
+
+  function _startPlaying() {
     var playerStart = getPlayerStart();
     var townObjects = [];
     if (typeof getMapObjects === 'function') {
@@ -81,8 +113,6 @@
     });
 
     FA.clearEffects();
-    var narCfg = FA.lookup('config', 'narrative');
-    if (narCfg) FA.narrative.init(narCfg);
 
     if (_onVarChanged) FA.off('narrative:varChanged', _onVarChanged);
     if (_onTransition) FA.off('narrative:transition', _onTransition);
@@ -461,6 +491,8 @@
     }
 
     Combat.enemyTurn();
+
+    if (FA.narrative.tick) FA.narrative.tick(1);
 
     if (hasTime) {
       DayCycle.checkOverworldThoughts(state);

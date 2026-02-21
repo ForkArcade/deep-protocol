@@ -57,19 +57,19 @@
 
   function initNPCs() {
     _zoneCells = null; // Clear zone cache on restart
-    var npcDefs = FA.lookupAll('npcs');
-    var npcIds = Object.keys(npcDefs);
-    var roles = FA.shuffle(FA.lookup('config', 'npcRoles').slice());
+    var spawner = FA.lookup('config', 'spawner');
+    var roles = FA.shuffle(spawner.roles.slice());
     var npcs = [];
-    for (var i = 0; i < npcIds.length; i++) {
-      var def = FA.lookup('npcs', npcIds[i]);
+    for (var i = 0; i < spawner.schedule.length; i++) {
+      var entry = spawner.schedule[i];
+      var def = FA.lookup('npcs', entry.id);
       npcs.push({
-        id: npcIds[i], type: 'npc', name: def.name, char: def.char, color: def.color,
+        id: entry.id, type: 'npc', name: def.name, char: def.char, color: def.color,
         x: def.homePos.x, y: def.homePos.y,
         allegiance: roles[i],
         homePos: def.homePos, cafePos: def.cafePos,
         terminalPos: def.terminalPos, gardenPos: def.gardenPos,
-        schedule: def.schedule, appearsDay: def.appearsDay, systemMinDepth: def.systemMinDepth || 1,
+        schedule: def.schedule, appearsDay: entry.day, systemMinDepth: def.systemMinDepth || 1,
         systemDialogue: def.systemDialogue, met: false,
         goal: 'home', goalPos: null, talkedToday: false,
         wantsToTalk: true, followTurns: 0,
@@ -140,9 +140,10 @@
       npc.goal = 'hidden'; npc.goalPos = null; npc.x = -1; npc.y = -1;
       return;
     }
-    // NPC appearing for the first time — place at home
+    // NPC appearing for the first time — place in spawn zone
     if (npc.x < 0 || npc.y < 0) {
-      var homeTarget = pickZoneTarget('h', state);
+      var spawnZone = FA.lookup('config', 'spawner').zone;
+      var homeTarget = pickZoneTarget(spawnZone, state);
       if (homeTarget) { npc.x = homeTarget.x; npc.y = homeTarget.y; }
       else { npc.x = npc.homePos.x; npc.y = npc.homePos.y; }
     }
