@@ -116,6 +116,12 @@
     "timeCost": 2,
     "text": "Warm food. A rare comfort."
   },
+  "garden": {
+    "cost": 0,
+    "hpRestore": 3,
+    "timeCost": 5,
+    "text": "Quiet. Green. The only thing here that grows without permission."
+  },
   "busyLines": {
     "eat": "Can't talk. Eating.",
     "work": "Working. Come back later.",
@@ -460,6 +466,14 @@
         "They smile. They talk. They know things they don't say.",
         "The caf\u00e9 is the only warm place here.",
         "Who are these people? Who am I to them?"
+      ]}
+    ],
+    "garden": [
+      { "pool": [
+        "Green. Growing. The system didn't plan for this.",
+        "Something alive that doesn't follow a schedule.",
+        "The only place here where nothing is measured.",
+        "Quiet. No terminals. No drones. Just leaves."
       ]}
     ],
     "work": [

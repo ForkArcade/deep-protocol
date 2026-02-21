@@ -139,6 +139,7 @@
         else if (obj && obj.type === 'terminal') { _actions[0].label = state.workedToday ? 'Shift done' : 'Work'; _actions[0].color = state.workedToday ? '#443' : '#88aa66'; actionCount = 1; }
         else if (obj && obj.type === 'notice_board') { _actions[0].label = 'Read notices'; _actions[0].color = '#aa9a50'; actionCount = 1; }
         else if (obj && obj.type === 'cafe_table') { var cafeCfg = FA.lookup('config', 'cafe'); if (cafeCfg) { _actions[0].label = 'Eat (' + cafeCfg.cost + ' cr)'; _actions[0].color = '#e8a040'; actionCount = 1; } }
+        else if (obj && obj.type === 'garden_bench') { var gardenCfg = FA.lookup('config', 'garden'); if (gardenCfg) { _actions[0].label = 'Rest (free)'; _actions[0].color = '#6a4'; actionCount = 1; } }
         else if (obj && obj.type === 'system_entrance' && state.systemRevealed) { _actions[0].label = 'Enter System'; _actions[0].color = '#f80'; actionCount = 1; }
 
         // Adjacent NPC talk

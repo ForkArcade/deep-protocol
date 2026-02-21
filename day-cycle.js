@@ -161,8 +161,10 @@
     if (period === 'morning' && state.timeOfDay < 10) Core.triggerThought('morning');
     else if (period === 'evening') Core.triggerThought('evening');
     var zones = state.maps && state.maps.town ? state.maps.town.zones : null;
-    if (zones && zones[state.player.y] && zones[state.player.y][state.player.x] === 'c') {
-      Core.triggerThought('cafe');
+    if (zones && zones[state.player.y]) {
+      var pz = zones[state.player.y][state.player.x];
+      if (pz === 'c') Core.triggerThought('cafe');
+      else if (pz === 'g') Core.triggerThought('garden');
     }
   }
 

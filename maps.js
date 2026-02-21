@@ -142,6 +142,13 @@ var MAP_DEFS = {
         "type": "bed",
         "sprite": "objects/bed",
         "rot": 0
+      },
+      {
+        "x": 12,
+        "y": 14,
+        "type": "garden_bench",
+        "sprite": "terrain/garden",
+        "rot": 0
       }
     ],
     "playerStart": {

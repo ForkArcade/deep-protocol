@@ -54,6 +54,7 @@
     if (narData.jobs) FA.register('config', 'jobs', narData.jobs);
     if (narData.moods) FA.register('config', 'moods', narData.moods);
     if (narData.cafe) FA.register('config', 'cafe', narData.cafe);
+    if (narData.garden) FA.register('config', 'garden', narData.garden);
     if (narData.busyLines) FA.register('config', 'busyLines', narData.busyLines);
     if (narData.moodDialogues) FA.register('config', 'moodDialogues', narData.moodDialogues);
   }
@@ -272,6 +273,7 @@
         else if (obj.type === 'terminal') workAtTerminal(state);
         else if (obj.type === 'notice_board') readNoticeBoard(state);
         else if (obj.type === 'cafe_table') eatAtCafe(state);
+        else if (obj.type === 'garden_bench') restInGarden(state);
         else if (obj.type === 'system_entrance') {
           if (state.systemRevealed) enterSystem(state);
           else Core.addThought('A sealed maintenance shaft. Nothing to see.');
@@ -300,6 +302,32 @@
           s.turn += cfg.timeCost;
           Core.addSystemBubble('> ' + cfg.text + ' +' + cfg.hpRestore + ' HP.', '#e8a040');
           Core.triggerThought('cafe');
+          DayCycle.checkTimeWarnings(s);
+        }
+      },
+      {
+        label: 'Leave',
+        color: '#665',
+        enabled: true,
+        action: function() {}
+      }
+    ]);
+  }
+
+  function restInGarden(state) {
+    var cfg = FA.lookup('config', 'garden');
+    if (!cfg) return;
+    Game._showChoiceMenu(state, '> GARDEN \u2014 Rest here?', [
+      {
+        label: 'Rest (+' + cfg.hpRestore + ' HP, ' + cfg.timeCost + ' turns)',
+        color: '#6a4',
+        enabled: true,
+        action: function(s) {
+          s.player.hp = Math.min(s.player.maxHp, s.player.hp + cfg.hpRestore);
+          s.timeOfDay += cfg.timeCost;
+          s.turn += cfg.timeCost;
+          Core.addSystemBubble('> ' + cfg.text + ' +' + cfg.hpRestore + ' HP.', '#6a4');
+          Core.triggerThought('garden');
           DayCycle.checkTimeWarnings(s);
         }
       },
