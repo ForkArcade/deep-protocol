@@ -217,9 +217,9 @@
             if (tid === 1) frame = wallFrame(map, x, y);
             else if (tid === 0 || tid === 2) frame = (x + y) % 2;
           } else {
-            // Dungeon tileset: dungeon_d{N}_floor, dungeon_d{N}_wall, etc.
-            if (tid === 0) { spriteName = tilesetName + '_floor'; frame = (x + y) % 2; }
-            else if (tid === 1) { spriteName = tilesetName + '_wall'; frame = wallFrame(map, x, y); }
+            // Dungeon tileset
+            if (tid === 0) { spriteName = 'dungeon_floor'; frame = (x + y) % 2; }
+            else if (tid === 1) { spriteName = 'dungeon_wall'; frame = wallFrame(map, x, y); }
             else if (tid === 3) { spriteName = 'dungeon_stairs'; spriteCategory = 'objects'; }
             else if (tid === 4) { spriteName = 'dungeon_terminal'; spriteCategory = 'objects'; frame = 0; }
             else if (tid === 5) { spriteName = 'dungeon_terminal'; spriteCategory = 'objects'; frame = 1; }
@@ -262,7 +262,7 @@
         var dmv = state.mapVersion || 0;
         if (dmv !== _mapVersion) {
           _mapVersion = dmv;
-          renderMap(_mapCtx, state.dreamMap, 'dungeon_d' + (state.dreamDepth || 1), null);
+          renderMap(_mapCtx, state.dreamMap, 'dungeon', null);
         }
         FA.getCtx().drawImage(_mapCanvas, 0, 0);
         return;

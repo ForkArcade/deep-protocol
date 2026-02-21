@@ -76,7 +76,16 @@ var GAME_DATA = {
       }
     },
 
-    npcRoles: ['ally', 'ally', 'traitor', 'neutral'],
+    spawner: {
+      zone: 'h',
+      roles: ['ally', 'ally', 'traitor', 'neutral'],
+      schedule: [
+        { id: 'lena', day: 1 },
+        { id: 'marta', day: 1 },
+        { id: 'victor', day: 2 },
+        { id: 'emil', day: 3 }
+      ]
+    },
 
     director: {
       1: [
@@ -247,27 +256,27 @@ var GAME_DATA = {
       features: ['npcs', 'objects', 'zones']
     },
     system_d1: {
-      tileset: 'dungeon_d1',
+      tileset: 'dungeon',
       effects: ['systemCold'],
       features: ['enemies', 'terminals', 'items']
     },
     system_d2: {
-      tileset: 'dungeon_d2',
+      tileset: 'dungeon',
       effects: ['systemCold'],
       features: ['enemies', 'terminals', 'items']
     },
     system_d3: {
-      tileset: 'dungeon_d3',
+      tileset: 'dungeon',
       effects: ['systemCold', 'corruption'],
       features: ['enemies', 'terminals', 'items']
     },
     system_d4: {
-      tileset: 'dungeon_d4',
+      tileset: 'dungeon',
       effects: ['systemCold', 'corruption'],
       features: ['enemies', 'terminals', 'items']
     },
     system_d5: {
-      tileset: 'dungeon_d5',
+      tileset: 'dungeon',
       effects: ['systemCold', 'corruption'],
       features: ['enemies', 'terminals', 'items']
     }
@@ -284,7 +293,7 @@ var GAME_DATA = {
       cafePos: { x: 28, y: 6 },
       terminalPos: { x: 18, y: 17 },
       gardenPos: { x: 24, y: 13 },
-      appearsDay: 1, pace: 1, systemMinDepth: 1,
+      pace: 1, systemMinDepth: 1,
       systemDialogue: {
         ally: 'This corridor is clear. I checked. Follow me.',
         traitor: 'I think the exit is this way. Come on, hurry.',
@@ -297,7 +306,7 @@ var GAME_DATA = {
       cafePos: { x: 30, y: 8 },
       terminalPos: { x: 21, y: 17 },
       gardenPos: { x: 24, y: 12 },
-      appearsDay: 2, pace: 2, systemMinDepth: 2,
+      pace: 2, systemMinDepth: 2,
       systemDialogue: {
         ally: 'There\'s a terminal two rooms east. It has what you need.',
         traitor: 'Trust me \u2014 go left here. I\'ve been this way before.',
@@ -310,7 +319,7 @@ var GAME_DATA = {
       cafePos: { x: 28, y: 8 },
       terminalPos: { x: 18, y: 17 },
       gardenPos: { x: 25, y: 14 },
-      appearsDay: 1, pace: 1, systemMinDepth: 2,
+      pace: 1, systemMinDepth: 2,
       systemDialogue: {
         ally: 'Security clearance granted for this sector. Move quickly.',
         traitor: 'This area is restricted. You\'ll need to find another route. Sorry.',
@@ -323,7 +332,7 @@ var GAME_DATA = {
       cafePos: { x: 30, y: 6 },
       terminalPos: { x: 21, y: 17 },
       gardenPos: { x: 23, y: 13 },
-      appearsDay: 3, pace: 3, systemMinDepth: 3,
+      pace: 3, systemMinDepth: 3,
       systemDialogue: {
         ally: 'The source is below. Everything you need to know is there. Everything.',
         traitor: 'Keep going deeper. That\'s what it wants. That\'s what you want. Is there a difference?',
