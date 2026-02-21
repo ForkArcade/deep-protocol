@@ -5,7 +5,9 @@
     "terminal": {"w":10,"h":10,"origin":[0,0],"frames":[1]},
     "notice_board": {"w":10,"h":10,"origin":[0,0],"frames":[2]},
     "system_entrance": {"w":10,"h":10,"origin":[0,0],"frames":[3]},
-    "cafe_table": {"w":10,"h":10,"origin":[0,0],"frames":[4]}
+    "cafe_table": {"w":10,"h":10,"origin":[0,0],"frames":[4]},
+    "dungeon_stairs": {"w":10,"h":10,"origin":[0,0],"frames":[135]},
+    "dungeon_terminal": {"w":10,"h":10,"origin":[0,0],"frames":[136,137]}
   },
   "tiles": {
     "floor": {"w":10,"h":10,"origin":[0,0],"frames":[5,6]},
@@ -24,9 +26,6 @@
     "dungeon_d4_floor": {"w":10,"h":10,"origin":[0,0],"frames":[99,100]},
     "dungeon_d4_wall": {"w":10,"h":10,"origin":[0,0],"frames":[101,102,103,104,105,106,107,108,109,110,111,112,113,114,115,116]},
     "dungeon_d5_floor": {"w":10,"h":10,"origin":[0,0],"frames":[117,118]},
-    "dungeon_d5_wall": {"w":10,"h":10,"origin":[0,0],"frames":[119,120,121,122,123,124,125,126,127,128,129,130,131,132,133,134]},
-    "dungeon_stairs": {"w":10,"h":10,"origin":[0,0],"frames":[135]},
-    "dungeon_terminal": {"w":10,"h":10,"origin":[0,0],"frames":[136]},
-    "dungeon_terminal_used": {"w":10,"h":10,"origin":[0,0],"frames":[137]}
+    "dungeon_d5_wall": {"w":10,"h":10,"origin":[0,0],"frames":[119,120,121,122,123,124,125,126,127,128,129,130,131,132,133,134]}
   }
 }

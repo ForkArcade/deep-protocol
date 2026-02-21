@@ -211,7 +211,7 @@
           if (tid === 9) tid = 0;
 
           // Resolve sprite name + frame based on tileset
-          var spriteName, frame = 0;
+          var spriteName, frame = 0, spriteCategory;
           if (tilesetName === 'overworld') {
             spriteName = OW_TILE_NAMES[tid];
             if (tid === 1) frame = wallFrame(map, x, y);
@@ -220,12 +220,12 @@
             // Dungeon tileset: dungeon_d{N}_floor, dungeon_d{N}_wall, etc.
             if (tid === 0) { spriteName = tilesetName + '_floor'; frame = (x + y) % 2; }
             else if (tid === 1) { spriteName = tilesetName + '_wall'; frame = wallFrame(map, x, y); }
-            else if (tid === 3) spriteName = 'dungeon_stairs';
-            else if (tid === 4) spriteName = 'dungeon_terminal';
-            else if (tid === 5) spriteName = 'dungeon_terminal_used';
+            else if (tid === 3) { spriteName = 'dungeon_stairs'; spriteCategory = 'objects'; }
+            else if (tid === 4) { spriteName = 'dungeon_terminal'; spriteCategory = 'objects'; frame = 0; }
+            else if (tid === 5) { spriteName = 'dungeon_terminal'; spriteCategory = 'objects'; frame = 1; }
           }
 
-          var sprite = spriteName ? getSprite('tiles', spriteName) : null;
+          var sprite = spriteName ? getSprite(spriteCategory || 'tiles', spriteName) : null;
           if (!sprite) {
             oc.fillStyle = '#222';
             oc.fillRect(px, py, ts, ts);
