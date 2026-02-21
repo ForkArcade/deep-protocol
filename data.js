@@ -211,7 +211,7 @@ var GAME_DATA = {
     },
     marta: {
       name: 'Marta', char: '@', color: '#8cf',
-      homePos: { x: 12, y: 1 },
+      homePos: { x: 8, y: 6 },
       cafePos: { x: 14, y: 19 },
       terminalPos: { x: 19, y: 10 },
       gardenPos: { x: 12, y: 13 },

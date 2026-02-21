@@ -188,6 +188,20 @@
 
   function moveNPCToward(npc, tx, ty) {
     if (npc.x === tx && npc.y === ty) return false;
+    // When targeting player, find adjacent walkable tile instead
+    if (npc.goal === 'player') {
+      var dirs = [[0,-1],[0,1],[-1,0],[1,0]];
+      var best = null, bestDist = 999;
+      for (var d = 0; d < dirs.length; d++) {
+        var ax = tx + dirs[d][0], ay = ty + dirs[d][1];
+        if (npc.x === ax && npc.y === ay) return false; // already adjacent
+        var nd = Math.abs(npc.x - ax) + Math.abs(npc.y - ay);
+        if (nd < bestDist && Core.canStep(ax, ay, npc)) {
+          bestDist = nd; best = { x: ax, y: ay };
+        }
+      }
+      if (best) return Core.moveToward(npc, best.x, best.y);
+    }
     return Core.moveTowardSimple(npc, tx, ty);
   }
 
