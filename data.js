@@ -14,7 +14,12 @@ var GAME_DATA = {
       maxDepth: 5,
       roomAttempts: 30,
       roomMinSize: 4,
-      roomMaxSize: 9
+      roomMaxSize: 9,
+      npcFollowMaxTurns: 20,
+      npcIdleMin: 2,
+      npcIdleMax: 6,
+      npcApproachRadius: 8,
+      npcWanderChance: 0.4
     },
 
     layout: {
@@ -259,11 +264,11 @@ var GAME_DATA = {
   },
 
   modules: {
-    emp:       { name: 'EMP Pulse',   char: 'E', color: '#ff0' },
-    cloak:     { name: 'Cloak Field', char: 'C', color: '#88f' },
+    emp:       { name: 'EMP Pulse',   char: 'E', color: '#ff0', range: 5, stunTurns: 3 },
+    cloak:     { name: 'Cloak Field', char: 'C', color: '#88f', turns: 6 },
     scanner:   { name: 'Deep Scan',   char: '$', color: '#0ff' },
     overclock: { name: 'Overclock',   char: 'O', color: '#f44' },
-    firewall:  { name: 'Firewall',    char: 'F', color: '#4f4' }
+    firewall:  { name: 'Firewall',    char: 'F', color: '#4f4', hp: 12 }
   },
 
 };

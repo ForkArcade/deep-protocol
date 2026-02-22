@@ -406,21 +406,6 @@
     if (opt.action) opt.action(state);
   }
 
-  // Legacy support
-  function selectChoice(index) {
-    var state = FA.getState();
-    if (!state.choiceMenu) return;
-    var opt = state.choiceMenu.options[index];
-    if (!opt || opt.enabled === false) return;
-    state.choiceMenu = null;
-    if (opt.action) opt.action(state);
-  }
-
-  function dismissChoice() {
-    var state = FA.getState();
-    state.choiceMenu = null;
-  }
-
   // ============================================================
   //  DIALOGUE CHOICE FLOW
   // ============================================================
@@ -742,11 +727,9 @@
     dismissCutscene: dismissCutscene,
     dismissDream: DayCycle.dismissDream,
     dismissBubbles: dismissBubblesWithChoices,
-    selectChoice: selectChoice,
     choiceUp: choiceUp,
     choiceDown: choiceDown,
     confirmChoice: confirmChoice,
-    dismissChoice: dismissChoice,
     _endGame: endGame,
     _handlePlayerDeath: handlePlayerDeath,
     _showChoiceMenu: showChoiceMenu,

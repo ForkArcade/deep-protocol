@@ -6,14 +6,7 @@
   var FA = window.FA;
   var Core = window.Core;
 
-  // === CONSTANTS ===
-
-  var NPC_FOLLOW_MAX_TURNS = 20;
-  var NPC_IDLE_MIN = 2;
-  var NPC_IDLE_MAX = 6;
-  var NPC_APPROACH_RADIUS = 8;
-  var NPC_CLOSE_RADIUS = 6;
-  var NPC_WANDER_CHANCE = 0.4;
+  var cfg = FA.lookup('config', 'game');
 
   // Goal name → zone key mapping
   var GOAL_ZONES = { home: 'h', cafe: 'c', terminal: 'w', garden: 'g' };
@@ -242,7 +235,7 @@
       else { npc.x = npc.homePos.x; npc.y = npc.homePos.y; }
     }
     var dist = state.player ? Math.abs(npc.x - state.player.x) + Math.abs(npc.y - state.player.y) : 99;
-    if (npc.wantsToTalk && !npc.talkedToday && dist < NPC_APPROACH_RADIUS) {
+    if (npc.wantsToTalk && !npc.talkedToday && dist < cfg.npcApproachRadius) {
       npc.goal = 'player'; npc.goalPos = null;
       return;
     }
@@ -295,7 +288,7 @@
 
     if (npc.goal === 'player') {
       npc.followTurns = (npc.followTurns || 0) + 1;
-      if (npc.followTurns > NPC_FOLLOW_MAX_TURNS) {
+      if (npc.followTurns > cfg.npcFollowMaxTurns) {
         npc.wantsToTalk = false;
         npc.followTurns = 0;
         selectNPCGoal(npc, state);
@@ -312,7 +305,7 @@
         if (npc.jobTimer >= npc.currentJob.def.duration) {
           completeJob(npc);
           selectNPCGoal(npc, state);
-          npc.idleTimer = FA.rand(NPC_IDLE_MIN, NPC_IDLE_MAX);
+          npc.idleTimer = FA.rand(cfg.npcIdleMin, cfg.npcIdleMax);
           goalPos = resolveNPCGoalPos(npc, state);
         } else {
           return; // Still working
@@ -323,7 +316,7 @@
           return;
         }
         selectNPCGoal(npc, state);
-        npc.idleTimer = FA.rand(NPC_IDLE_MIN, NPC_IDLE_MAX);
+        npc.idleTimer = FA.rand(cfg.npcIdleMin, cfg.npcIdleMax);
         goalPos = resolveNPCGoalPos(npc, state);
       }
     }
@@ -331,7 +324,7 @@
     if (goalPos) {
       moveNPCToward(npc, goalPos.x, goalPos.y);
     } else {
-      if (Math.random() < NPC_WANDER_CHANCE) Core.randomStep(npc);
+      if (Math.random() < cfg.npcWanderChance) Core.randomStep(npc);
     }
   }
 

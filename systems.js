@@ -7,11 +7,6 @@
   var cfg = FA.lookup('config', 'game');
   var TILES = FA.lookup('config', 'dungeonTiles') || { floor: 0, wall: 1, stairsUp: 3, terminal: 4, terminalUsed: 5 };
 
-  var EMP_RANGE = 5;
-  var EMP_STUN_TURNS = 3;
-  var CLOAK_TURNS = 6;
-  var FIREWALL_HP = 12;
-
   // ============================================================
   //  MODULES
   // ============================================================
@@ -24,6 +19,7 @@
     var L = getLayout();
     var ts = L.ts, ox = L.ox, oy = L.oy;
     var mod = state.player.modules[slotIdx];
+    var modDef = FA.lookup('modules', mod.type);
     state.player.modules.splice(slotIdx, 1);
     var px = ox + state.player.x * ts + ts / 2, py = oy + state.player.y * ts;
 
@@ -31,12 +27,14 @@
 
     switch (mod.type) {
       case 'emp':
+        var empRange = modDef.range || 5;
+        var empStun = modDef.stunTurns || 3;
         for (var i = 0; i < mapData.entities.length; i++) {
           var e = mapData.entities[i];
           if (e.type !== 'enemy') continue;
           var dist = Math.abs(e.x - state.player.x) + Math.abs(e.y - state.player.y);
-          if (dist <= EMP_RANGE) {
-            e.stunTurns = (e.stunTurns || 0) + EMP_STUN_TURNS;
+          if (dist <= empRange) {
+            e.stunTurns = (e.stunTurns || 0) + empStun;
             FA.addFloat(ox + e.x * ts + ts / 2, oy + e.y * ts, 'STUN', '#ff0', 800);
           }
         }
@@ -44,7 +42,7 @@
         Core.propagateSound(state.player.x, state.player.y, 12);
         break;
       case 'cloak':
-        state.player.cloakTurns = CLOAK_TURNS;
+        state.player.cloakTurns = modDef.turns || 6;
         FA.addFloat(px, py, 'CLOAK', '#88f', 800);
         break;
       case 'scanner':
@@ -61,7 +59,7 @@
         FA.addFloat(px, py, 'OC!', '#f44', 800);
         break;
       case 'firewall':
-        state.player.firewallHp = FIREWALL_HP;
+        state.player.firewallHp = modDef.hp || 12;
         FA.addFloat(px, py, 'SHIELD', '#4f4', 800);
         break;
     }
@@ -118,9 +116,11 @@
         FA.addFloat(ox + x * ts + ts / 2, oy + y * ts, 'MAP', '#0ff', 1000);
         break;
       case 'stun':
+        var stunDef = FA.lookup('modules', 'emp');
+        var stunTurns = stunDef ? stunDef.stunTurns || 3 : 3;
         for (var si = 0; si < mapData.entities.length; si++) {
           if (mapData.entities[si].type === 'enemy')
-            mapData.entities[si].stunTurns = (mapData.entities[si].stunTurns || 0) + EMP_STUN_TURNS;
+            mapData.entities[si].stunTurns = (mapData.entities[si].stunTurns || 0) + stunTurns;
         }
         FA.addFloat(ox + x * ts + ts / 2, oy + y * ts, 'DISRUPT', '#ff0', 1000);
         break;

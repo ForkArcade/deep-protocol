@@ -79,6 +79,7 @@
 
   window.TextFX = {
     render: render,
-    totalTime: totalTime
+    totalTime: totalTime,
+    charWidth: getCharWidth
   };
 })();

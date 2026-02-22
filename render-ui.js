@@ -8,15 +8,7 @@
 
   // No fade — bubbles dismiss instantly when done
 
-  // Measured char width per font size (cached on first use)
-  var _cwCache = {};
-  function getCW(ctx, size) {
-    if (!size) size = 11;
-    if (_cwCache[size]) return _cwCache[size];
-    ctx.font = size + 'px monospace';
-    _cwCache[size] = ctx.measureText('M').width;
-    return _cwCache[size];
-  }
+  function getCW(ctx, size) { return TextFX.charWidth(ctx, size || 11); }
 
   // Object pool for FA.draw.text opts — zero allocations per frame
   var _o = {}, _fx = {};

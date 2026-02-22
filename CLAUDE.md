@@ -134,8 +134,8 @@ state = {
 | `dismissCutscene()` | Skip or close cutscene |
 | `dismissDream()` | Exit dream → playing |
 | `dismissBubbles()` | Clear bubbles |
-| `selectChoice(idx)` | Pick choice menu option |
-| `dismissChoice()` | Close choice menu |
+| `choiceUp/Down()` | Navigate choice menu |
+| `confirmChoice()` | Pick choice menu option |
 
 ## AI (3-state: patrol → alert → hunting)
 
