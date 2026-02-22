@@ -65,7 +65,7 @@
     if (!mem.confidants) mem.confidants = [];
     var npcIds = ['lena', 'victor', 'marta', 'emil'];
     for (var i = 0; i < npcIds.length; i++) {
-      var graph = FA.narrative.graphs['quest_' + npcIds[i]];
+      var graph = FA.narrative && FA.narrative.graphs ? FA.narrative.graphs['quest_' + npcIds[i]] : null;
       if (graph && graph.currentNode === 'confidant' && mem.confidants.indexOf(npcIds[i]) === -1) {
         mem.confidants.push(npcIds[i]);
       }

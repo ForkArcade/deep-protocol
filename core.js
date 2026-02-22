@@ -578,7 +578,7 @@
   // ============================================================
 
   function showNarrative(graphId, nodeId) {
-    FA.narrative.transition(graphId, nodeId);
+    if (FA.narrative && FA.narrative.transition) FA.narrative.transition(graphId, nodeId);
     var narText = FA.lookup('narrativeText', nodeId);
     if (narText) addSystemBubble(narText.text, narText.color);
     var cutscene = FA.lookup('cutscenes', nodeId);
