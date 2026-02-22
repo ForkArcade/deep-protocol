@@ -124,6 +124,7 @@
   function initNPCs() {
     _zoneCells = null; // Clear zone cache on restart
     var spawner = FA.lookup('config', 'spawner');
+    if (!spawner || !spawner.roles) return [];
     var roles = FA.shuffle(spawner.roles.slice());
     var npcs = [];
     for (var i = 0; i < spawner.schedule.length; i++) {

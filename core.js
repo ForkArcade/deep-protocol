@@ -7,7 +7,7 @@
 
   // === CONSTANTS ===
 
-  var TILES = FA.lookup('config', 'dungeonTiles');
+  var TILES = FA.lookup('config', 'dungeonTiles') || { floor: 0, wall: 1, stairs: 3, terminal: 4 };
   var FIND_EMPTY_MAX_ATTEMPTS = 200;
   var BUBBLE_MAX_CHARS = 36;
   var BUBBLE_FADE_STEPS = 5;

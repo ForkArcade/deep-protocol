@@ -73,7 +73,7 @@
   function hackTerminal(x, y, state) {
     var L = getLayout();
     var ts = L.ts, ox = L.ox, oy = L.oy;
-    state.map[y][x] = 5;
+    if (y >= 0 && y < state.map.length && x >= 0 && x < state.map[y].length) state.map[y][x] = 5;
     state.mapVersion = (state.mapVersion || 0) + 1;
     state.terminalsHacked = (state.terminalsHacked || 0) + 1;
     var depth = state.depth;

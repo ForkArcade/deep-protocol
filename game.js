@@ -556,7 +556,7 @@
       state.credits = Math.max(0, state.credits - econCfg.ejectionPenalty);
     }
 
-    state.timeOfDay += timeCfg.systemTimeCost;
+    state.timeOfDay += reason === 'cleared' ? Math.floor(timeCfg.systemTimeCost / 2) : timeCfg.systemTimeCost;
     state.player.cloakTurns = 0; state.player.overclockActive = false; state.player.firewallHp = 0;
     state.visible = null;
 
