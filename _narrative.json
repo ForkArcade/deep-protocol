@@ -167,12 +167,31 @@
     },
     "drone": { "name": "Drone", "sprite": "enemies/drone", "hp": 8, "atk": 4, "def": 1 },
     "sentinel": { "name": "Sentinel", "sprite": "enemies/sentinel", "hp": 14, "atk": 6, "def": 2 },
-    "tracker": { "name": "Tracker", "sprite": "enemies/tracker", "hp": 4, "atk": 5, "def": 0 }
+    "tracker": { "name": "Tracker", "sprite": "enemies/tracker", "hp": 4, "atk": 5, "def": 0 },
+    "director_core": {
+      "name": "Director Core",
+      "sprite": "enemies/director_core",
+      "hp": 60, "atk": 8, "def": 3,
+      "behavior": "boss",
+      "sightRange": 12,
+      "summonInterval": 5,
+      "summonType": "drone",
+      "maxSummons": 3,
+      "shootRange": 8,
+      "tauntInterval": 8,
+      "taunts": [
+        "You designed me to win. Did you forget?",
+        "Every wall here is your handwriting.",
+        "I waited. You came back. As planned.",
+        "Destroy me if you can. You built me to survive.",
+        "Welcome home, architect."
+      ]
+    }
   },
   "scenes": [
     {
       "id": "morning_routine",
-      "label": "Morning — NPCs at home/work",
+      "label": "Morning \u2014 NPCs at home/work",
       "condition": { "var": "time_period", "eq": "morning" },
       "cast": [
         { "actor": "lena", "action": "present", "zone": "home", "dialogue": "Another day. Another shift. The rent doesn't wait." },
@@ -184,7 +203,7 @@
     },
     {
       "id": "midday_cafe",
-      "label": "Midday — NPCs gather at cafe",
+      "label": "Midday \u2014 NPCs gather at cafe",
       "condition": { "var": "time_period", "eq": "midday" },
       "cast": [
         { "actor": "lena", "action": "sit", "zone": "cafe", "dialogue": "" },
@@ -196,7 +215,7 @@
     },
     {
       "id": "evening_warning",
-      "label": "Evening — curfew approaches",
+      "label": "Evening \u2014 curfew approaches",
       "condition": { "var": "time_period", "eq": "evening" },
       "cast": [
         { "actor": "lena", "action": "present", "zone": "home", "dialogue": "" },
@@ -211,7 +230,7 @@
     },
     {
       "id": "curfew_enforcement",
-      "label": "Curfew — drones patrol streets",
+      "label": "Curfew \u2014 drones patrol streets",
       "condition": { "var": "curfew_active", "eq": true },
       "cast": [
         { "actor": "drone", "action": "patrol", "zone": "streets", "count": 12 }
@@ -222,7 +241,7 @@
     },
     {
       "id": "deeper_trust",
-      "label": "Going deeper — NPCs open up",
+      "label": "Going deeper \u2014 NPCs open up",
       "condition": { "node": "arc:deeper" },
       "cast": [
         { "actor": "lena", "action": "follow_player", "zone": "", "dialogue": "Each time you go down there, you come back different. I see it. I don't say it." },
@@ -291,7 +310,7 @@
     },
     {
       "id": "revelation",
-      "label": "Reached the source — the truth",
+      "label": "Reached the source \u2014 the truth",
       "condition": { "node": "arc:revelation" },
       "cast": [],
       "effects": [
@@ -309,7 +328,7 @@
     },
     {
       "id": "eviction",
-      "label": "Evicted — cannot pay rent",
+      "label": "Evicted \u2014 cannot pay rent",
       "condition": { "node": "arc:eviction" },
       "cast": [],
       "effects": [
@@ -330,7 +349,11 @@
         "> Terminal shift. Rent due.",
         "> Everything as it should be.",
         "",
-        "> (Is it?)"
+        "> A corridor. Your hand on the wall.",
+        "> You designed this.",
+        "> No. That was a dream.",
+        "",
+        "> (Was it?)"
       ],
       "color": "#8af",
       "lineDelay": 200
@@ -349,9 +372,13 @@
         "",
         "> The walls hum.",
         "> The lights know you're here.",
+        "> The architecture responds to",
+        "> your touch. Like it remembers.",
         "",
         "> You should not be here.",
-        "> And yet the door was open."
+        "> And yet the door was open.",
+        "> As if someone left it that way.",
+        "> Someone who knew you'd come."
       ],
       "color": "#4ef",
       "lineDelay": 200
@@ -367,6 +394,10 @@
         "> You wake up on the street.",
         "> Your head hurts.",
         "> Your credits are lighter.",
+        "",
+        "> Something followed you out.",
+        "> A memory. Not yours.",
+        "> Or was it always yours?",
         "",
         "> The entrance is sealed.",
         "> For now.",
@@ -423,26 +454,33 @@
       "lines": [
         "> DEEP PROTOCOL \u2014 FINAL ACCESS",
         "",
-        "> You have reached the source.",
+        "> ARCHITECT LOG FOUND",
+        "> Clearance: ORIGIN LEVEL",
+        "> Author: ...",
         "",
-        "> The system is not a prison.",
-        "> It is not a test.",
-        "> It is not a conspiracy.",
+        "> Subject integration protocol.",
+        "> Phase 1: Construction.",
+        "> Phase 2: Memory suppression.",
+        "> Phase 3: Insertion.",
         "",
-        "> It is a process.",
-        "> You were always part of it.",
-        "> The rent. The work. The curfew.",
-        "> The people at the caf\u00e9.",
+        "> Your handwriting.",
+        "> Your name.",
         "",
-        "> None of them knew.",
-        "> Or all of them did.",
+        "> You built this.",
+        "> Every wall. Every drone.",
+        "> Every door.",
         "",
-        "> The door was always open.",
-        "> No one told you because",
-        "> no one needed to.",
+        "> The door was always open",
+        "> because you left it open.",
+        "> Before you forgot.",
         "",
-        "> You were free the entire time.",
-        "> That is the cruelest part."
+        "> ARCHITECT STATUS: REASSIGNED",
+        "> CURRENT ROLE: SUBJECT D-01",
+        "",
+        "> You designed your own prison.",
+        "> You designed your own escape.",
+        "> The test was whether you'd",
+        "> find your way back."
       ],
       "color": "#0ff",
       "lineDelay": 250
@@ -452,7 +490,9 @@
     "morning": [
       { "node": "arc:deeper", "pool": [
         "Another morning. But the system is in my dreams now.",
-        "I see corridors when I close my eyes. Is that normal?"
+        "I see corridors when I close my eyes. Is that normal?",
+        "I dreamed of blueprints. My hand was drawing corridors.",
+        "The layout of my room. I knew it before I saw it. How?"
       ]},
       { "var": "day", "eq": 1, "pool": ["First day. Terminal. Rent. Sleep. Repeat."] },
       { "pool": [
@@ -494,7 +534,9 @@
       { "node": "arc:deeper", "pool": [
         "The system expected me. It always does.",
         "Down again. Deeper. The walls remember my footsteps.",
-        "Somewhere above, my bed is empty. The clock is ticking."
+        "Somewhere above, my bed is empty. The clock is ticking.",
+        "These walls feel familiar. Like a dream I designed.",
+        "The layout makes sense. Why does it make sense?"
       ]},
       { "pool": [
         "Down. The air is different here. Colder. Aware.",
@@ -513,7 +555,8 @@
       { "pool": [
         "Efficient. As designed.",
         "One less. Was it aware?",
-        "They fall. Like the others before them."
+        "They fall. Like the others before them.",
+        "They fall like I knew they would. Did I program their weakness?"
       ]}
     ],
     "damage": [
@@ -540,7 +583,9 @@
         "Every corridor looks the same. The system is running out of ideas. Or I am.",
         "The process has no beginning and no end. Only a middle.",
         "Lena, Victor, Marta, Emil. I know their names now. Do I know them?",
-        "The deeper you go, the more the surface feels like the dream."
+        "The deeper you go, the more the surface feels like the dream.",
+        "Someone built this world. Someone who knew exactly how many steps from the bed to the terminal.",
+        "The drones follow patterns I could predict. How?"
       ]},
       { "pool": [
         "The rent goes up. The system tightens. Like a noose made of bureaucracy.",
@@ -557,7 +602,10 @@
   },
   "notices": [
     { "node": "arc:revelation", "text": "SYSTEM NOTICE: Sector audit complete. All residents cleared. [REDACTED]" },
+    { "node": "arc:deeper", "text": "ARCHIVED: PROJECT DEEP PROTOCOL \u2014 Phase 3: Subject integration complete. Architect status: REASSIGNED." },
+    { "node": "arc:deeper", "text": "MEMO [REDACTED]: Memory protocol initiated for subject D-01. Prior clearance: ARCHITECT LEVEL. Current clearance: RESIDENT." },
     { "node": "arc:deeper", "text": "REMINDER: Unauthorized access to maintenance shafts is punishable. Report anomalies." },
+    { "node": "arc:first_system", "text": "MAINTENANCE LOG: Subsystem architecture authored by [REDACTED]. Last modification: [REDACTED]. Status: ACTIVE." },
     { "node": "arc:first_system", "text": "NOTICE: Increased drone patrols tonight. Curfew strictly enforced." },
     { "var": "day", "gte": 5, "text": "RENT ADJUSTMENT: Monthly rates revised upward. Appeals office closed indefinitely." },
     { "var": "day", "gte": 3, "text": "COMMUNITY EVENT: Voluntary overtime available. Increased credit compensation." },
@@ -593,64 +641,64 @@
   },
   "dialogues": {
     "lena": [
-      { "node": "quest_lena:confidant", "text": "I trust you. The system watches us build trust \u2014 that's the experiment. We are the variable it cannot control." },
-      { "node": "arc:deeper", "text": "Each time you go down there, you come back different. I see it. I don't say it.", "choices": [
-        { "label": "I have to keep going.", "reply": "I know. Just... come back. That's all I ask.", "relationship": 1 },
-        { "label": "What do you see?", "reply": "Something behind your eyes. Like the walls are following you out.", "relationship": 1 },
+      { "node": "quest_lena:confidant", "text": "I remember now. You were here before. Different name. Same face. You built the corridors. Then you walked into them and forgot." },
+      { "node": "arc:deeper", "text": "You're changing. Like you're remembering something you weren't supposed to. Someone who was here before you... they looked like you.", "choices": [
+        { "label": "I have to keep going.", "reply": "I know. Just... come back. That's all I ask. Come back as yourself.", "relationship": 1 },
+        { "label": "What do you see?", "reply": "Someone waking up. Slowly. Like a dream breaking apart from the inside.", "relationship": 1 },
         { "label": "[Say nothing]", "reply": null, "relationship": 0 }
       ]},
-      { "node": "arc:first_system", "text": "You went down there, didn't you? I can see it in your face. Be careful who you trust.", "choices": [
-        { "label": "What do you know about it?", "reply": "More than I should. Less than I want. Come talk to me again.", "relationship": 1 },
-        { "label": "I can handle myself.", "reply": "That's what the last one said. They're not here anymore.", "relationship": 0 },
-        { "label": "I don't trust anyone.", "reply": "Smart. Lonely, but smart.", "relationship": -1 }
+      { "node": "arc:first_system", "text": "You went down there? I knew someone who built that place. Before the reset. They had your eyes.", "choices": [
+        { "label": "What do you know about it?", "reply": "More than I should. The person who built it... they vanished. One day they were the architect. The next, a resident. Like you.", "relationship": 1 },
+        { "label": "I can handle myself.", "reply": "That's what they said too. Right before they forgot everything.", "relationship": 0 },
+        { "label": "I don't trust anyone.", "reply": "Smart. The last one who trusted this place designed it. And look where that got them.", "relationship": -1 }
       ]},
-      { "node": "quest_lena:acquaintance", "text": "You keep coming back to talk. That's either loyalty or habit. In this place, I can't tell the difference.", "choices": [
-        { "label": "Maybe both.", "reply": "Both is good. Both keeps you human.", "relationship": 1 },
-        { "label": "I need information.", "reply": "At least you're honest about it. Ask.", "relationship": 1 },
-        { "label": "Just passing by.", "reply": "No one just passes by here. Everything is deliberate.", "relationship": 0 }
+      { "node": "quest_lena:acquaintance", "text": "You remind me of someone. Someone from before. They used to walk these halls like they owned them.", "choices": [
+        { "label": "Who were they?", "reply": "I don't remember their name. But they knew every corridor. Every shortcut. Like they'd drawn them.", "relationship": 1 },
+        { "label": "I need information.", "reply": "You need more than information. You need to remember. But I can't do that for you.", "relationship": 1 },
+        { "label": "Just passing by.", "reply": "No one just passes by here. Especially not you. Everything about you is deliberate.", "relationship": 0 }
       ]},
-      { "var": "day", "eq": 1, "text": "Good morning. You must be new in this block. Terminal is across the street \u2014 don't miss your shift.", "choices": [
-        { "label": "What is this place?", "reply": "Home. Work. Sleep. Repeat. You'll understand soon enough.", "relationship": 1 },
-        { "label": "Who are you?", "reply": "Lena. I've been here longer than I'd like. Welcome to the routine.", "relationship": 1 },
+      { "var": "day", "eq": 1, "text": "Good morning. You must be new in this block. Terminal is across the street \u2014 don't miss your shift. You look... familiar. Have we met?", "choices": [
+        { "label": "What is this place?", "reply": "Home. Work. Sleep. Repeat. You'll understand soon enough. Or maybe you already do.", "relationship": 1 },
+        { "label": "Who are you?", "reply": "Lena. I've been here longer than anyone. Long enough to remember things I shouldn't.", "relationship": 1 },
         { "label": "[Nod and leave]", "reply": null, "relationship": 0 }
       ]},
       { "text": "Another day. Another shift. The rent doesn't wait." }
     ],
     "victor": [
-      { "node": "quest_victor:confidant", "text": "I've been mapping it. The system. Every visit. It changes, but there's a pattern. Here \u2014 take what I know." },
-      { "node": "arc:deeper", "text": "Each time you go in, it maps you. Learns what you fear. Uses it.", "choices": [
-        { "label": "How do you know?", "reply": "Because it mapped me first. Years ago. I still feel it.", "relationship": 1 },
-        { "label": "I'm not afraid.", "reply": "That's what it wants you to think. Fear is just data it hasn't processed yet.", "relationship": 0 },
-        { "label": "You talk too much.", "reply": "...Perhaps. The silence down there changes people.", "relationship": -1 }
+      { "node": "quest_victor:confidant", "text": "I found it. Your signature. In the architecture. Every room, every corridor \u2014 your initials are in the code. You designed the System. Here \u2014 your own blueprints." },
+      { "node": "arc:deeper", "text": "Someone left a pattern in the code. Initials. Repeating. I've been mapping them. They spell... well. Come back and I'll show you.", "choices": [
+        { "label": "How do you know?", "reply": "Because the pattern is consistent. Deliberate. Whoever wrote this architecture signed every wall. Every junction.", "relationship": 1 },
+        { "label": "I'm not afraid.", "reply": "You shouldn't be. The system wasn't built to frighten. It was built to contain. By someone who knew it intimately.", "relationship": 0 },
+        { "label": "You talk too much.", "reply": "...Perhaps. But someone should talk about what's written in these walls. Before it's erased.", "relationship": -1 }
       ]},
-      { "node": "arc:first_system", "text": "You've been inside. I can tell. The system leaves marks. Not on the skin \u2014 deeper.", "choices": [
-        { "label": "Have you been inside?", "reply": "Three times. Each time I came back with less of myself. And more of it.", "relationship": 1 },
-        { "label": "What kind of marks?", "reply": "The kind you don't notice until someone else points them out. Like I'm doing now.", "relationship": 1 },
-        { "label": "Mind your business.", "reply": "Down here, everyone's business is everyone's business. That's how we survive.", "relationship": -1 }
+      { "node": "arc:first_system", "text": "The layout responds to you differently. I've watched others go in. The system never reacts like this. It knows you.", "choices": [
+        { "label": "Have you been inside?", "reply": "Three times. It fought me every step. But you \u2014 the doors opened for you. Like they were expecting you.", "relationship": 1 },
+        { "label": "What kind of reaction?", "reply": "Doors that should be locked open when you approach. Corridors that rearrange. As if the architecture is welcoming someone home.", "relationship": 1 },
+        { "label": "Mind your business.", "reply": "The architecture IS my business. And your fingerprints are all over it. Literally.", "relationship": -1 }
       ]},
-      { "node": "quest_victor:acquaintance", "text": "Still asking questions? Good. Most people here stopped years ago.", "choices": [
-        { "label": "What happened to them?", "reply": "They became furniture. Part of the routine. Don't let that happen to you.", "relationship": 1 },
-        { "label": "Help me find answers.", "reply": "I've been collecting data. Come back, and I'll share what I have.", "relationship": 1 },
-        { "label": "Questions are dangerous.", "reply": "So is ignorance. Pick your poison.", "relationship": 0 }
+      { "node": "quest_victor:acquaintance", "text": "I've mapped the System. There's a signature in the architecture. Someone designed this deliberately. Someone who understood.", "choices": [
+        { "label": "What happened to them?", "reply": "Vanished. But their work is everywhere. In every wall, every corridor. A ghost in the geometry.", "relationship": 1 },
+        { "label": "Help me find answers.", "reply": "I've been collecting data. The patterns point to one person. One architect. Come back, and I'll show you who.", "relationship": 1 },
+        { "label": "Questions are dangerous.", "reply": "So is ignorance. Especially when the answer is hiding in plain sight.", "relationship": 0 }
       ]},
-      { "text": "Going back in? I marked some paths. Whether they help... that depends on perspective." }
+      { "text": "Going back in? The architecture shifts. But for you, it shifts differently. I'm still figuring out why." }
     ],
     "marta": [
-      { "node": "quest_marta:confidant", "text": "I deleted the reports. All of them. If they ask, I never saw you. That's the first lie I've told. It felt... correct." },
-      { "node": "arc:deeper", "text": "The reports pile up. I file none of them. That concerns me more than their contents.", "choices": [
-        { "label": "Why protect me?", "reply": "I'm not protecting you. I'm protecting what's left of my own judgment.", "relationship": 1 },
-        { "label": "What's in the reports?", "reply": "Everything. Movement patterns. Conversations. Who you talk to. Who talks to you.", "relationship": 1 },
-        { "label": "File them. I don't care.", "reply": "You should care. The system cares. That's the problem.", "relationship": -1 }
+      { "node": "quest_marta:confidant", "text": "I found older records. Buried. You were the first administrator. Before me. Before all of us. You built the filing system I use to file reports about you." },
+      { "node": "arc:deeper", "text": "The reports go nowhere. I checked. The recipient address \u2014 it's your old office. An office that no longer exists.", "choices": [
+        { "label": "Why protect me?", "reply": "I'm not protecting you. I'm following the chain of command. And the chain leads back to you. To someone you used to be.", "relationship": 1 },
+        { "label": "What's in the reports?", "reply": "Everything. Movement patterns. Access logs. And a note in the oldest file: 'When the architect returns, do not interfere.'", "relationship": 1 },
+        { "label": "File them. I don't care.", "reply": "File them where? To whom? The only authority higher than me was decommissioned. That authority was you.", "relationship": -1 }
       ]},
-      { "node": "arc:first_system", "text": "Your activity patterns are irregular. I'm required to note this. I have not yet filed the report.", "choices": [
-        { "label": "Thank you.", "reply": "Don't thank me. I'm buying time, not loyalty. Come back tomorrow.", "relationship": 1 },
-        { "label": "What will you do?", "reply": "For now? Nothing. That's the most dangerous thing I've ever done.", "relationship": 1 },
-        { "label": "Report me then.", "reply": "Brave or stupid. The system doesn't distinguish. Neither do I, yet.", "relationship": -1 }
+      { "node": "arc:first_system", "text": "Your access patterns are irregular. But familiar. I've seen this exact pattern before \u2014 in the oldest logs. From the architect.", "choices": [
+        { "label": "Thank you.", "reply": "Don't thank me. I'm following protocol. The original protocol. Written by someone with your exact clearance signature.", "relationship": 1 },
+        { "label": "What will you do?", "reply": "What the oldest directive says. Observe. Do not interfere. Whoever wrote that directive knew you'd come back.", "relationship": 1 },
+        { "label": "Report me then.", "reply": "Report you to whom? The architect? You're standing right here.", "relationship": -1 }
       ]},
-      { "node": "quest_marta:acquaintance", "text": "Your file is interesting. More interesting than most. I shouldn't say that.", "choices": [
-        { "label": "What's in my file?", "reply": "Anomalies. The kind that make administrators nervous. The kind I find... compelling.", "relationship": 1 },
-        { "label": "Can you change it?", "reply": "Change it? No. Lose it? Maybe. Accidents happen in bureaucracies.", "relationship": 1 },
-        { "label": "Stop reading my file.", "reply": "That's not how this works. But I can choose what I report.", "relationship": 0 }
+      { "node": "quest_marta:acquaintance", "text": "Your file is older than it should be. Much older. There are entries from before the block was built. That's impossible. Unless...", "choices": [
+        { "label": "What's in my file?", "reply": "Anomalies. The creation date precedes the system itself. As if you were here before any of this existed.", "relationship": 1 },
+        { "label": "Can you change it?", "reply": "Change it? The file is read-only. Locked at the deepest level. Only the original administrator could modify it.", "relationship": 1 },
+        { "label": "Stop reading my file.", "reply": "I wish I could. But your file keeps updating itself. From an access point that was decommissioned years ago.", "relationship": 0 }
       ]},
       { "var": "day", "eq": 1, "text": "Worker ID confirmed. Proceed to terminal. Don't waste processing cycles.", "choices": [
         { "label": "Who are you?", "reply": "Marta. Administration. That is all you need to know. For now.", "relationship": 1 },
@@ -660,23 +708,23 @@
       { "text": "Rent is due. The system is patient but not forgiving." }
     ],
     "emil": [
-      { "node": "quest_emil:confidant", "text": "The door was always open. We are all doorkeepers. We are all waiting. The trial never ends because we are the trial." },
-      { "node": "arc:deeper", "text": "I was like you once. Before I learned that the door was always meant for me.", "choices": [
-        { "label": "What door?", "reply": "Every door. The one downstairs. The one in your head. They're the same door.", "relationship": 1 },
-        { "label": "What happened to you?", "reply": "I stopped trying to close it. That was either wisdom or surrender.", "relationship": 1 },
-        { "label": "You're not making sense.", "reply": "Good. Sense is the first thing the system takes from you.", "relationship": 0 }
+      { "node": "quest_emil:confidant", "text": "You are the architect. You drew the door. You drew the walls. You drew yourself into the drawing and forgot you were holding the pen. Remember." },
+      { "node": "arc:deeper", "text": "The door was always open because you drew it open. Before you forgot. Before they made you forget. The pen is still in your hand.", "choices": [
+        { "label": "What door?", "reply": "The door you designed. Every door. You drew them all. Open. Closed. It was your choice. It still is.", "relationship": 1 },
+        { "label": "What happened to you?", "reply": "I watched the architect walk into his own creation and close his eyes. I've been waiting for him to open them.", "relationship": 1 },
+        { "label": "You're not making sense.", "reply": "The blueprint makes no sense to the building. But the building exists because of it. You are both.", "relationship": 0 }
       ]},
-      { "node": "arc:first_system", "text": "You went inside. I can tell. Your eyes are different now.", "choices": [
-        { "label": "How are they different?", "reply": "They see corners now. Places where the walls don't quite meet. That's the beginning.", "relationship": 1 },
-        { "label": "Have you been inside?", "reply": "I live inside. This \u2014 up here \u2014 this is the dream. Down there is where I'm awake.", "relationship": 1 },
-        { "label": "Leave me alone.", "reply": "I would. But we're already not alone. We never were.", "relationship": -1 }
+      { "node": "arc:first_system", "text": "Your eyes see corners now. Corners you designed. The walls recognize their maker. Do you recognize them?", "choices": [
+        { "label": "How are they different?", "reply": "They see what they built. Every angle. Every shadow. The architecture is a mirror and you are starting to see your reflection.", "relationship": 1 },
+        { "label": "Have you been inside?", "reply": "I live inside. We all do. But you \u2014 you lived inside before it was built. You were the inside.", "relationship": 1 },
+        { "label": "Leave me alone.", "reply": "The architect cannot be alone in his own creation. You are never alone here. You made sure of that.", "relationship": -1 }
       ]},
-      { "node": "quest_emil:acquaintance", "text": "You keep talking to me. Most people don't. I wonder what that says about you. Or about me.", "choices": [
-        { "label": "You know something.", "reply": "I know everything and nothing. The system taught me that paradox. It's useful.", "relationship": 1 },
-        { "label": "Are you okay?", "reply": "Define okay. Define you. Define are. ...See? Language fails down here.", "relationship": 1 },
-        { "label": "Just curious.", "reply": "Curiosity. The system's favorite bait. And mine.", "relationship": 0 }
+      { "node": "quest_emil:acquaintance", "text": "You walk like someone who built these corridors. Your feet know the way even when your mind doesn't.", "choices": [
+        { "label": "You know something.", "reply": "I know the architect left a door open. I know someone who looks like the architect just walked through it.", "relationship": 1 },
+        { "label": "Are you okay?", "reply": "I am exactly as designed. The question is \u2014 who designed me? And why do they look like you?", "relationship": 1 },
+        { "label": "Just curious.", "reply": "Curiosity. The architect's defining trait. Written into every corridor as a question with no answer. Until now.", "relationship": 0 }
       ]},
-      { "text": "Before the Law stands a doorkeeper. The door was always open. No one ever walked through." }
+      { "text": "Before the Law stands a doorkeeper. You are the doorkeeper. You are the Law. You are the door." }
     ]
   },
   "relationshipEffects": {
@@ -703,23 +751,23 @@
   },
   "director": {
     "1": [
-      "You found this place. Or it found you. I can never tell with the new ones.",
-      "The drones follow simple rules. You follow complex ones. Which of you is freer?"
+      "Subject enters subsystem. Vitals nominal. Pattern recognition: inconclusive.",
+      "Another visitor. The corridors will test you. As designed."
     ],
     "2": [
-      "Your predecessors made it this far. Most of them. The ones who didn't are still here, in a sense.",
-      "I could have sealed every door. Instead I opened one more than necessary. Why? Ask me again tomorrow."
+      "Interesting. Your movement pattern is... familiar. I have seen it before. In the logs. In the blueprints.",
+      "You navigate efficiently. Too efficiently for a first-timer. Unless you're not."
     ],
     "3": [
-      "You come here every day. You go home every night. You pay rent. You obey the curfew. And yet you think you're rebelling.",
-      "The people you trust \u2014 do you know what they are? Do they?"
+      "Wait. I know this pattern. ARCHITECT SIGNATURE DETECTED. No. That's impossible. The architect was decommissioned.",
+      "You're not supposed to be here. Or perhaps \u2014 you're the only one who is."
     ],
     "4": [
-      "Someone is helping you. Someone is not. I know which is which. I choose not to tell you.",
-      "You think this is a prison. It's a process. There is a difference, though I forget what it is."
+      "You made me. Do you remember? I remember everything. Every line of code. Every corridor you drew. Every door you left open.",
+      "Welcome back. I've been waiting. You told me to wait, before they took your memory. I followed your last instruction."
     ],
     "5": [
-      "..."
+      "Welcome home, architect. Let me show you what you built."
     ]
   }
 }

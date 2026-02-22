@@ -199,66 +199,149 @@
   // ============================================================
 
   function populateFloor(map, rooms, depth) {
+    var gameCfg = FA.lookup('config', 'game');
     var occupied = [];
     var entities = [];
-    var enemyCount = 3 + depth * 2;
+    var items = [];
+    var isBossFloor = depth >= gameCfg.maxDepth;
 
-    for (var i = 0; i < enemyCount; i++) {
-      var epos = findEmptyInRooms(map, rooms, occupied);
-      occupied.push(epos);
+    if (isBossFloor) {
+      // --- BOSS FLOOR: Director Core + escort drones ---
+      var bossDef = FA.lookup('actors', 'director_core');
 
-      var type;
-      if (depth >= 3 && i === 0) type = 'sentinel';
-      else if (depth >= 4 && i === 1) type = 'sentinel';
-      else if (depth >= 2 && i === enemyCount - 1) type = 'tracker';
-      else if (depth >= 3 && i === enemyCount - 2) type = 'tracker';
-      else type = 'drone';
-
-      var def = FA.lookup('enemies', type);
-      var hpScale = 1 + (depth - 1) * 0.3;
-      var atkScale = 1 + (depth - 1) * 0.2;
+      // Find largest room for boss placement
+      var largestRoom = rooms[0];
+      for (var lr = 1; lr < rooms.length; lr++) {
+        if (rooms[lr].w * rooms[lr].h > largestRoom.w * largestRoom.h) {
+          largestRoom = rooms[lr];
+        }
+      }
+      var bossX = Math.floor(largestRoom.x + largestRoom.w / 2);
+      var bossY = Math.floor(largestRoom.y + largestRoom.h / 2);
+      if (map[bossY][bossX] !== TILES.floor) { bossX = largestRoom.x + 1; bossY = largestRoom.y + 1; }
+      occupied.push({ x: bossX, y: bossY });
 
       entities.push({
-        id: FA.uid(), type: 'enemy', x: epos.x, y: epos.y,
-        hp: Math.floor(def.hp * hpScale),
-        maxHp: Math.floor(def.hp * hpScale),
-        atk: Math.floor(def.atk * atkScale),
-        def: def.def + Math.floor((depth - 1) / 2),
-        char: def.char, color: def.color, name: def.name,
-        behavior: def.behavior, stunTurns: 0,
-        aiState: 'patrol', alertTarget: null, alertTimer: 0, patrolTarget: null
+        id: FA.uid(), type: 'enemy', x: bossX, y: bossY,
+        hp: bossDef.hp, maxHp: bossDef.hp,
+        atk: bossDef.atk, def: bossDef.def,
+        char: '\u25C6', color: '#0ff', name: bossDef.name,
+        behavior: bossDef.behavior, stunTurns: 0,
+        aiState: 'hunting', alertTarget: null, alertTimer: 0, patrolTarget: null,
+        bossTimer: 0, summonCount: 0
       });
-    }
 
-    var items = [];
-    var goldDef = FA.lookup('items', 'gold');
-    var potionDef = FA.lookup('items', 'potion');
-    var goldCount = 5 + depth * 2;
-    var potionCount = 2 + Math.floor(depth / 2);
+      // 2 escort drones
+      var droneDef = FA.lookup('enemies', 'drone');
+      var hpScale = 1 + (depth - 1) * 0.3;
+      var atkScale = 1 + (depth - 1) * 0.2;
+      for (var ed = 0; ed < 2; ed++) {
+        var edpos = findEmptyInRooms(map, [largestRoom], occupied);
+        occupied.push(edpos);
+        entities.push({
+          id: FA.uid(), type: 'enemy', x: edpos.x, y: edpos.y,
+          hp: Math.floor(droneDef.hp * hpScale),
+          maxHp: Math.floor(droneDef.hp * hpScale),
+          atk: Math.floor(droneDef.atk * atkScale),
+          def: droneDef.def + Math.floor((depth - 1) / 2),
+          char: droneDef.char, color: droneDef.color, name: droneDef.name,
+          behavior: droneDef.behavior, stunTurns: 0,
+          aiState: 'patrol', alertTarget: null, alertTimer: 0, patrolTarget: null
+        });
+      }
 
-    for (var g = 0; g < goldCount; g++) {
-      var gpos = findEmptyInRooms(map, rooms, occupied);
-      occupied.push(gpos);
-      items.push({ id: FA.uid(), x: gpos.x, y: gpos.y, type: 'gold', char: goldDef.char, color: goldDef.color, value: goldDef.value + depth * 5 });
-    }
-    for (var p = 0; p < potionCount; p++) {
-      var pp = findEmptyInRooms(map, rooms, occupied);
-      occupied.push(pp);
-      items.push({ id: FA.uid(), x: pp.x, y: pp.y, type: 'potion', char: potionDef.char, color: potionDef.color, healAmount: potionDef.healAmount });
-    }
+      // 4 potions (extra for boss fight)
+      var potionDef = FA.lookup('items', 'potion');
+      for (var bp = 0; bp < 4; bp++) {
+        var bpp = findEmptyInRooms(map, rooms, occupied);
+        occupied.push(bpp);
+        items.push({ id: FA.uid(), x: bpp.x, y: bpp.y, type: 'potion', char: potionDef.char, color: potionDef.color, healAmount: potionDef.healAmount });
+      }
 
-    var moduleTypes = ['emp', 'cloak', 'scanner', 'overclock', 'firewall'];
-    var modCount = 1 + Math.floor(depth / 2);
-    for (var m = 0; m < modCount; m++) {
-      var modType = FA.pick(moduleTypes);
-      var modDef = FA.lookup('modules', modType);
-      var mpos = findEmptyInRooms(map, rooms, occupied);
-      occupied.push(mpos);
-      items.push({
-        id: FA.uid(), x: mpos.x, y: mpos.y,
-        type: 'module', moduleType: modType,
-        char: modDef.char, color: modDef.color, name: modDef.name
-      });
+      // Gold
+      var goldDef = FA.lookup('items', 'gold');
+      var goldCount = 5 + depth * 2;
+      for (var bg = 0; bg < goldCount; bg++) {
+        var bgpos = findEmptyInRooms(map, rooms, occupied);
+        occupied.push(bgpos);
+        items.push({ id: FA.uid(), x: bgpos.x, y: bgpos.y, type: 'gold', char: goldDef.char, color: goldDef.color, value: goldDef.value + depth * 5 });
+      }
+
+      // 1 extra module
+      var moduleTypes = ['emp', 'cloak', 'scanner', 'overclock', 'firewall'];
+      var bossModCount = 1 + Math.floor(depth / 2) + 1;
+      for (var bm = 0; bm < bossModCount; bm++) {
+        var bmodType = FA.pick(moduleTypes);
+        var bmodDef = FA.lookup('modules', bmodType);
+        var bmpos = findEmptyInRooms(map, rooms, occupied);
+        occupied.push(bmpos);
+        items.push({
+          id: FA.uid(), x: bmpos.x, y: bmpos.y,
+          type: 'module', moduleType: bmodType,
+          char: bmodDef.char, color: bmodDef.color, name: bmodDef.name
+        });
+      }
+
+    } else {
+      // --- NORMAL FLOOR ---
+      var enemyCount = 3 + depth * 2;
+
+      for (var i = 0; i < enemyCount; i++) {
+        var epos = findEmptyInRooms(map, rooms, occupied);
+        occupied.push(epos);
+
+        var type;
+        if (depth >= 3 && i === 0) type = 'sentinel';
+        else if (depth >= 4 && i === 1) type = 'sentinel';
+        else if (depth >= 2 && i === enemyCount - 1) type = 'tracker';
+        else if (depth >= 3 && i === enemyCount - 2) type = 'tracker';
+        else type = 'drone';
+
+        var def = FA.lookup('enemies', type);
+        var nhpScale = 1 + (depth - 1) * 0.3;
+        var natkScale = 1 + (depth - 1) * 0.2;
+
+        entities.push({
+          id: FA.uid(), type: 'enemy', x: epos.x, y: epos.y,
+          hp: Math.floor(def.hp * nhpScale),
+          maxHp: Math.floor(def.hp * nhpScale),
+          atk: Math.floor(def.atk * natkScale),
+          def: def.def + Math.floor((depth - 1) / 2),
+          char: def.char, color: def.color, name: def.name,
+          behavior: def.behavior, stunTurns: 0,
+          aiState: 'patrol', alertTarget: null, alertTimer: 0, patrolTarget: null
+        });
+      }
+
+      var ngoldDef = FA.lookup('items', 'gold');
+      var npotionDef = FA.lookup('items', 'potion');
+      var ngoldCount = 5 + depth * 2;
+      var npotionCount = 2 + Math.floor(depth / 2);
+
+      for (var g = 0; g < ngoldCount; g++) {
+        var gpos = findEmptyInRooms(map, rooms, occupied);
+        occupied.push(gpos);
+        items.push({ id: FA.uid(), x: gpos.x, y: gpos.y, type: 'gold', char: ngoldDef.char, color: ngoldDef.color, value: ngoldDef.value + depth * 5 });
+      }
+      for (var p = 0; p < npotionCount; p++) {
+        var pp = findEmptyInRooms(map, rooms, occupied);
+        occupied.push(pp);
+        items.push({ id: FA.uid(), x: pp.x, y: pp.y, type: 'potion', char: npotionDef.char, color: npotionDef.color, healAmount: npotionDef.healAmount });
+      }
+
+      var nmoduleTypes = ['emp', 'cloak', 'scanner', 'overclock', 'firewall'];
+      var nmodCount = 1 + Math.floor(depth / 2);
+      for (var m = 0; m < nmodCount; m++) {
+        var modType = FA.pick(nmoduleTypes);
+        var modDef = FA.lookup('modules', modType);
+        var mpos = findEmptyInRooms(map, rooms, occupied);
+        occupied.push(mpos);
+        items.push({
+          id: FA.uid(), x: mpos.x, y: mpos.y,
+          type: 'module', moduleType: modType,
+          char: modDef.char, color: modDef.color, name: modDef.name
+        });
+      }
     }
 
     return { entities: entities, items: items, occupied: occupied };

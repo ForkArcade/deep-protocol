@@ -97,10 +97,15 @@
 
   function sentinelShoot(e, state) {
     if (!state.player || state.player.cloakTurns > 0) return;
+    rangedShoot(e, state, SENTINEL_SHOOT_RANGE);
+  }
+
+  function rangedShoot(e, state, range) {
+    if (!state.player || state.player.cloakTurns > 0) return;
     var dirs = [[1,0],[-1,0],[0,1],[0,-1]];
     for (var d = 0; d < dirs.length; d++) {
       var sx = e.x, sy = e.y;
-      for (var r = 1; r <= SENTINEL_SHOOT_RANGE; r++) {
+      for (var r = 1; r <= range; r++) {
         sx += dirs[d][0]; sy += dirs[d][1];
         if (sy < 0 || sy >= state.map.length || sx < 0 || sx >= state.map[0].length) break;
         if (state.map[sy][sx] === 1) break;
@@ -112,6 +117,63 @@
           return;
         }
       }
+    }
+  }
+
+  function bossAction(e, state) {
+    var bossDef = FA.lookup('actors', 'director_core');
+    e.bossTimer++;
+
+    // Shoot phase: fire in 4 cardinal directions using boss shootRange
+    rangedShoot(e, state, bossDef.shootRange);
+
+    // Summon phase: every summonInterval turns, spawn a drone if under maxSummons
+    if (e.bossTimer % bossDef.summonInterval === 0 && e.summonCount < bossDef.maxSummons) {
+      // Count active summoned drones
+      var entities = state.maps[state.mapId].entities;
+      var activeSummons = 0;
+      for (var si = 0; si < entities.length; si++) {
+        if (entities[si].summoner === e.id) activeSummons++;
+      }
+      if (activeSummons < bossDef.maxSummons) {
+        // Find adjacent walkable tile for drone
+        var adjDirs = [[1,0],[-1,0],[0,1],[0,-1],[1,1],[-1,1],[1,-1],[-1,-1]];
+        var spawnPos = null;
+        for (var ai = 0; ai < adjDirs.length; ai++) {
+          var ax = e.x + adjDirs[ai][0], ay = e.y + adjDirs[ai][1];
+          if (Core.canStep(ax, ay, e)) {
+            spawnPos = { x: ax, y: ay };
+            break;
+          }
+        }
+        if (spawnPos) {
+          var droneDef = FA.lookup('enemies', bossDef.summonType);
+          var depth = state.depth || 5;
+          var hpScale = 1 + (depth - 1) * 0.3;
+          var atkScale = 1 + (depth - 1) * 0.2;
+          entities.push({
+            id: FA.uid(), type: 'enemy', x: spawnPos.x, y: spawnPos.y,
+            hp: Math.floor(droneDef.hp * hpScale),
+            maxHp: Math.floor(droneDef.hp * hpScale),
+            atk: Math.floor(droneDef.atk * atkScale),
+            def: droneDef.def + Math.floor((depth - 1) / 2),
+            char: droneDef.char, color: droneDef.color, name: droneDef.name,
+            behavior: droneDef.behavior, stunTurns: 0,
+            aiState: 'hunting', alertTarget: { x: state.player.x, y: state.player.y },
+            alertTimer: 0, patrolTarget: null,
+            summoner: e.id
+          });
+          e.summonCount++;
+          FA.addFloat(e.x * ts + ts / 2, e.y * ts, 'SUMMON', '#0ff', 800);
+          Core.propagateSound(e.x, e.y, 12);
+        }
+      }
+    }
+
+    // Taunt phase: every tauntInterval turns, show a random taunt
+    if (e.bossTimer % bossDef.tauntInterval === 0 && bossDef.taunts && bossDef.taunts.length > 0) {
+      var taunt = FA.pick(bossDef.taunts);
+      Core.addSystemBubble('> DIRECTOR: ' + taunt, '#0ff');
     }
   }
 
@@ -151,6 +213,13 @@
     if (!p) return { type: 'idle' };
     var dist = Math.abs(e.x - p.x) + Math.abs(e.y - p.y);
     var cloaked = p.cloakTurns > 0;
+
+    // Boss behavior — always knows where player is, stationary
+    if (e.behavior === 'boss') {
+      e.aiState = 'hunting';
+      e.alertTarget = { x: p.x, y: p.y };
+      return { type: 'boss' };
+    }
 
     if (e.curfewDrone) {
       if (dist === 1) return { type: 'attack' };
@@ -228,6 +297,9 @@
       var prevX = e.x, prevY = e.y;
 
       switch (action.type) {
+        case 'boss':
+          bossAction(e, state);
+          break;
         case 'shoot':
           sentinelShoot(e, state);
           break;
