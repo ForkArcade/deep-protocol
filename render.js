@@ -107,39 +107,12 @@
     //  START SCREEN
     // ================================================================
 
-    var _sceneMap = [
-      '1111111111111111111111111111111111111111',
-      '1111111111111111111111111111111111111111',
-      '111111100000001111111111100000000111111 ',
-      '1111110000000001111111110000000000111111',
-      '111111000000000111111111000T000000111111',
-      '1111110000d00001111111110000000d00111111',
-      '111111000000000111111111000000000011111 ',
-      '11111100000000011111111100000000001111  ',
-      '1111111110001111111111111100001111111111',
-      '1111111110001111111111111100001111111111',
-      '1111111110001111111111111100001111111111',
-      '111100000000000000000000000000000001111 ',
-      '11100000000000000000000000000+00000011  ',
-      '1110000%00000000000@0000000000000001111 ',
-      '111000000000000000000000000000000d011111',
-      '1111111100011111111111100011111111111111',
-      '1111111100011111111111100011111111111111',
-      '1111111100011111111111100011111111111111',
-      '11111000000000111111100000000S0011111111',
-      '111110000v0000111111000000000001111111  ',
-      '1111100000000011111100%00000001111111111',
-      '111110000000001111110000T000001111111111',
-      '11111000000000111111000000000011111111  ',
-      '1111111111111111111111111111111111111111',
-      '1111111111111111111111111111111111111111'
-    ];
-    var _sceneColors = { '1': '#0e1320', '@': '#4ef', 'd': '#fa3', 'S': '#f80', 'T': '#0ff', 'v': '#f80', '%': '#0ff', '+': '#4f4', '0': null };
-    var _sceneFloorA = '#111620', _sceneFloorB = '#121722', _sceneDotColor = '#181d2a';
-    var _sceneWallFace = '#161c2e', _sceneWallCap = '#1a2236';
     var _startCanvas = null;
     var _startW = 0, _startH = 0;
     var _startFx = { color: '#556', dimColor: '#223', size: 14, align: 'center', baseline: 'middle', duration: 80, charDelay: 8, flicker: 30 };
+
+    // Invalidate start canvas when spritesheet loads so it re-renders with real sprites
+    SPRITESHEET.addEventListener('load', function() { _startCanvas = null; });
 
     function renderStartScene(W, H) {
       _startCanvas = document.createElement('canvas');
@@ -148,39 +121,28 @@
       var sc = _startCanvas.getContext('2d');
       sc.fillStyle = '#060a14';
       sc.fillRect(0, 0, W, H);
-      var cellW = W / 40, cellH = H / 25;
-      sc.font = 'bold ' + Math.floor(cellH * 0.7) + 'px monospace';
-      sc.textAlign = 'center'; sc.textBaseline = 'middle';
-      for (var y = 0; y < 25; y++) {
-        var row = _sceneMap[y];
-        for (var x = 0; x < 40; x++) {
-          var ch = row.charAt(x);
-          var px = x * cellW, py = y * cellH;
-          var cx = px + cellW / 2, cy = py + cellH / 2;
-          if (ch === '1' || ch === ' ') {
-            var oS = y + 1 < 25 && _sceneMap[y + 1].charAt(x) !== '1' && _sceneMap[y + 1].charAt(x) !== ' ';
-            if (oS) {
-              sc.fillStyle = _sceneWallCap; sc.fillRect(px, py, cellW, Math.floor(cellH * 0.35));
-              sc.fillStyle = _sceneWallFace; sc.fillRect(px, py + Math.floor(cellH * 0.35), cellW, cellH - Math.floor(cellH * 0.35));
-            } else { sc.fillStyle = _sceneColors['1']; sc.fillRect(px, py, cellW, cellH); }
-          } else if (ch === '0') {
-            sc.fillStyle = (x + y) % 2 === 0 ? _sceneFloorA : _sceneFloorB;
-            sc.fillRect(px, py, cellW, cellH);
-            if ((x + y) % 3 === 0) { sc.fillStyle = _sceneDotColor; sc.fillRect(px + cellW / 2, py + cellH / 2, 1, 1); }
-          } else {
-            sc.fillStyle = (x + y) % 2 === 0 ? _sceneFloorA : _sceneFloorB;
-            sc.fillRect(px, py, cellW, cellH);
-            var entColor = _sceneColors[ch] || '#888';
-            sc.save(); sc.globalAlpha = ch === '@' ? 0.12 : 0.08;
-            var gr = sc.createRadialGradient(cx, cy, 0, cx, cy, cellW * 1.5);
-            gr.addColorStop(0, entColor); gr.addColorStop(1, 'transparent');
-            sc.fillStyle = gr; sc.fillRect(px - cellW, py - cellH, cellW * 3, cellH * 3);
-            sc.restore();
-            sc.save(); sc.globalAlpha = ch === '@' ? 0.9 : 0.6; sc.fillStyle = entColor;
-            sc.fillText(ch === 'v' ? '\u2193' : ch, cx, cy); sc.restore();
-          }
+
+      // Render real overworld map
+      var grid = getMapGrid('overworld');
+      if (grid) {
+        var ts = Math.floor(Math.min(W / cfg.cols, H / cfg.rows));
+        var ox = Math.floor((W - cfg.cols * ts) / 2);
+        var oy = Math.floor((H - cfg.rows * ts) / 2);
+        sc.save();
+        sc.translate(ox, oy);
+        renderMap(sc, grid, 'overworld', null, ts);
+        // Draw objects (except system_entrance — secret)
+        var objects = getMapObjects('overworld');
+        for (var oi = 0; oi < objects.length; oi++) {
+          var obj = objects[oi];
+          if (obj.type === 'system_entrance') continue;
+          var objSprite = getSprite('objects', obj.type);
+          if (objSprite) drawSprite(sc, objSprite, obj.x * ts, obj.y * ts, ts, 0);
         }
+        sc.restore();
       }
+
+      // Vignette overlay
       var vg = sc.createRadialGradient(W / 2, H / 2, W * 0.25, W / 2, H / 2, W * 0.6);
       vg.addColorStop(0, 'transparent'); vg.addColorStop(1, 'rgba(2,4,10,0.7)');
       sc.fillStyle = vg; sc.fillRect(0, 0, W, H);
