@@ -5,7 +5,6 @@
   var FA = window.FA;
   var Core = window.Core;
   var cfg = FA.lookup('config', 'game');
-  var ts = cfg.tileSize;
 
   var SHAKE_INTENSITY = 6;
   var SENTINEL_SHOOT_RANGE = 6;
@@ -19,6 +18,8 @@
 
   function attackEnemy(attacker, target) {
     var state = FA.getState();
+    var L = getLayout();
+    var ts = L.ts, ox = L.ox, oy = L.oy;
     var multiplier = 1;
     if (state.player.overclockActive) {
       multiplier = OVERCLOCK_MULTIPLIER;
@@ -30,7 +31,7 @@
 
     var label = multiplier > 1 ? 'OC -' + dmg : '-' + dmg;
     var color = multiplier > 1 ? '#f80' : '#f44';
-    FA.addFloat(target.x * ts + ts / 2, target.y * ts, label, color, 800);
+    FA.addFloat(ox + target.x * ts + ts / 2, oy + target.y * ts, label, color, 800);
     Core.propagateSound(target.x, target.y, 8);
 
     if (target.hp <= 0) {
@@ -44,7 +45,7 @@
       }
       FA.emit('entity:killed', { entity: target });
 
-      var bx = target.x * ts + ts / 2, by = target.y * ts + ts / 2;
+      var bx = ox + target.x * ts + ts / 2, by = oy + target.y * ts + ts / 2;
       for (var pi = 0; pi < PARTICLE_COUNT; pi++) {
         var angle = (pi / PARTICLE_COUNT) * Math.PI * 2 + Math.random() * 0.5;
         state.particles.push({
@@ -80,10 +81,12 @@
       if (dmg <= 0) return;
     }
 
+    var L = getLayout();
+    var ts = L.ts, ox = L.ox, oy = L.oy;
     state.player.hp -= dmg;
     state.shake = SHAKE_INTENSITY;
     FA.emit('entity:damaged', { entity: state.player, damage: dmg });
-    FA.addFloat(state.player.x * ts + ts / 2, state.player.y * ts, '-' + dmg, '#f84', 800);
+    FA.addFloat(ox + state.player.x * ts + ts / 2, oy + state.player.y * ts, '-' + dmg, '#f84', 800);
 
     if (state.player.hp <= 0) {
       // Delegate death to game.js (runtime reference)
@@ -102,6 +105,8 @@
 
   function rangedShoot(e, state, range) {
     if (!state.player || state.player.cloakTurns > 0) return;
+    var L = getLayout();
+    var ts = L.ts, ox = L.ox, oy = L.oy;
     var dirs = [[1,0],[-1,0],[0,1],[0,-1]];
     for (var d = 0; d < dirs.length; d++) {
       var sx = e.x, sy = e.y;
@@ -111,7 +116,7 @@
         if (state.map[sy][sx] === 1) break;
         if (sx === state.player.x && sy === state.player.y) {
           var dmg = Math.max(1, e.atk - state.player.def + FA.rand(-1, 1));
-          FA.addFloat(e.x * ts + ts / 2, e.y * ts, '!', '#f80', 600);
+          FA.addFloat(ox + e.x * ts + ts / 2, oy + e.y * ts, '!', '#f80', 600);
           applyDamageToPlayer(dmg, e.name, state);
           Core.propagateSound(e.x, e.y, 10);
           return;
@@ -121,6 +126,8 @@
   }
 
   function bossAction(e, state) {
+    var L = getLayout();
+    var ts = L.ts, ox = L.ox, oy = L.oy;
     var bossDef = FA.lookup('actors', 'director_core');
     e.bossTimer++;
 
@@ -164,7 +171,7 @@
             summoner: e.id
           });
           e.summonCount++;
-          FA.addFloat(e.x * ts + ts / 2, e.y * ts, 'SUMMON', '#0ff', 800);
+          FA.addFloat(ox + e.x * ts + ts / 2, oy + e.y * ts, 'SUMMON', '#0ff', 800);
           Core.propagateSound(e.x, e.y, 12);
         }
       }
@@ -183,24 +190,26 @@
 
   function pickupItem(item, idx) {
     var state = FA.getState();
+    var L = getLayout();
+    var ts = L.ts, ox = L.ox, oy = L.oy;
     var mapData = state.maps[state.mapId];
     if (item.type === 'module' && state.player.modules.length >= 3) {
-      FA.addFloat(item.x * ts + ts / 2, item.y * ts, 'FULL', '#f44', 600);
+      FA.addFloat(ox + item.x * ts + ts / 2, oy + item.y * ts, 'FULL', '#f44', 600);
       return;
     }
     mapData.items.splice(idx, 1);
     FA.emit('item:pickup', { item: item });
     if (item.type === 'gold') {
       state.player.gold += item.value;
-      FA.addFloat(state.player.x * ts + ts / 2, state.player.y * ts, '+' + item.value, '#0ff', 600);
+      FA.addFloat(ox + state.player.x * ts + ts / 2, oy + state.player.y * ts, '+' + item.value, '#0ff', 600);
       Core.triggerThought('pickup_data');
     } else if (item.type === 'potion') {
       var heal = Math.min(item.healAmount, state.player.maxHp - state.player.hp);
       state.player.hp += heal;
-      FA.addFloat(state.player.x * ts + ts / 2, state.player.y * ts, '+' + heal, '#4f4', 600);
+      FA.addFloat(ox + state.player.x * ts + ts / 2, oy + state.player.y * ts, '+' + heal, '#4f4', 600);
     } else if (item.type === 'module') {
       state.player.modules.push({ type: item.moduleType, name: item.name, color: item.color });
-      FA.addFloat(state.player.x * ts + ts / 2, state.player.y * ts, item.name, item.color, 800);
+      FA.addFloat(ox + state.player.x * ts + ts / 2, oy + state.player.y * ts, item.name, item.color, 800);
     }
   }
 

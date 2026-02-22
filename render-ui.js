@@ -1,5 +1,6 @@
 // Deep Protocol — UI Rendering
 // Single consistent panel, bubbles, menus, overlays — same layout everywhere
+// Responsive: reads layout from getLayout()
 (function() {
   'use strict';
   var FA = window.FA;
@@ -54,10 +55,6 @@
   function setupUILayers() {
     var cfg = FA.lookup('config', 'game');
     var colors = FA.lookup('config', 'colors');
-    var ts = cfg.tileSize;
-    var W = cfg.canvasWidth;
-    var H = cfg.canvasHeight;
-    var uiY = cfg.rows * ts;
 
     var _adjDirs = [[0,-1],[0,1],[-1,0],[1,0]];
     var _actions = [{ label: '', color: '' }, { label: '', color: '' }, { label: '', color: '' }, { label: '', color: '' }, { label: '', color: '' }];
@@ -70,6 +67,8 @@
       var state = FA.getState();
       if (state.screen !== 'playing' && state.screen !== 'victory' && state.screen !== 'shutdown') return;
       if (!state.player) return;
+      var L = getLayout();
+      var W = L.W, H = L.H, uiY = L.panelY, ts = L.ts;
       var p = state.player;
       var ctx = FA.getCtx();
       var inTown = !Location.isSystem(state.mapId);
@@ -213,6 +212,8 @@
       if (state.screen !== 'playing') return;
       var sb = state.systemBubble;
       if (!sb) return;
+      var L = getLayout();
+      var W = L.W, ts = L.ts, ox = L.ox, oy = L.oy;
       var ctx = FA.getCtx();
       var cw = getCW(ctx);
       var lines = sb.lines;
@@ -225,8 +226,8 @@
       var bx, by;
       var hasSource = sb.source && typeof sb.source.x === 'number';
       if (hasSource) {
-        var sx = sb.source.x * ts + ts / 2;
-        var sy = sb.source.y * ts;
+        var sx = ox + sb.source.x * ts + ts / 2;
+        var sy = oy + sb.source.y * ts;
         bx = sx - tw / 2;
         by = sy - th - 12;
         if (bx < 4) bx = 4;
@@ -267,10 +268,12 @@
       var thought = state.thoughts[0];
       if (!thought) return;
       if (!state.player) return;
+      var L = getLayout();
+      var W = L.W, ts = L.ts, ox = L.ox, oy = L.oy;
       var ctx = FA.getCtx();
       var cw = getCW(ctx);
-      var ppx = state.player.x * ts + ts / 2;
-      var ppy = state.player.y * ts;
+      var ppx = ox + state.player.x * ts + ts / 2;
+      var ppy = oy + state.player.y * ts;
       var tw = Math.max(90, thought.text.length * cw + 24);
       var th = 26;
       var bx = ppx - tw / 2;
@@ -299,6 +302,8 @@
     FA.addLayer('choiceMenu', function() {
       var state = FA.getState();
       if (state.screen !== 'playing' || !state.choiceMenu) return;
+      var L = getLayout();
+      var W = L.W;
       var menu = state.choiceMenu;
       menu.timer = (menu.timer || 0);
       var sel = menu.selectedIndex || 0;
@@ -347,6 +352,8 @@
     FA.addLayer('gameOver', function() {
       var state = FA.getState();
       if (state.screen !== 'victory' && state.screen !== 'shutdown') return;
+      var L = getLayout();
+      var W = L.W, uiY = L.panelY;
       FA.draw.pushAlpha(0.8);
       FA.draw.rect(0, 0, W, uiY, '#000');
       FA.draw.popAlpha();
@@ -380,11 +387,13 @@
     FA.addLayer('cutscene', function() {
       var state = FA.getState();
       if (state.screen !== 'cutscene' || !state.cutscene) return;
+      var L = getLayout();
+      var W = L.W, H = L.H;
       var cs = state.cutscene;
       var ctx = FA.getCtx();
       FA.draw.clear('#040810');
       ctx.globalAlpha = 0.12;
-      ctx.drawImage(Render.scanlineCanvas, 0, 0);
+      if (Render.scanlineCanvas) ctx.drawImage(Render.scanlineCanvas, 0, 0);
       if (Math.random() > 0.95) {
         ctx.globalAlpha = 0.015; ctx.fillStyle = cs.color;
         ctx.fillRect(0, 0, W, H);

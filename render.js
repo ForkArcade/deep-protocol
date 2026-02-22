@@ -1,5 +1,6 @@
 // Deep Protocol — Rendering (Unified World)
 // One map layer, one entity layer, conditional lighting — works on any map
+// Responsive: reads actual canvas size, scales tileSize dynamically
 (function() {
   'use strict';
   var FA = window.FA;
@@ -15,10 +16,6 @@
   function setupLayers() {
     var cfg = FA.lookup('config', 'game');
     var colors = FA.lookup('config', 'colors');
-    var ts = cfg.tileSize;
-    var W = cfg.canvasWidth;
-    var H = cfg.canvasHeight;
-    var uiY = cfg.rows * ts;
 
     // === TILE HELPERS ===
 
@@ -45,7 +42,7 @@
     var _sentinelDirs = [[1,0],[-1,0],[0,1],[0,-1]];
     var _glowCache = {};
     function getGlow(color, innerR, outerR, size) {
-      var key = color + '_' + innerR + '_' + outerR;
+      var key = color + '_' + innerR + '_' + outerR + '_' + size;
       if (_glowCache[key]) return _glowCache[key];
       var c = document.createElement('canvas');
       c.width = size; c.height = size;
@@ -59,22 +56,52 @@
       _glowCache[key] = c;
       return c;
     }
-    var _glowSize = ts * 2;
-    var _enemyOuterR = Math.floor(ts * 1.2);
-    var _playerOuterR = Math.floor(ts * 1.3);
 
-    // === OFFSCREEN CACHES ===
+    // === OFFSCREEN CACHES (resized dynamically) ===
 
     var _mapCanvas = document.createElement('canvas');
-    _mapCanvas.width = W; _mapCanvas.height = cfg.rows * ts;
     var _mapCtx = _mapCanvas.getContext('2d');
     var _mapVersion = -1;
+    var _mapTs = 0; // track tile size changes
 
     var _lightCanvas = document.createElement('canvas');
-    _lightCanvas.width = W; _lightCanvas.height = cfg.rows * ts;
     var _lightCtx = _lightCanvas.getContext('2d');
     var _lightCacheKey = '';
     var _lightImageData = null;
+    var _lightTs = 0;
+
+    function ensureMapCanvas(L) {
+      if (_mapCanvas.width !== L.mapW || _mapCanvas.height !== L.mapH) {
+        _mapCanvas.width = L.mapW;
+        _mapCanvas.height = L.mapH;
+        _mapVersion = -1; // force re-render
+      }
+    }
+
+    function ensureLightCanvas(L) {
+      if (_lightCanvas.width !== L.mapW || _lightCanvas.height !== L.mapH) {
+        _lightCanvas.width = L.mapW;
+        _lightCanvas.height = L.mapH;
+        _lightCacheKey = '';
+        _lightImageData = null;
+      }
+    }
+
+    // === SCANLINE OVERLAY (rebuilt on resize) ===
+
+    var _scanlineCanvas = document.createElement('canvas');
+    var _scanW = 0, _scanH = 0;
+
+    function ensureScanlines(W, H) {
+      if (W === _scanW && H === _scanH) return;
+      _scanW = W; _scanH = H;
+      _scanlineCanvas.width = W; _scanlineCanvas.height = H;
+      var sc = _scanlineCanvas.getContext('2d');
+      sc.clearRect(0, 0, W, H);
+      sc.fillStyle = '#000';
+      for (var sy = 0; sy < H; sy += 3) sc.fillRect(0, sy, W, 1);
+      Render.scanlineCanvas = _scanlineCanvas;
+    }
 
     // ================================================================
     //  START SCREEN
@@ -111,19 +138,13 @@
     var _sceneFloorA = '#111620', _sceneFloorB = '#121722', _sceneDotColor = '#181d2a';
     var _sceneWallFace = '#161c2e', _sceneWallCap = '#1a2236';
     var _startCanvas = null;
+    var _startW = 0, _startH = 0;
     var _startFx = { color: '#556', dimColor: '#223', size: 14, align: 'center', baseline: 'middle', duration: 80, charDelay: 8, flicker: 30 };
 
-    // Precomputed scanline overlay — avoids ~167 fillRect calls per frame
-    var _scanlineCanvas = document.createElement('canvas');
-    _scanlineCanvas.width = W; _scanlineCanvas.height = H;
-    var _slCtx = _scanlineCanvas.getContext('2d');
-    _slCtx.fillStyle = '#000';
-    for (var _sy = 0; _sy < H; _sy += 3) _slCtx.fillRect(0, _sy, W, 1);
-    Render.scanlineCanvas = _scanlineCanvas;
-
-    function renderStartScene() {
+    function renderStartScene(W, H) {
       _startCanvas = document.createElement('canvas');
       _startCanvas.width = W; _startCanvas.height = H;
+      _startW = W; _startH = H;
       var sc = _startCanvas.getContext('2d');
       sc.fillStyle = '#060a14';
       sc.fillRect(0, 0, W, H);
@@ -168,9 +189,12 @@
     FA.addLayer('startScreen', function() {
       var state = FA.getState();
       if (state.screen !== 'start') return;
+      var L = getLayout();
+      var W = L.W, H = L.H;
       var ctx = FA.getCtx();
       var now = Date.now();
-      if (!_startCanvas) renderStartScene();
+      ensureScanlines(W, H);
+      if (!_startCanvas || _startW !== W || _startH !== H) renderStartScene(W, H);
       ctx.drawImage(_startCanvas, 0, 0);
       ctx.globalAlpha = 0.06;
       ctx.drawImage(_scanlineCanvas, 0, 0);
@@ -199,7 +223,7 @@
     //  UNIFIED MAP RENDERING (to offscreen canvas)
     // ================================================================
 
-    function renderMap(oc, map, tilesetName, state) {
+    function renderMap(oc, map, tilesetName, state, ts) {
       oc.clearRect(0, 0, oc.canvas.width, oc.canvas.height);
 
       for (var y = 0; y < cfg.rows && y < map.length; y++) {
@@ -257,51 +281,62 @@
     FA.addLayer('map', function() {
       var state = FA.getState();
       if (state.screen === 'start' || state.screen === 'cutscene') return;
+      var L = getLayout();
+      var ts = L.ts;
+      ensureMapCanvas(L);
 
       // Dream: render with dungeon tileset
       if (state.screen === 'dream') {
         if (!state.dreamMap) return;
         var dmv = state.mapVersion || 0;
-        if (dmv !== _mapVersion) {
-          _mapVersion = dmv;
-          renderMap(_mapCtx, state.dreamMap, 'dungeon', null);
+        if (dmv !== _mapVersion || ts !== _mapTs) {
+          _mapVersion = dmv; _mapTs = ts;
+          renderMap(_mapCtx, state.dreamMap, 'dungeon', null, ts);
         }
-        FA.getCtx().drawImage(_mapCanvas, 0, 0);
+        FA.getCtx().drawImage(_mapCanvas, L.ox, L.oy);
         return;
       }
 
       if (!state.map || !state.maps) return;
       var mv = state.mapVersion || 0;
-      if (mv !== _mapVersion) {
-        _mapVersion = mv;
+      if (mv !== _mapVersion || ts !== _mapTs) {
+        _mapVersion = mv; _mapTs = ts;
         var tilesetName = Location.tileset(state.mapId) || 'overworld';
-        renderMap(_mapCtx, state.map, tilesetName, state);
+        renderMap(_mapCtx, state.map, tilesetName, state, ts);
       }
-      FA.getCtx().drawImage(_mapCanvas, 0, 0);
+      FA.getCtx().drawImage(_mapCanvas, L.ox, L.oy);
     }, 1);
 
     // ================================================================
     //  DREAM OVERLAY
     // ================================================================
 
-    var _dreamVignette = (function() {
-      var c = document.createElement('canvas');
-      c.width = W; c.height = H;
-      var dc = c.getContext('2d');
+    var _dreamVignette = null;
+    var _dvW = 0, _dvH = 0;
+    function ensureDreamVignette(W, H) {
+      if (W === _dvW && H === _dvH && _dreamVignette) return;
+      _dvW = W; _dvH = H;
+      _dreamVignette = document.createElement('canvas');
+      _dreamVignette.width = W; _dreamVignette.height = H;
+      var dc = _dreamVignette.getContext('2d');
       var vg = dc.createRadialGradient(W / 2, H / 2, W * 0.2, W / 2, H / 2, W * 0.6);
       vg.addColorStop(0, 'rgba(0,0,0,0)');
       vg.addColorStop(1, 'rgba(0,0,0,1)');
       dc.fillStyle = vg; dc.fillRect(0, 0, W, H);
-      return c;
-    })();
+    }
     var _dreamFx = {};
 
     FA.addLayer('dreamOverlay', function() {
       var state = FA.getState();
       if (state.screen !== 'dream') return;
+      var L = getLayout();
+      var W = L.W, H = L.H;
       var ctx = FA.getCtx();
       var t = state.dreamTimer || 0;
       var pulse = 0.5 + 0.15 * Math.sin(t * 0.002);
+
+      ensureScanlines(W, H);
+      ensureDreamVignette(W, H);
 
       ctx.globalAlpha = 0.55 * pulse;
       ctx.fillStyle = '#080420'; ctx.fillRect(0, 0, W, H);
@@ -344,6 +379,11 @@
       var state = FA.getState();
       if (state.screen !== 'playing' && state.screen !== 'victory' && state.screen !== 'shutdown') return;
       if (!state.player || !state.maps || !state.maps[state.mapId]) return;
+      var L = getLayout();
+      var ts = L.ts, ox = L.ox, oy = L.oy;
+      var glowSize = ts * 2;
+      var enemyOuterR = Math.floor(ts * 1.2);
+      var playerOuterR = Math.floor(ts * 1.3);
       var ctx = FA.getCtx();
       var mapData = state.maps[state.mapId];
 
@@ -352,9 +392,9 @@
       for (var ii = 0; ii < items.length; ii++) {
         var item = items[ii];
         ctx.globalAlpha = item.type === 'module' ? 0.25 : 0.15;
-        ctx.drawImage(getGlow(item.color, 0, ts, _glowSize), item.x * ts - ts / 2, item.y * ts - ts / 2);
+        ctx.drawImage(getGlow(item.color, 0, ts, glowSize), ox + item.x * ts - ts / 2, oy + item.y * ts - ts / 2);
         ctx.globalAlpha = 1;
-        FA.draw.sprite('items', item.type, item.x * ts, item.y * ts, ts, item.char, item.color, 0);
+        FA.draw.sprite('items', item.type, ox + item.x * ts, oy + item.y * ts, ts, item.char, item.color, 0);
       }
 
       // --- Entities (NPCs, system NPCs, enemies) ---
@@ -364,26 +404,26 @@
 
         if (e.type === 'npc') {
           if (state.day < e.appearsDay || e.x < 0) continue;
-          var ncx = e.x * ts + ts / 2, ncy = e.y * ts + ts / 2;
+          var ncx = ox + e.x * ts + ts / 2, ncy = oy + e.y * ts + ts / 2;
           ctx.globalAlpha = 0.15;
-          ctx.drawImage(getGlow(e.color, 0, ts, _glowSize), e.x * ts - ts / 2, e.y * ts - ts / 2);
+          ctx.drawImage(getGlow(e.color, 0, ts, glowSize), ox + e.x * ts - ts / 2, oy + e.y * ts - ts / 2);
           ctx.globalAlpha = 1;
-          FA.draw.sprite('npcs', e.id, e.x * ts, e.y * ts, ts, e.char, e.color, 0);
+          FA.draw.sprite('npcs', e.id, ox + e.x * ts, oy + e.y * ts, ts, e.char, e.color, 0);
           ctx.globalAlpha = 0.5;
           FA.draw.text(e.name, ncx, ncy - ts / 2 - 3, O(e.color, 8, false, 'center', 'bottom'));
           ctx.globalAlpha = 1;
 
         } else if (e.type === 'system_npc') {
           ctx.globalAlpha = 0.2;
-          ctx.drawImage(getGlow(e.color, 0, ts, _glowSize), e.x * ts - ts / 2, e.y * ts - ts / 2);
+          ctx.drawImage(getGlow(e.color, 0, ts, glowSize), ox + e.x * ts - ts / 2, oy + e.y * ts - ts / 2);
           ctx.globalAlpha = 1;
-          FA.draw.sprite('npcs', e.id, e.x * ts, e.y * ts, ts, e.char, e.color, 0);
+          FA.draw.sprite('npcs', e.id, ox + e.x * ts, oy + e.y * ts, ts, e.char, e.color, 0);
           ctx.globalAlpha = 0.4;
-          FA.draw.text(e.name, e.x * ts + ts / 2, e.y * ts - 3, O(e.color, 8, false, 'center', 'bottom'));
+          FA.draw.text(e.name, ox + e.x * ts + ts / 2, oy + e.y * ts - 3, O(e.color, 8, false, 'center', 'bottom'));
           ctx.globalAlpha = 1;
 
         } else if (e.type === 'enemy') {
-          var ecx = e.x * ts + ts / 2, ecy = e.y * ts + ts / 2;
+          var ecx = ox + e.x * ts + ts / 2, ecy = oy + e.y * ts + ts / 2;
 
           // Sentinel scan beams
           if (e.behavior === 'sentinel' && !(e.stunTurns > 0)) {
@@ -394,19 +434,19 @@
                 lx += _sentinelDirs[dd][0]; ly += _sentinelDirs[dd][1];
                 if (ly < 0 || ly >= cfg.rows || lx < 0 || lx >= cfg.cols) break;
                 if (state.map[ly][lx] === 1) break;
-                ctx.fillRect(lx * ts + ts / 2 - 1, ly * ts + ts / 2 - 1, 3, 3);
+                ctx.fillRect(ox + lx * ts + ts / 2 - 1, oy + ly * ts + ts / 2 - 1, 3, 3);
               }
             }
             ctx.globalAlpha = 1;
           }
 
           ctx.globalAlpha = 0.25;
-          ctx.drawImage(getGlow(e.color, 2, _enemyOuterR, _glowSize), e.x * ts - ts / 2, e.y * ts - ts / 2);
+          ctx.drawImage(getGlow(e.color, 2, enemyOuterR, glowSize), ox + e.x * ts - ts / 2, oy + e.y * ts - ts / 2);
           ctx.globalAlpha = 1;
-          FA.draw.sprite('enemies', e.behavior, e.x * ts, e.y * ts, ts, e.char, e.color, 0);
+          FA.draw.sprite('enemies', e.behavior, ox + e.x * ts, oy + e.y * ts, ts, e.char, e.color, 0);
 
           var hpRatio = e.hp / e.maxHp;
-          if (hpRatio < 1) FA.draw.bar(e.x * ts + 2, e.y * ts - 3, ts - 4, 2, hpRatio, '#f44', '#400');
+          if (hpRatio < 1) FA.draw.bar(ox + e.x * ts + 2, oy + e.y * ts - 3, ts - 4, 2, hpRatio, '#f44', '#400');
 
           if (e.stunTurns > 0) FA.draw.text('~', ecx, ecy - ts / 2 - 2, O('#ff0', 10, true, 'center', 'bottom'));
           else if (e.aiState === 'hunting') FA.draw.text('!', ecx, ecy - ts / 2 - 2, O('#f44', 10, true, 'center', 'bottom'));
@@ -418,15 +458,15 @@
       var p = state.player;
       if (p.cloakTurns > 0) {
         ctx.globalAlpha = 0.12;
-        ctx.drawImage(getGlow('#88f', 2, _playerOuterR, _glowSize), p.x * ts - ts / 2, p.y * ts - ts / 2);
+        ctx.drawImage(getGlow('#88f', 2, playerOuterR, glowSize), ox + p.x * ts - ts / 2, oy + p.y * ts - ts / 2);
         ctx.globalAlpha = 0.35;
-        FA.draw.sprite('player', 'base', p.x * ts, p.y * ts, ts, '@', '#88f', 0);
+        FA.draw.sprite('player', 'base', ox + p.x * ts, oy + p.y * ts, ts, '@', '#88f', 0);
         ctx.globalAlpha = 1;
       } else {
         ctx.globalAlpha = 0.2;
-        ctx.drawImage(getGlow(colors.player, 2, _playerOuterR, _glowSize), p.x * ts - ts / 2, p.y * ts - ts / 2);
+        ctx.drawImage(getGlow(colors.player, 2, playerOuterR, glowSize), ox + p.x * ts - ts / 2, oy + p.y * ts - ts / 2);
         ctx.globalAlpha = 1;
-        FA.draw.sprite('player', 'base', p.x * ts, p.y * ts, ts, '@', colors.player, 0);
+        FA.draw.sprite('player', 'base', ox + p.x * ts, oy + p.y * ts, ts, '@', colors.player, 0);
       }
     }, 10);
 
@@ -438,67 +478,75 @@
     //  EFFECT REGISTRY — named effects, applied per-map via mapData.effects[]
     // ================================================================
 
+    var _curfewCanvas = document.createElement('canvas');
+    var _cc = _curfewCanvas.getContext('2d');
+    var _lastSmokeT = -1;
+    var _curfewW = 0, _curfewMapH = 0;
+
     var EFFECTS = {
       // Progressive darkness based on time of day
       timeOfDay: function(ctx, state) {
+        var L = getLayout();
         var timeCfg = FA.lookup('config', 'time');
         var t = state.timeOfDay / timeCfg.turnsPerDay;
         if (t > 0.6) {
           var darkness = (t - 0.6) / 0.4;
           ctx.globalAlpha = darkness * 0.4;
-          ctx.fillStyle = '#000008'; ctx.fillRect(0, 0, W, uiY);
+          ctx.fillStyle = '#000008'; ctx.fillRect(L.ox, L.oy, L.mapW, L.mapH);
           ctx.globalAlpha = 1;
         }
       },
 
-      // Curfew — pulsing siren + smoke patches (offscreen to avoid composite mode switching)
-      curfew: (function() {
-        var _curfewCanvas = document.createElement('canvas');
-        _curfewCanvas.width = W; _curfewCanvas.height = uiY;
-        var _cc = _curfewCanvas.getContext('2d');
-        var _lastSmokeT = -1;
-        return function(ctx, state) {
-          var timeCfg = FA.lookup('config', 'time');
-          if (state.timeOfDay < timeCfg.warningTime) return;
-          var t = Math.min(1, (state.timeOfDay - timeCfg.warningTime) / (timeCfg.curfewTime - timeCfg.warningTime));
-          if (t !== _lastSmokeT) {
-            _lastSmokeT = t;
-            _cc.clearRect(0, 0, W, uiY);
-            _cc.fillStyle = '#f00';
-            _cc.globalAlpha = t * 0.25;
-            _cc.fillRect(0, 0, W, uiY);
-            var smokeCount = Math.floor(t * 8);
-            _cc.fillStyle = '#f10';
-            for (var ni = 0; ni < smokeCount; ni++) {
-              _cc.globalAlpha = t * (0.03 + Math.random() * 0.06);
-              _cc.fillRect(Math.random() * W, Math.random() * uiY, 30 + Math.random() * 60, 10 + Math.random() * 25);
-            }
-            _cc.globalAlpha = 1;
+      // Curfew — pulsing siren + smoke patches
+      curfew: function(ctx, state) {
+        var L = getLayout();
+        var timeCfg = FA.lookup('config', 'time');
+        if (state.timeOfDay < timeCfg.warningTime) return;
+        var t = Math.min(1, (state.timeOfDay - timeCfg.warningTime) / (timeCfg.curfewTime - timeCfg.warningTime));
+        if (L.mapW !== _curfewW || L.mapH !== _curfewMapH) {
+          _curfewW = L.mapW; _curfewMapH = L.mapH;
+          _curfewCanvas.width = L.mapW; _curfewCanvas.height = L.mapH;
+          _lastSmokeT = -1;
+        }
+        if (t !== _lastSmokeT) {
+          _lastSmokeT = t;
+          _cc.clearRect(0, 0, L.mapW, L.mapH);
+          _cc.fillStyle = '#f00';
+          _cc.globalAlpha = t * 0.25;
+          _cc.fillRect(0, 0, L.mapW, L.mapH);
+          var smokeCount = Math.floor(t * 8);
+          _cc.fillStyle = '#f10';
+          for (var ni = 0; ni < smokeCount; ni++) {
+            _cc.globalAlpha = t * (0.03 + Math.random() * 0.06);
+            _cc.fillRect(Math.random() * L.mapW, Math.random() * L.mapH, 30 + Math.random() * 60, 10 + Math.random() * 25);
           }
-          var pulse = 0.5 + 0.5 * Math.sin(Date.now() * 0.002);
-          ctx.globalAlpha = pulse;
-          ctx.drawImage(_curfewCanvas, 0, 0);
-          ctx.globalAlpha = 1;
-        };
-      })(),
+          _cc.globalAlpha = 1;
+        }
+        var pulse = 0.5 + 0.5 * Math.sin(Date.now() * 0.002);
+        ctx.globalAlpha = pulse;
+        ctx.drawImage(_curfewCanvas, L.ox, L.oy);
+        ctx.globalAlpha = 1;
+      },
 
       // Deep system corruption — subtle purple noise
       corruption: function(ctx, state) {
+        var L = getLayout();
         var depth = state.depth || 1;
         if (depth < 3) return;
         var intensity = (depth - 2) * 0.01;
         if (Math.random() < 0.05) {
           ctx.globalAlpha = intensity;
           ctx.fillStyle = '#208';
-          ctx.fillRect(0, Math.random() * uiY, W, 1);
+          ctx.fillRect(L.ox, L.oy + Math.random() * L.mapH, L.mapW, 1);
           ctx.globalAlpha = 1;
         }
       },
 
       // Cold blue ambient for system levels
       systemCold: function(ctx) {
+        var L = getLayout();
         ctx.globalAlpha = 0.03;
-        ctx.fillStyle = '#004'; ctx.fillRect(0, 0, W, uiY);
+        ctx.fillStyle = '#004'; ctx.fillRect(L.ox, L.oy, L.mapW, L.mapH);
         ctx.globalAlpha = 1;
       }
     };
@@ -566,11 +614,15 @@
       var state = FA.getState();
       if (state.screen !== 'playing') return;
       if (!state.player || !state.map) return;
+      var L = getLayout();
+      var ts = L.ts;
       var ctx = FA.getCtx();
       var p = state.player;
       var vis = state.visible;
       var mapData = state.maps[state.mapId];
       var explored = mapData ? mapData.explored : null;
+
+      ensureLightCanvas(L);
 
       // FOV + static lights — combined lighting
       if (vis && explored) {
@@ -579,12 +631,12 @@
           for (var x = 0; x < cfg.cols; x++)
             if ((vis[y] && vis[y][x] > 0.05) || slMap[y][x] > 0.05) explored[y][x] = true;
 
-        var cacheKey = p.x + ',' + p.y + ',' + (state.depth || 0) + ',' + state.mapId + ',' + (state.mapVersion || 0);
+        var cacheKey = p.x + ',' + p.y + ',' + (state.depth || 0) + ',' + state.mapId + ',' + (state.mapVersion || 0) + ',' + ts;
         if (cacheKey !== _lightCacheKey) {
           _lightCacheKey = cacheKey;
           // Use ImageData instead of 1000 fillRect calls
           var lw = cfg.cols * ts, lh = cfg.rows * ts;
-          if (!_lightImageData || _lightImageData.width !== lw) {
+          if (!_lightImageData || _lightImageData.width !== lw || _lightImageData.height !== lh) {
             _lightImageData = _lightCtx.createImageData(lw, lh);
           }
           var ld = _lightImageData.data;
@@ -611,7 +663,7 @@
           }
           _lightCtx.putImageData(_lightImageData, 0, 0);
         }
-        ctx.drawImage(_lightCanvas, 0, 0);
+        ctx.drawImage(_lightCanvas, L.ox, L.oy);
       }
 
       // Apply map effects from data
@@ -632,6 +684,8 @@
     FA.addLayer('effects', function() {
       var state = FA.getState();
       if (state.screen !== 'playing') return;
+      var L = getLayout();
+      var ts = L.ts;
       var ctx = FA.getCtx();
 
       // Count hunting enemies for alert overlay
@@ -646,7 +700,7 @@
       var alertLevel = huntingCount / Math.max(1, enemyCount);
       if (alertLevel > 0) {
         ctx.globalAlpha = alertLevel * 0.06;
-        ctx.fillStyle = '#f00'; ctx.fillRect(0, 0, W, uiY);
+        ctx.fillStyle = '#f00'; ctx.fillRect(L.ox, L.oy, L.mapW, L.mapH);
         ctx.globalAlpha = 1;
       }
 
@@ -655,7 +709,7 @@
       if (depth > 0 && Math.random() < 0.002 * depth) {
         ctx.globalAlpha = 0.06 + Math.random() * 0.06;
         ctx.fillStyle = _glitchColors[Math.floor(Math.random() * 4)];
-        ctx.fillRect(0, Math.random() * uiY, W, 1 + Math.random() * 2);
+        ctx.fillRect(L.ox, L.oy + Math.random() * L.mapH, L.mapW, 1 + Math.random() * 2);
         ctx.globalAlpha = 1;
       }
 
@@ -666,13 +720,13 @@
           var wave = state.soundWaves[wi];
           var progress = 1 - wave.life / 500;
           ctx.globalAlpha = (1 - progress) * 0.15;
-          ctx.beginPath(); ctx.arc(wave.tx * ts + ts / 2, wave.ty * ts + ts / 2, progress * wave.maxR * ts, 0, Math.PI * 2);
+          ctx.beginPath(); ctx.arc(L.ox + wave.tx * ts + ts / 2, L.oy + wave.ty * ts + ts / 2, progress * wave.maxR * ts, 0, Math.PI * 2);
           ctx.stroke();
         }
         ctx.globalAlpha = 1;
       }
 
-      // Kill particles
+      // Kill particles (these use absolute pixel positions, already set at spawn time)
       if (state.particles) {
         for (var pi = 0; pi < state.particles.length; pi++) {
           var pt = state.particles[pi];

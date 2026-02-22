@@ -10,12 +10,18 @@ var GAME_DATA = {
     game: {
       cols: 40, rows: 25,
       tileSize: 20,
-      canvasWidth: 800,
-      canvasHeight: 600,
+      panelHeight: 60,
       maxDepth: 5,
       roomAttempts: 30,
       roomMinSize: 4,
       roomMaxSize: 9
+    },
+
+    layout: {
+      type: 'tile',
+      cols: 40, rows: 25,
+      panel: 'bottom',
+      panelSize: 60
     },
 
     colors: {

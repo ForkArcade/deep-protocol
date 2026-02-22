@@ -5,7 +5,9 @@
   var cfg = FA.lookup('config', 'game');
   var colors = FA.lookup('config', 'colors');
 
-  FA.initCanvas('game', cfg.canvasWidth, cfg.canvasHeight);
+  // Dimensions set initially; ResizeObserver in gameLoader overrides to actual container size
+  var canvasEl = document.getElementById('game');
+  FA.initCanvas('game', canvasEl.width || 800, canvasEl.height || 600);
 
   // Keybindings
   FA.bindKey('up',    ['ArrowUp',    'w']);

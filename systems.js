@@ -5,7 +5,6 @@
   var FA = window.FA;
   var Core = window.Core;
   var cfg = FA.lookup('config', 'game');
-  var ts = cfg.tileSize;
 
   var EMP_RANGE = 5;
   var EMP_STUN_TURNS = 3;
@@ -21,9 +20,11 @@
     if (state.screen !== 'playing' || !state.player) return;
     if (slotIdx >= state.player.modules.length) return;
 
+    var L = getLayout();
+    var ts = L.ts, ox = L.ox, oy = L.oy;
     var mod = state.player.modules[slotIdx];
     state.player.modules.splice(slotIdx, 1);
-    var px = state.player.x * ts + ts / 2, py = state.player.y * ts;
+    var px = ox + state.player.x * ts + ts / 2, py = oy + state.player.y * ts;
 
     var mapData = state.maps[state.mapId];
 
@@ -35,7 +36,7 @@
           var dist = Math.abs(e.x - state.player.x) + Math.abs(e.y - state.player.y);
           if (dist <= EMP_RANGE) {
             e.stunTurns = (e.stunTurns || 0) + EMP_STUN_TURNS;
-            FA.addFloat(e.x * ts + ts / 2, e.y * ts, 'STUN', '#ff0', 800);
+            FA.addFloat(ox + e.x * ts + ts / 2, oy + e.y * ts, 'STUN', '#ff0', 800);
           }
         }
         FA.addFloat(px, py, 'EMP', '#ff0', 800);
@@ -70,6 +71,8 @@
   // ============================================================
 
   function hackTerminal(x, y, state) {
+    var L = getLayout();
+    var ts = L.ts, ox = L.ox, oy = L.oy;
     state.map[y][x] = 5;
     state.mapVersion = (state.mapVersion || 0) + 1;
     state.terminalsHacked = (state.terminalsHacked || 0) + 1;
@@ -99,9 +102,9 @@
         var modDef = FA.lookup('modules', modType);
         if (state.player.modules.length < 3) {
           state.player.modules.push({ type: modType, name: modDef.name, color: modDef.color });
-          FA.addFloat(x * ts + ts / 2, y * ts, modDef.name, modDef.color, 1000);
+          FA.addFloat(ox + x * ts + ts / 2, oy + y * ts, modDef.name, modDef.color, 1000);
         } else {
-          FA.addFloat(x * ts + ts / 2, y * ts, 'FULL', '#f44', 800);
+          FA.addFloat(ox + x * ts + ts / 2, oy + y * ts, 'FULL', '#f44', 800);
         }
         break;
       case 'reveal':
@@ -111,14 +114,14 @@
             for (var rx = 0; rx < explored[ry].length; rx++)
               explored[ry][rx] = true;
         }
-        FA.addFloat(x * ts + ts / 2, y * ts, 'MAP', '#0ff', 1000);
+        FA.addFloat(ox + x * ts + ts / 2, oy + y * ts, 'MAP', '#0ff', 1000);
         break;
       case 'stun':
         for (var si = 0; si < mapData.entities.length; si++) {
           if (mapData.entities[si].type === 'enemy')
             mapData.entities[si].stunTurns = (mapData.entities[si].stunTurns || 0) + EMP_STUN_TURNS;
         }
-        FA.addFloat(x * ts + ts / 2, y * ts, 'DISRUPT', '#ff0', 1000);
+        FA.addFloat(ox + x * ts + ts / 2, oy + y * ts, 'DISRUPT', '#ff0', 1000);
         break;
       case 'intel':
         var intelList = FA.lookup('config', 'terminals').intel;
