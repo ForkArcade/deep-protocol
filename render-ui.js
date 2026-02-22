@@ -352,32 +352,29 @@
     FA.addLayer('gameOver', function() {
       var state = FA.getState();
       if (state.screen !== 'victory' && state.screen !== 'shutdown') return;
-      var L = getLayout();
-      var W = L.W, uiY = L.panelY;
-      FA.draw.pushAlpha(0.8);
-      FA.draw.rect(0, 0, W, uiY, '#000');
-      FA.draw.popAlpha();
       var ending = endingTitles[state.endingNode] || endingTitles.shutdown;
-      FA.draw.text(ending.title, W / 2, uiY / 2 - 70, O(ending.color, 28, true, 'center', 'middle'));
-      var stats = state.finalStats || {};
-      FA.draw.text('Days survived: ' + (stats.days || 1), W / 2, uiY / 2 - 20, O(colors.text, 14, false, 'center', 'middle'));
-      FA.draw.text('System visits: ' + (stats.visits || 0), W / 2, uiY / 2 + 0, O('#f80', 14, false, 'center', 'middle'));
-      FA.draw.text('Drones neutralized: ' + (stats.kills || 0), W / 2, uiY / 2 + 20, O(colors.text, 14, false, 'center', 'middle'));
-      FA.draw.text('Credits: ' + (stats.credits || 0), W / 2, uiY / 2 + 40, O(colors.credits, 14, false, 'center', 'middle'));
-      FA.draw.text('SCORE: ' + (state.score || 0), W / 2, uiY / 2 + 80, O('#fff', 22, true, 'center', 'middle'));
-
-      // Memories recovered this run
+      var fs = state.finalStats || {};
+      var statsList = [
+        { label: 'Days survived', value: fs.days || 1 },
+        { label: 'System visits', value: fs.visits || 0, color: '#f80' },
+        { label: 'Drones neutralized', value: fs.kills || 0 },
+        { label: 'Credits', value: fs.credits || 0, color: colors.credits }
+      ];
       var memories = state._activeMemories;
       if (memories && memories.length > 0) {
-        var memY = uiY / 2 + 110;
-        FA.draw.text('MEMORIES RECOVERED:', W / 2, memY, O('#4ef', 12, true, 'center', 'middle'));
+        statsList.push({ label: 'MEMORIES RECOVERED', value: '', color: '#4ef' });
         for (var mi = 0; mi < memories.length; mi++) {
-          FA.draw.text(memories[mi].text, W / 2, memY + 16 + mi * 14, O('#3a7a8a', 10, false, 'center', 'middle'));
+          statsList.push({ label: memories[mi].text, value: '', color: '#3a7a8a' });
         }
-        FA.draw.text('[ R ]  Reinitialize', W / 2, memY + 24 + memories.length * 14, O(colors.dim, 16, false, 'center', 'middle'));
-      } else {
-        FA.draw.text('[ R ]  Reinitialize', W / 2, uiY / 2 + 120, O(colors.dim, 16, false, 'center', 'middle'));
       }
+      FA.ui.gameOver({
+        victory: state.screen === 'victory',
+        title: ending.title,
+        titleColor: ending.color,
+        score: state.score || 0,
+        stats: statsList,
+        prompt: '[ R ]  Reinitialize'
+      });
     }, 40);
 
     // ================================================================
