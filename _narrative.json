@@ -749,6 +749,21 @@
     "first_system": { "text": "> Something is wrong. This is not maintenance. The walls are watching.", "color": "#4ef" },
     "ejected": { "text": "> You wake on the street. Credits missing. The entrance sealed. Until tomorrow.", "color": "#f80" }
   },
+  "memories": {
+    "storageKey": "deep_protocol_memories",
+    "startThought": "Fragments. Like pieces of a dream that won't fade. You've been here before.",
+    "milestones": [
+      { "id": "first_descent", "field": "maxDepth", "op": "gte", "value": 1, "bonus": { "type": "credits", "value": 5 }, "text": "First descent \u2014 +5 starting credits" },
+      { "id": "deeper_memory", "field": "maxDepth", "op": "gte", "value": 3, "bonus": { "type": "atk", "value": 1 }, "text": "Deeper memory \u2014 +1 ATK" },
+      { "id": "architects_echo", "field": "maxDepth", "op": "gte", "value": 5, "bonus": { "type": "maxHp", "value": 5 }, "text": "Architect's echo \u2014 +5 max HP" },
+      { "id": "lena_remembers", "field": "confidants", "op": "has", "value": "lena", "bonus": { "type": "relationship", "npc": "lena", "value": 1 }, "text": "Lena remembers you" },
+      { "id": "victors_maps", "field": "confidants", "op": "has", "value": "victor", "bonus": { "type": "relationship", "npc": "victor", "value": 1 }, "text": "Victor's maps" },
+      { "id": "martas_files", "field": "confidants", "op": "has", "value": "marta", "bonus": { "type": "relationship", "npc": "marta", "value": 1 }, "text": "Marta's files" },
+      { "id": "emils_truth", "field": "confidants", "op": "has", "value": "emil", "bonus": { "type": "relationship", "npc": "emil", "value": 1 }, "text": "Emil's truth" },
+      { "id": "drone_hunter", "field": "totalKills", "op": "gte", "value": 20, "bonus": { "type": "def", "value": 1 }, "text": "Drone hunter \u2014 +1 DEF" },
+      { "id": "director_falls", "field": "bossDefeated", "op": "eq", "value": true, "bonus": { "type": "systemReveal", "value": true }, "text": "The Director falls \u2014 System revealed from day 1" }
+    ]
+  },
   "director": {
     "1": [
       "Subject enters subsystem. Vitals nominal. Pattern recognition: inconclusive.",

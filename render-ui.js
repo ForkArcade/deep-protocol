@@ -358,7 +358,19 @@
       FA.draw.text('Drones neutralized: ' + (stats.kills || 0), W / 2, uiY / 2 + 20, O(colors.text, 14, false, 'center', 'middle'));
       FA.draw.text('Credits: ' + (stats.credits || 0), W / 2, uiY / 2 + 40, O(colors.credits, 14, false, 'center', 'middle'));
       FA.draw.text('SCORE: ' + (state.score || 0), W / 2, uiY / 2 + 80, O('#fff', 22, true, 'center', 'middle'));
-      FA.draw.text('[ R ]  Reinitialize', W / 2, uiY / 2 + 120, O(colors.dim, 16, false, 'center', 'middle'));
+
+      // Memories recovered this run
+      var memories = state._activeMemories;
+      if (memories && memories.length > 0) {
+        var memY = uiY / 2 + 110;
+        FA.draw.text('MEMORIES RECOVERED:', W / 2, memY, O('#4ef', 12, true, 'center', 'middle'));
+        for (var mi = 0; mi < memories.length; mi++) {
+          FA.draw.text(memories[mi].text, W / 2, memY + 16 + mi * 14, O('#3a7a8a', 10, false, 'center', 'middle'));
+        }
+        FA.draw.text('[ R ]  Reinitialize', W / 2, memY + 24 + memories.length * 14, O(colors.dim, 16, false, 'center', 'middle'));
+      } else {
+        FA.draw.text('[ R ]  Reinitialize', W / 2, uiY / 2 + 120, O(colors.dim, 16, false, 'center', 'middle'));
+      }
     }, 40);
 
     // ================================================================

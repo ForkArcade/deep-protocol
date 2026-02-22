@@ -57,6 +57,7 @@
     if (narData.garden) FA.register('config', 'garden', narData.garden);
     if (narData.busyLines) FA.register('config', 'busyLines', narData.busyLines);
     if (narData.moodDialogues) FA.register('config', 'moodDialogues', narData.moodDialogues);
+    if (narData.memories) FA.register('config', 'memories', narData.memories);
   }
 
   function beginPlaying() {
@@ -179,6 +180,9 @@
       }
     };
     FA.on('narrative:transition', _onTransition);
+
+    // Apply memories from previous runs
+    Memories.apply(FA.getState());
 
     NPC.updateNPCPositions(FA.getState());
     var wakeCs = FA.lookup('cutscenes', 'wake');
@@ -692,6 +696,7 @@
       kills: kills, gold: gold, days: state.day,
       visits: state.systemVisits, credits: state.credits
     };
+    Memories.save(state, victory);
     FA.emit('game:over', { victory: victory, score: state.score });
   }
 
