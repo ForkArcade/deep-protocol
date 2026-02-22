@@ -5,6 +5,7 @@
   var FA = window.FA;
   var Core = window.Core;
   var cfg = FA.lookup('config', 'game');
+  var TILES = FA.lookup('config', 'dungeonTiles') || { floor: 0, wall: 1, stairsUp: 3, terminal: 4, terminalUsed: 5 };
 
   var EMP_RANGE = 5;
   var EMP_STUN_TURNS = 3;
@@ -73,7 +74,7 @@
   function hackTerminal(x, y, state) {
     var L = getLayout();
     var ts = L.ts, ox = L.ox, oy = L.oy;
-    if (y >= 0 && y < state.map.length && x >= 0 && x < state.map[y].length) state.map[y][x] = 5;
+    if (y >= 0 && y < state.map.length && x >= 0 && x < state.map[y].length) state.map[y][x] = TILES.terminalUsed;
     state.mapVersion = (state.mapVersion || 0) + 1;
     state.terminalsHacked = (state.terminalsHacked || 0) + 1;
     var depth = state.depth;
