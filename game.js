@@ -6,10 +6,19 @@
   var Core = window.Core;
   var NPC = window.NPC;
   var cfg = FA.lookup('config', 'game');
+
+  // Template string helper: _tpl("Hello {name}", { name: "World" }) → "Hello World"
+  function _tpl(s, v) { return s.replace(/\{(\w+)\}/g, function(_, k) { return v[k] != null ? v[k] : ''; }); }
+
   var _scriptBase = (document.currentScript && document.currentScript.src)
     ? document.currentScript.src.replace(/[^\/]*$/, '') : './';
   var econCfg = FA.lookup('config', 'economy');
   var timeCfg = FA.lookup('config', 'time');
+  var fovCfg = FA.lookup('config', 'fov');
+  var colors = FA.lookup('config', 'colors');
+  var timeCosts = FA.lookup('config', 'timeCosts');
+  var intervalsCfg = FA.lookup('config', 'intervals');
+  var confidantCfg = FA.lookup('config', 'confidantEffects');
 
   // --- Memories (meta-progression) ---
   function _checkMilestones(mem) {
@@ -76,8 +85,8 @@
     return { x: 13, y: 1 };
   }
 
-  var COMM_INTERVAL = 12;
-  var AMBIENT_THOUGHT_INTERVAL = 20;
+  var COMM_INTERVAL = intervalsCfg.npcComm;
+  var AMBIENT_THOUGHT_INTERVAL = intervalsCfg.ambientThought;
 
   var _onVarChanged = null;
   var _onTransition = null;
@@ -104,6 +113,11 @@
       if (narData[configs[ci]]) FA.register('config', configs[ci], narData[configs[ci]]);
     if (narData.notices) FA.register('notices', 'board', narData.notices);
     if (narData.director) FA.register('config', 'director', narData.director);
+    if (narData.sounds) FA.register('config', 'sounds', narData.sounds);
+    if (narData.animations) FA.register('config', 'animations', narData.animations);
+    if (narData.strings) FA.register('config', 'strings', narData.strings);
+    if (narData.hudLabels) FA.register('config', 'hudLabels', narData.hudLabels);
+    if (narData.dreamTextTemplates) FA.register('config', 'dreamTextTemplates', narData.dreamTextTemplates);
   }
 
   function beginPlaying() {
@@ -140,7 +154,8 @@
     if (typeof getMapZones === 'function') {
       townZones = getMapZones('overworld');
     }
-    maps.town = { grid: townGrid, entities: npcs, items: [], explored: explored, effects: ['timeOfDay', 'curfew'], objects: townObjects, zones: townZones };
+    var townFrameGrid = typeof getMapFrameGrid === 'function' ? getMapFrameGrid('overworld') : null;
+    maps.town = { grid: townGrid, entities: npcs, items: [], explored: explored, effects: ['timeOfDay', 'curfew'], objects: townObjects, zones: townZones, _frameGrid: townFrameGrid };
 
     FA.resetState({
       screen: 'playing',
@@ -148,7 +163,7 @@
       maps: maps,
       map: townGrid,
       player: {
-        x: playerStart.x, y: playerStart.y,
+        x: playerStart.x, y: playerStart.y, facing: 0,
         hp: 20, maxHp: 20, atk: 5, def: 1,
         gold: 0, kills: 0,
         modules: [], cloakTurns: 0, overclockActive: false, firewallHp: 0
@@ -160,7 +175,7 @@
       workedToday: false,
       systemRevealed: false,
       systemVisits: 0, totalKills: 0, totalGold: 0,
-      visible: Core.computeVisibility(townGrid, playerStart.x, playerStart.y, 14),
+      visible: Core.computeVisibility(townGrid, playerStart.x, playerStart.y, fovCfg.overworld),
       mapVersion: 1, turn: 0, systemTurn: 0,
       systemBubble: null,
       thoughts: [], lastThoughtTurn: -10,
@@ -236,11 +251,29 @@
     Core.triggerThought('morning');
   }
 
-  function movePlayer(dx, dy) {
+  var DIR_DX = [0, 1, 0, -1];
+  var DIR_DY = [-1, 0, 1, 0];
+
+  function movePlayer(action) {
     var state = FA.getState();
     if (!state.player) return;
-    var nx = state.player.x + dx;
-    var ny = state.player.y + dy;
+    var player = state.player;
+    var f = player.facing;
+
+    // Rotation — no movement, no turn cost
+    if (action === 'rotateLeft')  { player.facing = (f + 3) % 4; state.mapVersion++; return; }
+    if (action === 'rotateRight') { player.facing = (f + 1) % 4; state.mapVersion++; return; }
+
+    // Compute dx,dy from facing + action
+    var dx, dy;
+    if (action === 'forward')          { dx = DIR_DX[f];  dy = DIR_DY[f]; }
+    else if (action === 'back')        { dx = -DIR_DX[f]; dy = -DIR_DY[f]; }
+    else if (action === 'strafeLeft')  { dx = -DIR_DY[f]; dy = DIR_DX[f]; }
+    else if (action === 'strafeRight') { dx = DIR_DY[f];  dy = -DIR_DX[f]; }
+    else return;
+
+    var nx = player.x + dx;
+    var ny = player.y + dy;
 
     var entity = Core.getEntityAt(nx, ny);
     if (entity) {
@@ -267,9 +300,12 @@
     if (!Core.isWalkable(state.map, nx, ny)) return;
     state.player.x = nx;
     state.player.y = ny;
-    FA.playSound('step');
 
     var tile = state.map[ny][nx];
+    // Pass floor type to audio — overworld: 0=floor,2=indoor,3=garden,4=sidewalk; dungeon: 0=metal
+    state._stepTile = tile;
+    state._stepInSystem = Location.isSystem(state.mapId);
+    FA.playSound('step');
     var mapData = state.maps[state.mapId];
 
     for (var j = mapData.items.length - 1; j >= 0; j--) {
@@ -302,8 +338,8 @@
           if (FA.narrative && FA.narrative.setVar) FA.narrative.setVar('system_revealed', true, 'System revealed');
         }
       }
-      state.timeOfDay += 2;
-      state.turn += 2;
+      state.timeOfDay += timeCosts.npcInteraction;
+      state.turn += timeCosts.npcInteraction;
       NPC.checkTimeWarnings(state);
       return;
     }
@@ -318,7 +354,7 @@
         else if (obj.type === 'garden_bench') restInGarden(state);
         else if (obj.type === 'system_entrance') {
           if (state.systemRevealed) enterSystem(state);
-          else Core.addThought('A sealed maintenance shaft. Nothing to see.');
+          else Core.addThought((FA.lookup('config','strings') || {}).sealedEntrance || 'A sealed maintenance shaft. Nothing to see.');
         }
       }
     } else if (Location.isSystem(state.mapId)) {
@@ -333,7 +369,7 @@
     var cost = c.cost || 0;
     var canAfford = !cost || state.credits >= cost;
     Game._showChoiceMenu(state, title, [
-      { label: canAfford ? label : 'Not enough credits', color: canAfford ? color : '#644',
+      { label: canAfford ? label : 'Not enough credits', color: canAfford ? color : colors.actionDisabled,
         enabled: canAfford, action: function(s) {
           if (cost) s.credits -= cost;
           s.player.hp = Math.min(s.player.maxHp, s.player.hp + c.hpRestore);
@@ -341,40 +377,40 @@
           Core.addSystemBubble('> ' + c.text + ' +' + c.hpRestore + ' HP.', color);
           Core.triggerThought(thought); NPC.checkTimeWarnings(s);
         } },
-      { label: 'Leave', color: '#665', enabled: true, action: function() {} }
+      { label: 'Leave', color: colors.actionCancel, enabled: true, action: function() {} }
     ]);
   }
 
   function eatAtCafe(state) {
     var c = FA.lookup('config', 'cafe');
-    restAction(state, 'cafe', '> CAFE \u2014 Order food?', c ? 'Eat (' + c.cost + ' cr)' : '', '#e8a040', 'cafe');
+    restAction(state, 'cafe', '> CAFE \u2014 Order food?', c ? 'Eat (' + c.cost + ' cr)' : '', colors.actionCafe, 'cafe');
   }
 
   function restInGarden(state) {
     var c = FA.lookup('config', 'garden');
-    restAction(state, 'garden', '> GARDEN \u2014 Rest here?', c ? 'Rest (+' + c.hpRestore + ' HP, ' + c.timeCost + ' turns)' : '', '#6a4', 'garden');
+    restAction(state, 'garden', '> GARDEN \u2014 Rest here?', c ? 'Rest (+' + c.hpRestore + ' HP, ' + c.timeCost + ' turns)' : '', colors.actionGarden, 'garden');
   }
 
   function workAtTerminal(state) {
     if (state.workedToday) {
-      Core.addSystemBubble('> Shift already completed. Return tomorrow.', '#556');
+      Core.addSystemBubble('> ' + ((FA.lookup('config','strings') || {}).shiftDone || 'Shift already completed. Return tomorrow.'), colors.dim);
       return;
     }
     state.workedToday = true;
     state.timeOfDay += timeCfg.workTurns;
     state.turn += timeCfg.workTurns;
     state.credits += econCfg.workPay;
-    Core.addSystemBubble('> Shift complete. +' + econCfg.workPay + ' credits.', '#fd0');
+    Core.addSystemBubble('> ' + _tpl((FA.lookup('config','strings') || {}).shiftComplete || 'Shift complete. +{pay} credits.', { pay: econCfg.workPay }), colors.credits);
     Core.triggerThought('work');
     NPC.checkTimeWarnings(state);
   }
 
   function readNoticeBoard(state) {
     var entry = FA.select(FA.lookup('notices', 'board'));
-    var text = entry ? entry.text : 'The board is empty.';
-    Core.addSystemBubble('> NOTICE: ' + text, '#aa9a50');
-    state.timeOfDay += 1;
-    state.turn += 1;
+    var text = entry ? entry.text : (FA.lookup('config','strings') || {}).emptyBoard || 'The board is empty.';
+    Core.addSystemBubble('> ' + ((FA.lookup('config','strings') || {}).noticePrefix || 'NOTICE: ') + text, colors.actionNotices);
+    state.timeOfDay += timeCosts.noticeBoard;
+    state.turn += timeCosts.noticeBoard;
   }
 
   function showChoiceMenu(state, title, options) {
@@ -411,7 +447,7 @@
         (function(choice, npcId, npcName, source) {
           options.push({
             label: choice.label,
-            color: '#aa9',
+            color: colors.dialogueChoice,
             enabled: true,
             action: function(s) {
               // Apply relationship delta
@@ -439,7 +475,7 @@
     var depth = Math.min(state.systemVisits + 1, cfg.maxDepth);
     // Emil confidant: skip depth 1 (start at depth 2)
     if (depth === 1 && Core.isConfidant('emil')) {
-      depth = 2;
+      depth = confidantCfg.emil.skipToDepth;
     }
 
     if (state.systemVisits === 0) {
@@ -449,10 +485,11 @@
       if (arcNode && arcNode.id === 'first_system') {
         FA.narrative.transition('arc', 'deeper', 'Going deeper');
       }
-      Core.addSystemBubble('> Entering sub-level ' + depth + '.', '#4ef');
+      Core.addSystemBubble('> ' + _tpl((FA.lookup('config','strings') || {}).enterSubLevel || 'Entering sub-level {depth}.', { depth: depth }), colors.startTitle);
     }
 
     state.systemVisits++;
+    FA.playSound('door');
     var floor = Core.generateFloor(cfg.cols, cfg.rows, depth);
     var populated = Core.populateFloor(floor.map, floor.rooms, depth);
 
@@ -497,8 +534,8 @@
     state.terminalsHacked = 0;
     state.directorMsgShown = {};
 
-    var lightRadius = 10 - depth * 0.5;
-    if (Core.isConfidant('victor')) lightRadius += 2;
+    var lightRadius = fovCfg.systemBase - depth * fovCfg.systemDepthPenalty;
+    if (Core.isConfidant('victor')) lightRadius += confidantCfg.victor.fovBonus;
     state.visible = Core.computeVisibility(state.map, px, py, lightRadius);
 
     FA.clearEffects();
@@ -527,6 +564,7 @@
 
     var dungeonMapId = state.mapId;
     var returnPos = state.townReturnPos || getPlayerStart();
+    FA.playSound('door');
     Core.changeMap('town', returnPos.x, returnPos.y);
     delete state.maps[dungeonMapId];
 
@@ -614,8 +652,8 @@
     }
 
     if (state.player) {
-      var lightRadius = hasTime ? 14 : 10 - (state.depth || 1) * 0.5;
-      if (!hasTime && Core.isConfidant('victor')) lightRadius += 2;
+      var lightRadius = hasTime ? fovCfg.overworld : fovCfg.systemBase - (state.depth || 1) * fovCfg.systemDepthPenalty;
+      if (!hasTime && Core.isConfidant('victor')) lightRadius += confidantCfg.victor.fovBonus;
       state.visible = Core.computeVisibility(state.map, state.player.x, state.player.y, lightRadius);
     }
 
@@ -636,6 +674,7 @@
 
   function endGame(victory, endingNode) {
     var state = FA.getState();
+    FA.playSound('gameover');
     state.screen = victory ? 'victory' : 'shutdown';
     state.endingNode = endingNode;
     var scoring = FA.lookup('config', 'scoring');

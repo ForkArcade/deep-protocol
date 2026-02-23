@@ -4,16 +4,20 @@
   var FA = window.FA;
   var cfg = FA.lookup('config', 'game');
   var colors = FA.lookup('config', 'colors');
+  var combatCfg = FA.lookup('config', 'combat');
+  var fovCfg = FA.lookup('config', 'fov');
 
   // Dimensions set initially; ResizeObserver in gameLoader overrides to actual container size
   var canvasEl = document.getElementById('game');
   FA.initCanvas('game', canvasEl.width || 800, canvasEl.height || 600);
 
-  // Keybindings (still needed for FA.isAction/isHeld in update loop)
-  FA.bindKey('up',    ['ArrowUp',    'w']);
-  FA.bindKey('down',  ['ArrowDown',  's']);
-  FA.bindKey('left',  ['ArrowLeft',  'a']);
-  FA.bindKey('right', ['ArrowRight', 'd']);
+  // Keybindings
+  FA.bindKey('forward',     ['ArrowUp',    'w']);
+  FA.bindKey('back',        ['ArrowDown',  's']);
+  FA.bindKey('rotateLeft',  ['ArrowLeft',  'a']);
+  FA.bindKey('rotateRight', ['ArrowRight', 'd']);
+  FA.bindKey('strafeLeft',  ['q']);
+  FA.bindKey('strafeRight', ['e']);
   FA.bindKey('restart', ['r']);
   FA.bindKey('start',   [' ', 'Enter']);
   FA.bindKey('mod1', ['1']);
@@ -22,10 +26,11 @@
 
   // Input — direct keydown (FA event bus broken on platform)
   var _keyMap = {
-    'ArrowUp': 'up', 'w': 'up',
-    'ArrowDown': 'down', 's': 'down',
-    'ArrowLeft': 'left', 'a': 'left',
-    'ArrowRight': 'right', 'd': 'right',
+    'ArrowUp': 'forward', 'w': 'forward',
+    'ArrowDown': 'back', 's': 'back',
+    'ArrowLeft': 'rotateLeft', 'a': 'rotateLeft',
+    'ArrowRight': 'rotateRight', 'd': 'rotateRight',
+    'q': 'strafeLeft', 'e': 'strafeRight',
     ' ': 'start', 'Enter': 'start',
     'r': 'restart',
     '1': 'mod1', '2': 'mod2', '3': 'mod3'
@@ -52,9 +57,9 @@
     e.preventDefault();
 
     if (state.choiceMenu) {
-      if (action === 'up') Game.choiceUp();
-      else if (action === 'down') Game.choiceDown();
-      else if (action === 'start') Game.confirmChoice();
+      if (action === 'forward') { FA.playSound('choice'); Game.choiceUp(); }
+      else if (action === 'back') { FA.playSound('choice'); Game.choiceDown(); }
+      else if (action === 'start') { FA.playSound('confirm'); Game.confirmChoice(); }
       return;
     }
     if (action === 'start') {
@@ -66,10 +71,9 @@
       return;
     }
     switch (action) {
-      case 'up':    Game.movePlayer(0, -1); break;
-      case 'down':  Game.movePlayer(0, 1);  break;
-      case 'left':  Game.movePlayer(-1, 0); break;
-      case 'right': Game.movePlayer(1, 0);  break;
+      case 'forward': case 'back': case 'strafeLeft': case 'strafeRight':
+      case 'rotateLeft': case 'rotateRight':
+        Game.movePlayer(action); break;
       case 'mod1':  Game.useModule(0); break;
       case 'mod2':  Game.useModule(1); break;
       case 'mod3':  Game.useModule(2); break;
@@ -130,7 +134,7 @@
     if (state.shake > 0) {
       state.shakeX = (Math.random() - 0.5) * state.shake;
       state.shakeY = (Math.random() - 0.5) * state.shake;
-      state.shake -= dt * 0.012;
+      state.shake -= dt * combatCfg.shakeDecay;
       if (state.shake < 0) { state.shake = 0; state.shakeX = 0; state.shakeY = 0; }
     }
     // Kill particles
@@ -139,7 +143,7 @@
         var pt = state.particles[pi];
         pt.x += pt.vx * dt / 1000;
         pt.y += pt.vy * dt / 1000;
-        pt.vx *= 0.97; pt.vy *= 0.97;
+        pt.vx *= combatCfg.particleDrag; pt.vy *= combatCfg.particleDrag;
         pt.life -= dt;
         if (pt.life <= 0) state.particles.splice(pi, 1);
       }
@@ -181,10 +185,18 @@
       }
       state.maps.town.grid = grid;
       state.maps.town.objects = objects;
+      if (mapDefs.overworld.frameGrid) {
+        var C = '0123456789abcdefghij';
+        state.maps.town._frameGrid = mapDefs.overworld.frameGrid.map(function(row) {
+          return row.split('').map(function(c) { return C.indexOf(c); });
+        });
+      } else {
+        state.maps.town._frameGrid = null;
+      }
       if (!Location.isSystem(state.mapId)) {
         state.map = grid;
         if (state.player) {
-          state.visible = Core.computeVisibility(grid, state.player.x, state.player.y, 14);
+          state.visible = Core.computeVisibility(grid, state.player.x, state.player.y, fovCfg.overworld);
         }
       }
       state.mapVersion = (state.mapVersion || 0) + 1;

@@ -5,14 +5,12 @@
   var FA = window.FA;
   var Core = window.Core;
   var cfg = FA.lookup('config', 'game');
+  var colors = FA.lookup('config', 'colors');
+  var combatCfg = FA.lookup('config', 'combat');
+  var aiCfg = FA.lookup('config', 'enemyAI');
+  var scaleCfg = FA.lookup('config', 'scaling');
 
   var TILES = FA.lookup('config', 'dungeonTiles') || { floor: 0, wall: 1, stairsUp: 3, terminal: 4, terminalUsed: 5 };
-
-  var SHAKE_INTENSITY = 6;
-  var SENTINEL_SHOOT_RANGE = 6;
-  var OVERCLOCK_MULTIPLIER = 3;
-  var PARTICLE_COUNT = 8;
-  var PARTICLE_LIFE = 500;
 
   function attackEnemy(attacker, target) {
     var state = FA.getState();
@@ -20,7 +18,7 @@
     var ts = L.ts, ox = L.ox, oy = L.oy;
     var multiplier = 1;
     if (state.player.overclockActive) {
-      multiplier = OVERCLOCK_MULTIPLIER;
+      multiplier = combatCfg.overclockMultiplier;
       state.player.overclockActive = false;
     }
     var dmg = Math.max(1, Math.floor((attacker.atk - target.def + FA.rand(-1, 2)) * multiplier));
@@ -28,9 +26,9 @@
     FA.emit('entity:damaged', { entity: target, damage: dmg });
 
     var label = multiplier > 1 ? 'OC -' + dmg : '-' + dmg;
-    var color = multiplier > 1 ? '#f80' : '#f44';
+    var color = multiplier > 1 ? colors.floatOverclock : colors.floatDamage;
     FA.addFloat(ox + target.x * ts + ts / 2, oy + target.y * ts, label, color, 800);
-    Core.propagateSound(target.x, target.y, 8);
+    Core.propagateSound(target.x, target.y, aiCfg.soundPropagation.combat);
 
     if (target.hp <= 0) {
       var entities = state.maps[state.mapId].entities;
@@ -44,13 +42,13 @@
       FA.emit('entity:killed', { entity: target });
 
       var bx = ox + target.x * ts + ts / 2, by = oy + target.y * ts + ts / 2;
-      for (var pi = 0; pi < PARTICLE_COUNT; pi++) {
-        var angle = (pi / PARTICLE_COUNT) * Math.PI * 2 + Math.random() * 0.5;
+      for (var pi = 0; pi < combatCfg.particleCount; pi++) {
+        var angle = (pi / combatCfg.particleCount) * Math.PI * 2 + Math.random() * 0.5;
         state.particles.push({
           x: bx, y: by,
           vx: Math.cos(angle) * (40 + Math.random() * 30),
           vy: Math.sin(angle) * (40 + Math.random() * 30),
-          life: PARTICLE_LIFE, maxLife: PARTICLE_LIFE, color: target.color
+          life: combatCfg.particleLife, maxLife: combatCfg.particleLife, color: target.color
         });
       }
 
@@ -78,14 +76,13 @@
     var L = getLayout();
     var ts = L.ts, ox = L.ox, oy = L.oy;
     state.player.hp -= dmg;
-    state.shake = SHAKE_INTENSITY;
+    state.shake = combatCfg.shakeIntensity;
     FA.emit('entity:damaged', { entity: state.player, damage: dmg });
-    FA.addFloat(ox + state.player.x * ts + ts / 2, oy + state.player.y * ts, '-' + dmg, '#f84', 800);
+    FA.addFloat(ox + state.player.x * ts + ts / 2, oy + state.player.y * ts, '-' + dmg, colors.floatPlayerDmg, 800);
 
     if (state.player.hp <= 0) {
-      // Delegate death to game.js (runtime reference)
       window.Game._handlePlayerDeath(state);
-    } else if (state.player.hp <= state.player.maxHp * 0.3) {
+    } else if (state.player.hp <= state.player.maxHp * combatCfg.lowHpThreshold) {
       Core.triggerThought('low_health');
     } else {
       Core.triggerThought('damage');
@@ -94,7 +91,7 @@
 
   function sentinelShoot(e, state) {
     if (!state.player || state.player.cloakTurns > 0) return;
-    rangedShoot(e, state, SENTINEL_SHOOT_RANGE);
+    rangedShoot(e, state, aiCfg.sentinelShootRange);
   }
 
   function rangedShoot(e, state, range) {
@@ -110,9 +107,9 @@
         if (state.map[sy][sx] === 1) break;
         if (sx === state.player.x && sy === state.player.y) {
           var dmg = Math.max(1, e.atk - state.player.def + FA.rand(-1, 1));
-          FA.addFloat(ox + e.x * ts + ts / 2, oy + e.y * ts, '!', '#f80', 600);
+          FA.addFloat(ox + e.x * ts + ts / 2, oy + e.y * ts, '!', colors.floatOverclock, 600);
           applyDamageToPlayer(dmg, e.name, state);
-          Core.propagateSound(e.x, e.y, 10);
+          Core.propagateSound(e.x, e.y, aiCfg.soundPropagation.shoot);
           return;
         }
       }
@@ -125,19 +122,17 @@
     var bossDef = FA.lookup('actors', 'director_core');
     e.bossTimer++;
 
-    // Shoot phase: fire in 4 cardinal directions using boss shootRange
+    // Shoot phase
     rangedShoot(e, state, bossDef.shootRange);
 
-    // Summon phase: every summonInterval turns, spawn a drone if under maxSummons
+    // Summon phase
     if (e.bossTimer % bossDef.summonInterval === 0 && e.summonCount < bossDef.maxSummons) {
-      // Count active summoned drones
       var entities = state.maps[state.mapId].entities;
       var activeSummons = 0;
       for (var si = 0; si < entities.length; si++) {
         if (entities[si].summoner === e.id) activeSummons++;
       }
       if (activeSummons < bossDef.maxSummons) {
-        // Find adjacent walkable tile for drone
         var adjDirs = [[1,0],[-1,0],[0,1],[0,-1],[1,1],[-1,1],[1,-1],[-1,-1]];
         var spawnPos = null;
         for (var ai = 0; ai < adjDirs.length; ai++) {
@@ -150,14 +145,14 @@
         if (spawnPos) {
           var droneDef = FA.lookup('enemies', bossDef.summonType);
           var depth = state.depth || 5;
-          var hpScale = 1 + (depth - 1) * 0.3;
-          var atkScale = 1 + (depth - 1) * 0.2;
+          var hpScale = 1 + (depth - 1) * scaleCfg.droneHpScale;
+          var atkScale = 1 + (depth - 1) * scaleCfg.droneAtkScale;
           entities.push({
             id: FA.uid(), type: 'enemy', x: spawnPos.x, y: spawnPos.y,
             hp: Math.floor(droneDef.hp * hpScale),
             maxHp: Math.floor(droneDef.hp * hpScale),
             atk: Math.floor(droneDef.atk * atkScale),
-            def: droneDef.def + Math.floor((depth - 1) / 2),
+            def: droneDef.def + Math.floor((depth - 1) * scaleCfg.droneDefPerDepth),
             char: droneDef.char, color: droneDef.color, name: droneDef.name,
             behavior: droneDef.behavior, stunTurns: 0,
             aiState: 'hunting', alertTarget: { x: state.player.x, y: state.player.y },
@@ -165,16 +160,16 @@
             summoner: e.id
           });
           e.summonCount++;
-          FA.addFloat(ox + e.x * ts + ts / 2, oy + e.y * ts, 'SUMMON', '#0ff', 800);
-          Core.propagateSound(e.x, e.y, 12);
+          FA.addFloat(ox + e.x * ts + ts / 2, oy + e.y * ts, 'SUMMON', colors.floatBoss, 800);
+          Core.propagateSound(e.x, e.y, aiCfg.soundPropagation.ability);
         }
       }
     }
 
-    // Taunt phase: every tauntInterval turns, show a random taunt
+    // Taunt phase
     if (e.bossTimer % bossDef.tauntInterval === 0 && bossDef.taunts && bossDef.taunts.length > 0) {
       var taunt = FA.pick(bossDef.taunts);
-      Core.addSystemBubble('> DIRECTOR: ' + taunt, '#0ff');
+      Core.addSystemBubble('> DIRECTOR: ' + taunt, colors.floatBoss);
     }
   }
 
@@ -183,20 +178,20 @@
     var L = getLayout();
     var ts = L.ts, ox = L.ox, oy = L.oy;
     var mapData = state.maps[state.mapId];
-    if (item.type === 'module' && state.player.modules.length >= 3) {
-      FA.addFloat(ox + item.x * ts + ts / 2, oy + item.y * ts, 'FULL', '#f44', 600);
+    if (item.type === 'module' && state.player.modules.length >= combatCfg.moduleSlotLimit) {
+      FA.addFloat(ox + item.x * ts + ts / 2, oy + item.y * ts, 'FULL', colors.floatFull, 600);
       return;
     }
     mapData.items.splice(idx, 1);
     FA.emit('item:pickup', { item: item });
     if (item.type === 'gold') {
       state.player.gold += item.value;
-      FA.addFloat(ox + state.player.x * ts + ts / 2, oy + state.player.y * ts, '+' + item.value, '#0ff', 600);
+      FA.addFloat(ox + state.player.x * ts + ts / 2, oy + state.player.y * ts, '+' + item.value, colors.floatGold, 600);
       Core.triggerThought('pickup_data');
     } else if (item.type === 'potion') {
       var heal = Math.min(item.healAmount, state.player.maxHp - state.player.hp);
       state.player.hp += heal;
-      FA.addFloat(ox + state.player.x * ts + ts / 2, oy + state.player.y * ts, '+' + heal, '#4f4', 600);
+      FA.addFloat(ox + state.player.x * ts + ts / 2, oy + state.player.y * ts, '+' + heal, colors.floatHeal, 600);
     } else if (item.type === 'module') {
       state.player.modules.push({ type: item.moduleType, name: item.name, color: item.color });
       FA.addFloat(ox + state.player.x * ts + ts / 2, oy + state.player.y * ts, item.name, item.color, 800);
@@ -209,7 +204,6 @@
     var dist = Math.abs(e.x - p.x) + Math.abs(e.y - p.y);
     var cloaked = p.cloakTurns > 0;
 
-    // Boss behavior — always knows where player is, stationary
     if (e.behavior === 'boss') {
       e.aiState = 'hunting';
       e.alertTarget = { x: p.x, y: p.y };
@@ -221,7 +215,7 @@
       return { type: 'chase' };
     }
 
-    var sightRange = e.behavior === 'tracker' ? 20 : e.behavior === 'sentinel' ? 6 : 8;
+    var sightRange = aiCfg.sightRange[e.behavior] || aiCfg.sightRange.default;
     var canSee = !cloaked && dist <= sightRange && Core.hasLOS(state.map, e.x, e.y, p.x, p.y);
 
     if (dist === 1 && !cloaked) {
@@ -236,7 +230,7 @@
       e.alertTimer = 0;
     } else if (e.aiState === 'hunting') {
       e.aiState = 'alert';
-      e.alertTimer = 8;
+      e.alertTimer = aiCfg.alertTimer;
     }
 
     if (e.aiState === 'alert') {
@@ -251,7 +245,7 @@
     switch (e.aiState) {
       case 'hunting':
         if (e.behavior === 'sentinel') return { type: 'shoot' };
-        if (e.behavior === 'tracker' && dist <= 4) return { type: 'flank' };
+        if (e.behavior === 'tracker' && dist <= aiCfg.flankRange) return { type: 'flank' };
         return { type: 'chase' };
       case 'alert':
         if (e.behavior === 'sentinel') return { type: 'shoot' };
@@ -338,30 +332,31 @@
     var mod = state.player.modules[slotIdx];
     var modDef = FA.lookup('modules', mod.type);
     state.player.modules.splice(slotIdx, 1);
+    FA.playSound('module');
     var px = ox + state.player.x * ts + ts / 2, py = oy + state.player.y * ts;
     var mapData = state.maps[state.mapId];
     switch (mod.type) {
       case 'emp':
-        var empRange = modDef.range || 5, empStun = modDef.stunTurns || 3;
+        var empRange = modDef.range || 5, empStun = modDef.stunTurns || combatCfg.stunTurnsDefault;
         for (var i = 0; i < mapData.entities.length; i++) {
           var e = mapData.entities[i];
           if (e.type !== 'enemy') continue;
           if (Math.abs(e.x - state.player.x) + Math.abs(e.y - state.player.y) <= empRange) {
             e.stunTurns = (e.stunTurns || 0) + empStun;
-            FA.addFloat(ox + e.x * ts + ts / 2, oy + e.y * ts, 'STUN', '#ff0', 800);
+            FA.addFloat(ox + e.x * ts + ts / 2, oy + e.y * ts, 'STUN', colors.moduleEmp, 800);
           }
         }
-        FA.addFloat(px, py, 'EMP', '#ff0', 800);
-        Core.propagateSound(state.player.x, state.player.y, 12);
+        FA.addFloat(px, py, 'EMP', colors.moduleEmp, 800);
+        Core.propagateSound(state.player.x, state.player.y, aiCfg.soundPropagation.ability);
         break;
-      case 'cloak': state.player.cloakTurns = modDef.turns || 6; FA.addFloat(px, py, 'CLOAK', '#88f', 800); break;
+      case 'cloak': state.player.cloakTurns = modDef.turns || 6; FA.addFloat(px, py, 'CLOAK', colors.moduleCloak, 800); break;
       case 'scanner':
         var explored = mapData.explored;
         if (explored) for (var sy = 0; sy < explored.length; sy++) for (var sx = 0; sx < explored[sy].length; sx++) explored[sy][sx] = true;
-        FA.addFloat(px, py, 'SCAN', '#0ff', 800);
+        FA.addFloat(px, py, 'SCAN', colors.moduleScanner, 800);
         break;
-      case 'overclock': state.player.overclockActive = true; FA.addFloat(px, py, 'OC!', '#f44', 800); break;
-      case 'firewall': state.player.firewallHp = modDef.hp || 12; FA.addFloat(px, py, 'SHIELD', '#4f4', 800); break;
+      case 'overclock': state.player.overclockActive = true; FA.addFloat(px, py, 'OC!', colors.moduleOverclock, 800); break;
+      case 'firewall': state.player.firewallHp = modDef.hp || 12; FA.addFloat(px, py, 'SHIELD', colors.moduleFirewall, 800); break;
     }
   }
 
@@ -370,6 +365,7 @@
     var ts = L.ts, ox = L.ox, oy = L.oy;
     if (y >= 0 && y < state.map.length && x >= 0 && x < state.map[y].length) state.map[y][x] = TILES.terminalUsed;
     state.mapVersion = (state.mapVersion || 0) + 1;
+    FA.playSound('hack');
     state.terminalsHacked = (state.terminalsHacked || 0) + 1;
     var depth = state.depth;
     if (!state.directorMsgShown) state.directorMsgShown = {};
@@ -379,7 +375,7 @@
     if (depthMsgs && state.directorMsgShown[depth] < depthMsgs.length) {
       var dirMsg = depthMsgs[state.directorMsgShown[depth]];
       state.directorMsgShown[depth]++;
-      if (dirMsg !== '...') Core.addSystemBubble('> "' + dirMsg + '" \u2014 DIRECTOR', '#f80');
+      if (dirMsg !== '...') Core.addSystemBubble('> "' + dirMsg + '" \u2014 DIRECTOR', colors.floatOverclock);
       return;
     }
     var mapData = state.maps[state.mapId];
@@ -390,26 +386,26 @@
         var modTypes = ['emp', 'cloak', 'scanner', 'overclock', 'firewall'];
         var modType = FA.pick(modTypes);
         var modDef = FA.lookup('modules', modType);
-        if (state.player.modules.length < 3) {
+        if (state.player.modules.length < combatCfg.moduleSlotLimit) {
           state.player.modules.push({ type: modType, name: modDef.name, color: modDef.color });
           FA.addFloat(ox + x * ts + ts / 2, oy + y * ts, modDef.name, modDef.color, 1000);
-        } else FA.addFloat(ox + x * ts + ts / 2, oy + y * ts, 'FULL', '#f44', 800);
+        } else FA.addFloat(ox + x * ts + ts / 2, oy + y * ts, 'FULL', colors.floatFull, 800);
         break;
       case 'reveal':
         var rExplored = mapData.explored;
         if (rExplored) for (var ry = 0; ry < rExplored.length; ry++) for (var rx = 0; rx < rExplored[ry].length; rx++) rExplored[ry][rx] = true;
-        FA.addFloat(ox + x * ts + ts / 2, oy + y * ts, 'MAP', '#0ff', 1000);
+        FA.addFloat(ox + x * ts + ts / 2, oy + y * ts, 'MAP', colors.moduleMap, 1000);
         break;
       case 'stun':
         var stunDef = FA.lookup('modules', 'emp');
-        var stunTurns = stunDef ? stunDef.stunTurns || 3 : 3;
+        var stunTurns = stunDef ? stunDef.stunTurns || combatCfg.stunTurnsDefault : combatCfg.stunTurnsDefault;
         for (var si = 0; si < mapData.entities.length; si++)
           if (mapData.entities[si].type === 'enemy') mapData.entities[si].stunTurns = (mapData.entities[si].stunTurns || 0) + stunTurns;
-        FA.addFloat(ox + x * ts + ts / 2, oy + y * ts, 'DISRUPT', '#ff0', 1000);
+        FA.addFloat(ox + x * ts + ts / 2, oy + y * ts, 'DISRUPT', colors.moduleDisrupt, 1000);
         break;
       case 'intel':
         var intelList = FA.lookup('config', 'terminals').intel;
-        Core.addSystemBubble('> ' + FA.pick(intelList), '#0ff');
+        Core.addSystemBubble('> ' + FA.pick(intelList), colors.moduleIntel);
         break;
     }
   }

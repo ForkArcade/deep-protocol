@@ -22,17 +22,19 @@
            FA.narrative.graphs['quest_' + npcId].currentNode === 'confidant';
   }
 
-  // === CONSTANTS ===
+  // === CONSTANTS (from config) ===
 
   var TILES = FA.lookup('config', 'dungeonTiles') || { floor: 0, wall: 1, stairsUp: 3, terminal: 4 };
   var FIND_EMPTY_MAX_ATTEMPTS = 200;
-  var BUBBLE_MAX_CHARS = 36;
-  var BUBBLE_FADE_STEPS = 5;
-  var BUBBLE_LINE_DELAY = 200;
-  var THOUGHT_FADE_STEPS = 5;
-  var THOUGHT_REVEAL_SPEED = 30;
-  var THOUGHT_COOLDOWN = 5;
-  var SOUND_ALERT_TIMER = 8;
+  var _bubCfg = FA.lookup('config', 'bubble') || {};
+  var _intCfg = FA.lookup('config', 'intervals') || {};
+  var BUBBLE_MAX_CHARS = _bubCfg.maxChars || 36;
+  var BUBBLE_FADE_STEPS = _bubCfg.fadeSteps || 5;
+  var BUBBLE_LINE_DELAY = _bubCfg.lineDelay || 200;
+  var THOUGHT_FADE_STEPS = _bubCfg.thoughtFadeSteps || 5;
+  var THOUGHT_REVEAL_SPEED = _bubCfg.thoughtRevealSpeed || 30;
+  var THOUGHT_COOLDOWN = _intCfg.thoughtCooldown || 5;
+  var SOUND_ALERT_TIMER = _bubCfg.soundAlertTimer || 8;
 
   function generateFloor(cols, rows, depth) {
     var cfg = FA.lookup('config', 'game');
@@ -40,7 +42,7 @@
     var digger = new ROT.Map.Digger(cols, rows, {
       roomWidth: [cfg.roomMinSize, cfg.roomMaxSize],
       roomHeight: [cfg.roomMinSize, cfg.roomMaxSize],
-      dugPercentage: 0.35 + depth * 0.03
+      dugPercentage: (FA.lookup('config', 'scaling') || {}).dungeonDigBase + depth * ((FA.lookup('config', 'scaling') || {}).dungeonDigPerDepth || 0.03)
     });
 
     var map = [];
@@ -575,6 +577,7 @@
   }
 
   function startCutscene(def, state) {
+    FA.playSound('cutscene');
     state.cutsceneReturn = state.screen;
     state.screen = 'cutscene';
     state.cutscene = {

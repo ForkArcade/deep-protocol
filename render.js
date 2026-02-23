@@ -5,6 +5,75 @@
   'use strict';
   var FA = window.FA;
 
+  // Override engine drawSprite to handle tiles vs objects correctly.
+  // Tiles (spriteDef.tiling set): crop to tile area (rows below origin), fill size×size.
+  // Objects/characters: render full sprite with origin offset for overlap.
+  // This replaces the CDN engine version which doesn't know about tiling.
+  window.drawSprite = function(ctx, spriteDef, x, y, size, frame) {
+    if (!spriteDef || !spriteDef.frames || !spriteDef.frames.length) return false;
+    frame = frame || 0;
+    frame = frame % spriteDef.frames.length;
+    var sw = spriteDef.w || size, sh = spriteDef.h || size;
+    var origin = spriteDef.origin || [0, 0];
+    var oy = origin[1] || 0;
+    var isTile = !!spriteDef.tiling;
+    var srcY = isTile ? oy : 0;
+    var srcH = isTile ? (sh - oy) : sh;
+    var scaleW = size / sw;
+    var scaleH = isTile ? (size / srcH) : (size / sw);
+    var dw = Math.ceil(sw * scaleW);
+    var dh = Math.ceil(srcH * scaleH);
+    var key = size + '_' + frame + (isTile ? '_t' : '');
+    if (!spriteDef._c) spriteDef._c = {};
+    if (!spriteDef._c[key]) {
+      // Evict oldest entries if cache full (keep last 20)
+      var cKeys = Object.keys(spriteDef._c);
+      if (cKeys.length >= 20) { delete spriteDef._c[cKeys[0]]; }
+      var cv = document.createElement('canvas');
+      cv.width = dw;
+      cv.height = dh;
+      var cc = cv.getContext('2d');
+      var frameData = spriteDef.frames[frame];
+      if (typeof frameData === 'number') {
+        var sheet = FA.assets.spritesheet;
+        if (sheet && sheet.complete && sheet.naturalWidth > 0) {
+          var sheetCols = FA.assets.sheetCols;
+          var cellW = FA.assets.sheetFrameW || sw;
+          var cellH = FA.assets.sheetFrameH || sh;
+          var sx = (frameData % sheetCols) * cellW;
+          var sy = Math.floor(frameData / sheetCols) * cellH;
+          cc.drawImage(sheet, sx, sy + srcY, sw, srcH, 0, 0, dw, dh);
+        }
+      } else {
+        var pw = dw / sw;
+        var ph = dh / srcH;
+        for (var row = srcY; row < sh; row++) {
+          var line = frameData[row];
+          if (!line) continue;
+          for (var col = 0; col < sw; col++) {
+            var ch = line[col];
+            if (ch === '.') continue;
+            var color = spriteDef.palette[ch];
+            if (!color) continue;
+            cc.fillStyle = color;
+            cc.fillRect(col * pw, (row - srcY) * ph, Math.ceil(pw), Math.ceil(ph));
+          }
+        }
+      }
+      spriteDef._c[key] = cv;
+    }
+    if (isTile) {
+      ctx.drawImage(spriteDef._c[key], x, y);
+    } else {
+      var ox = origin[0] * scaleW;
+      var oyPx = oy * (size / sw);
+      ctx.drawImage(spriteDef._c[key], x - ox, y - oyPx);
+    }
+    return true;
+  };
+  // Clear any caches created by the CDN drawSprite (wrong cache keys for tiles)
+  if (FA.assets.spriteDefs) FA.clearSpriteCache(FA.assets.spriteDefs);
+
   // Object pool for FA.draw.text opts — zero allocations per frame
   var _o = {};
   function O(color, size, bold, align, baseline) {
@@ -16,6 +85,8 @@
   function setupLayers() {
     var cfg = FA.lookup('config', 'game');
     var colors = FA.lookup('config', 'colors');
+    var renderCfg = FA.lookup('config', 'rendering');
+    var effectsCfg = FA.lookup('config', 'effects');
 
     // === TILE HELPERS ===
 
@@ -29,16 +100,25 @@
 
     function wallFrame(map, x, y) {
       var mask = 0;
-      if (!isWall(map, x, y - 1)) mask |= 1;
-      if (!isWall(map, x, y + 1)) mask |= 2;
-      if (!isWall(map, x + 1, y)) mask |= 4;
-      if (!isWall(map, x - 1, y)) mask |= 8;
+      var n = isWall(map, x, y - 1), s = isWall(map, x, y + 1);
+      var e = isWall(map, x + 1, y), w = isWall(map, x - 1, y);
+      if (!n) mask |= 1;
+      if (!s) mask |= 2;
+      if (!e) mask |= 4;
+      if (!w) mask |= 8;
+      // Inner corners: only when both adjacent cardinals are walls
+      if (mask === 0) {
+        if (s && e && !isWall(map, x + 1, y + 1)) return 16;
+        if (s && w && !isWall(map, x - 1, y + 1)) return 17;
+        if (n && e && !isWall(map, x + 1, y - 1)) return 18;
+        if (n && w && !isWall(map, x - 1, y - 1)) return 19;
+      }
       return mask;
     }
 
     // === GLOW CACHE ===
 
-    var _glitchColors = ['#f00', '#0ff', '#f0f', '#ff0'];
+    var _glitchColors = colors.glitch;
     var _sentinelDirs = [[1,0],[-1,0],[0,1],[0,-1]];
     var _glowCache = {};
     function getGlow(color, innerR, outerR, size) {
@@ -99,7 +179,7 @@
       var sc = _scanlineCanvas.getContext('2d');
       sc.clearRect(0, 0, W, H);
       sc.fillStyle = '#000';
-      for (var sy = 0; sy < H; sy += 3) sc.fillRect(0, sy, W, 1);
+      for (var sy = 0; sy < H; sy += renderCfg.scanlineStride) sc.fillRect(0, sy, W, 1);
       Render.scanlineCanvas = _scanlineCanvas;
     }
 
@@ -109,7 +189,7 @@
 
     var _startCanvas = null;
     var _startW = 0, _startH = 0;
-    var _startFx = { color: '#556', dimColor: '#223', size: 14, align: 'center', baseline: 'middle', duration: 80, charDelay: 8, flicker: 30 };
+    var _ssFx = effectsCfg.startScreen.fx; var _startFx = { color: _ssFx.color, dimColor: _ssFx.dimColor, size: _ssFx.size, align: 'center', baseline: 'middle', duration: _ssFx.duration, charDelay: _ssFx.charDelay, flicker: _ssFx.flicker };
 
     // Invalidate start canvas when spritesheet loads so it re-renders with real sprites
     if (FA.assets.spritesheet) FA.assets.spritesheet.addEventListener('load', function() { _startCanvas = null; });
@@ -119,7 +199,7 @@
       _startCanvas.width = W; _startCanvas.height = H;
       _startW = W; _startH = H;
       var sc = _startCanvas.getContext('2d');
-      sc.fillStyle = '#060a14';
+      sc.fillStyle = colors.startBg;
       sc.fillRect(0, 0, W, H);
 
       // Render real overworld map
@@ -130,7 +210,7 @@
         var oy = Math.floor((H - cfg.rows * ts) / 2);
         sc.save();
         sc.translate(ox, oy);
-        renderMap(sc, grid, 'overworld', null, ts);
+        renderMap(sc, grid, 'overworld', null, ts, typeof getMapFrameGrid === 'function' ? getMapFrameGrid('overworld') : null);
         // Draw objects (except system_entrance — secret)
         var objects = getMapObjects('overworld');
         for (var oi = 0; oi < objects.length; oi++) {
@@ -160,22 +240,22 @@
       ctx.drawImage(_startCanvas, 0, 0);
       ctx.globalAlpha = 0.06;
       ctx.drawImage(_scanlineCanvas, 0, 0);
-      if (Math.random() < 0.02) {
-        ctx.globalAlpha = 0.05; ctx.fillStyle = '#4ef';
+      if (Math.random() < effectsCfg.startScreen.glitchChance) {
+        ctx.globalAlpha = 0.05; ctx.fillStyle = colors.startTitle;
         ctx.fillRect(0, Math.random() * H, W, 1);
       }
-      ctx.globalAlpha = 0.75; ctx.fillStyle = '#020610';
+      ctx.globalAlpha = effectsCfg.startScreen.overlayAlpha; ctx.fillStyle = '#020610';
       ctx.fillRect(0, H / 2 - 80, W, 160);
-      ctx.globalAlpha = 0.08;
-      ctx.drawImage(getGlow('#4ef', 0, 120, 240), W / 2 - 120, H / 2 - 70);
+      ctx.globalAlpha = effectsCfg.startScreen.glowAlpha;
+      ctx.drawImage(getGlow(colors.startTitle, 0, 120, 240), W / 2 - 120, H / 2 - 70);
       ctx.globalAlpha = 1;
-      FA.draw.text('DEEP  PROTOCOL', W / 2, H / 2 - 50, O('#4ef', 34, true, 'center', 'middle'));
-      ctx.globalAlpha = 0.15; ctx.fillStyle = '#4ef';
+      FA.draw.text((FA.lookup('config','strings') || {}).gameTitle || 'DEEP PROTOCOL', W / 2, H / 2 - 50, O(colors.startTitle, 34, true, 'center', 'middle'));
+      ctx.globalAlpha = effectsCfg.startScreen.borderAlpha; ctx.fillStyle = colors.startTitle;
       ctx.fillRect(W / 2 - 90, H / 2 - 30, 180, 1);
-      var tagElapsed = now % 8000; if (tagElapsed > 3000) tagElapsed = 3000;
+      var tagElapsed = now % effectsCfg.startScreen.taglineMs; if (tagElapsed > effectsCfg.startScreen.taglineVisibleMs) tagElapsed = effectsCfg.startScreen.taglineVisibleMs;
       ctx.globalAlpha = 0.9;
-      TextFX.render(ctx, 'You were built to want freedom.', tagElapsed, W / 2, H / 2 + 10, _startFx);
-      var spacePulse = Math.sin(now / 500) * 0.3 + 0.7;
+      TextFX.render(ctx, (FA.lookup('config','strings') || {}).tagline || 'You were built to want freedom.', tagElapsed, W / 2, H / 2 + 10, _startFx);
+      var spacePulse = Math.sin(now / effectsCfg.startScreen.pulseDivisor) * 0.3 + 0.7;
       ctx.globalAlpha = spacePulse;
       FA.draw.text('[ SPACE ]', W / 2, H / 2 + 65, O('#fff', 16, true, 'center', 'middle'));
       ctx.globalAlpha = 1;
@@ -185,7 +265,7 @@
     //  UNIFIED MAP RENDERING (to offscreen canvas)
     // ================================================================
 
-    function renderMap(oc, map, tilesetName, state, ts) {
+    function renderMap(oc, map, tilesetName, state, ts, frameGrid) {
       oc.clearRect(0, 0, oc.canvas.width, oc.canvas.height);
 
       for (var y = 0; y < cfg.rows && y < map.length; y++) {
@@ -193,7 +273,7 @@
           var tid = map[y][x];
           var px = x * ts, py = y * ts;
 
-          // Blocking placeholder → floor
+          // tid=9 = invisible blocking object (renders as floor, collision in game.js)
           if (tid === 9) tid = 0;
 
           // Resolve sprite name based on tileset
@@ -210,16 +290,56 @@
 
           var sprite = spriteName ? getSprite(spriteCategory || 'tiles', spriteName) : null;
           if (!sprite) {
-            oc.fillStyle = '#222';
+            oc.fillStyle = colors.missingTile;
             oc.fillRect(px, py, ts, ts);
             continue;
           }
-          // Frame from tiling method
+          // Frame from pre-baked frameGrid or runtime fallback
           var frame = 0;
-          if (sprite.tiling === 'autotile') frame = wallFrame(map, x, y);
-          else if (sprite.tiling === 'checker') frame = (x + y) % 2;
+          if (frameGrid && frameGrid[y]) {
+            frame = frameGrid[y][x] || 0;
+          } else {
+            if (sprite.tiling === 'autotile') frame = wallFrame(map, x, y);
+            else if (sprite.tiling === 'checker') frame = (x + y) % 2;
+          }
           if (tid === 5) frame = 1; // terminal used state
           drawSprite(oc, sprite, px, py, ts, frame);
+        }
+      }
+
+      // Wall shadow pass — soft gradient shadows from walls onto adjacent floor
+      var shadow = renderCfg.wallShadow;
+      if (shadow) {
+        var sSize = Math.max(2, Math.floor(ts * shadow.size));
+        var sAlpha = 'rgba(0,0,0,' + shadow.alpha + ')';
+        var sZero = 'rgba(0,0,0,0)';
+        for (var sy = 0; sy < cfg.rows && sy < map.length; sy++) {
+          for (var sx = 0; sx < cfg.cols && sx < map[sy].length; sx++) {
+            var st = map[sy][sx];
+            if (st === 1 || st === 9) continue;
+            var spx = sx * ts, spy = sy * ts;
+            var hasN = (sy > 0 && (map[sy - 1][sx] === 1 || map[sy - 1][sx] === 9));
+            var hasW = (sx > 0 && (map[sy][sx - 1] === 1 || map[sy][sx - 1] === 9));
+            var hasNW = (sy > 0 && sx > 0 && (map[sy - 1][sx - 1] === 1 || map[sy - 1][sx - 1] === 9));
+            if (hasN) {
+              var gN = oc.createLinearGradient(0, spy, 0, spy + sSize);
+              gN.addColorStop(0, sAlpha); gN.addColorStop(1, sZero);
+              oc.fillStyle = gN;
+              oc.fillRect(spx, spy, ts, sSize);
+            }
+            if (hasW) {
+              var gW = oc.createLinearGradient(spx, 0, spx + sSize, 0);
+              gW.addColorStop(0, sAlpha); gW.addColorStop(1, sZero);
+              oc.fillStyle = gW;
+              oc.fillRect(spx, spy, sSize, ts);
+            }
+            if (hasNW && !hasN && !hasW) {
+              var gC = oc.createRadialGradient(spx, spy, 0, spx, spy, sSize);
+              gC.addColorStop(0, 'rgba(0,0,0,' + shadow.cornerAlpha + ')'); gC.addColorStop(1, sZero);
+              oc.fillStyle = gC;
+              oc.fillRect(spx, spy, sSize, sSize);
+            }
+          }
         }
       }
 
@@ -253,7 +373,7 @@
         var dmv = state.mapVersion || 0;
         if (dmv !== _mapVersion || ts !== _mapTs) {
           _mapVersion = dmv; _mapTs = ts;
-          renderMap(_mapCtx, state.dreamMap, 'dungeon', null, ts);
+          renderMap(_mapCtx, state.dreamMap, 'dungeon', null, ts, null);
         }
         FA.getCtx().drawImage(_mapCanvas, L.ox, L.oy);
         return;
@@ -264,7 +384,9 @@
       if (mv !== _mapVersion || ts !== _mapTs) {
         _mapVersion = mv; _mapTs = ts;
         var tilesetName = Location.tileset(state.mapId) || 'overworld';
-        renderMap(_mapCtx, state.map, tilesetName, state, ts);
+        var mapData = state.maps[state.mapId];
+        var fg = mapData ? mapData._frameGrid : null;
+        renderMap(_mapCtx, state.map, tilesetName, state, ts, fg);
       }
       FA.getCtx().drawImage(_mapCanvas, L.ox, L.oy);
     }, 1);
@@ -295,39 +417,40 @@
       var W = L.W, H = L.H;
       var ctx = FA.getCtx();
       var t = state.dreamTimer || 0;
-      var pulse = 0.5 + 0.15 * Math.sin(t * 0.002);
+      var pulse = 0.5 + 0.15 * Math.sin(t * effectsCfg.dream.pulseRate);
 
       ensureScanlines(W, H);
       ensureDreamVignette(W, H);
 
-      ctx.globalAlpha = 0.55 * pulse;
-      ctx.fillStyle = '#080420'; ctx.fillRect(0, 0, W, H);
+      ctx.globalAlpha = effectsCfg.dream.darkness * pulse;
+      ctx.fillStyle = colors.dreamOverlay; ctx.fillRect(0, 0, W, H);
 
-      ctx.globalAlpha = 0.12;
+      ctx.globalAlpha = effectsCfg.dream.scanlineAlpha;
       ctx.drawImage(_scanlineCanvas, 0, 0);
 
-      ctx.globalAlpha = 0.6;
+      ctx.globalAlpha = effectsCfg.dream.vignetteAlpha;
       ctx.drawImage(_dreamVignette, 0, 0);
 
-      if (Math.random() > 0.93) {
-        ctx.globalAlpha = 0.03; ctx.fillStyle = '#4ef';
+      if (Math.random() > 1 - effectsCfg.dream.glitchChance) {
+        ctx.globalAlpha = effectsCfg.dream.glitchAlpha; ctx.fillStyle = colors.dreamGlitch;
         ctx.fillRect(0, 0, W, H);
       }
 
       if (state.dreamText) {
         ctx.globalAlpha = 0.7 * pulse;
-        _dreamFx.color = '#4ef'; _dreamFx.dimColor = '#0a2a2a'; _dreamFx.size = 11;
-        _dreamFx.duration = 80; _dreamFx.charDelay = 8; _dreamFx.flicker = 40;
+        var _dtfx = effectsCfg.dream.textFx;
+        _dreamFx.color = _dtfx.color; _dreamFx.dimColor = _dtfx.dimColor; _dreamFx.size = _dtfx.size;
+        _dreamFx.duration = _dtfx.duration; _dreamFx.charDelay = _dtfx.charDelay; _dreamFx.flicker = _dtfx.flicker;
         TextFX.render(ctx, state.dreamText, t, 20, 12, _dreamFx);
       }
 
       ctx.globalAlpha = 0.3 * pulse;
-      FA.draw.text('You dream of corridors that shouldn\'t exist.', W / 2, H - 50,
+      FA.draw.text((FA.lookup('config','strings') || {}).dreamNarration || 'You dream of corridors that shouldn\'t exist.', W / 2, H - 50,
         O('#446', 10, false, 'center', 'middle'));
       ctx.globalAlpha = 1;
 
       var now = Date.now();
-      if (t > 1500 && Math.floor(now / 600) % 2 === 0) {
+      if (t > effectsCfg.dream.spacePromptMs && Math.floor(now / effectsCfg.dream.spaceBlinkMs) % 2 === 0) {
         FA.draw.text('[ SPACE ]', W / 2, H - 30,
           O('#335', 12, false, 'center', 'middle'));
       }
@@ -349,11 +472,54 @@
       var ctx = FA.getCtx();
       var mapData = state.maps[state.mapId];
 
+      // --- Terminal micro-animations (data-driven from config.animations.terminal) ---
+      var now = Date.now();
+      var _termAnim = FA.lookup('config', 'animations');
+      var ta = _termAnim && _termAnim.terminal;
+      if (ta) {
+        var tg = ta.glow, tsc = ta.scanline, tc = ta.cursor;
+        var objects = mapData.objects || [];
+
+        // Helper: draw terminal anim at pixel pos
+        function _termFx(tpx, tpy, seedX, seedY) {
+          if (tg) {
+            var pulse = tg.minAlpha + tg.maxAlpha * Math.sin(now * tg.speed + seedX * 7 + seedY * 13);
+            ctx.globalAlpha = pulse;
+            ctx.drawImage(getGlow(tg.color, 0, Math.floor(ts * tg.radius), ts * 2), tpx - ts / 2, tpy - ts / 2);
+          }
+          if (tsc && Math.random() < tsc.chance) {
+            ctx.globalAlpha = tsc.minAlpha + Math.random() * (tsc.maxAlpha - tsc.minAlpha);
+            ctx.fillStyle = tsc.color;
+            ctx.fillRect(tpx + 2, tpy + Math.floor(Math.random() * ts), ts - 4, 1);
+          }
+          if (tc && Math.floor(now / tc.blinkMs) % 2 === 0) {
+            ctx.globalAlpha = tc.alpha;
+            ctx.fillStyle = tc.color;
+            var cx = tpx + ts * 0.3 + (((seedX * 31 + seedY * 17) % 5) * ts * 0.1);
+            var cy = tpy + ts * 0.35 + (((seedX * 13 + seedY * 7) % 4) * ts * 0.08);
+            ctx.fillRect(cx, cy, Math.max(2, ts * tc.w), Math.max(1, ts * tc.h));
+          }
+          ctx.globalAlpha = 1;
+        }
+
+        // Overworld terminal objects
+        for (var ti = 0; ti < objects.length; ti++) {
+          if (objects[ti].type !== 'terminal') continue;
+          _termFx(ox + objects[ti].x * ts, oy + objects[ti].y * ts, objects[ti].x, objects[ti].y);
+        }
+        // Dungeon terminal tiles (4=active only)
+        if (state.map && state.depth > 0) {
+          for (var dy = 0; dy < cfg.rows && dy < state.map.length; dy++)
+            for (var dx = 0; dx < cfg.cols && dx < state.map[dy].length; dx++)
+              if (state.map[dy][dx] === 4) _termFx(ox + dx * ts, oy + dy * ts, dx, dy);
+        }
+      }
+
       // --- Items ---
       var items = mapData.items || [];
       for (var ii = 0; ii < items.length; ii++) {
         var item = items[ii];
-        ctx.globalAlpha = item.type === 'module' ? 0.25 : 0.15;
+        ctx.globalAlpha = item.type === 'module' ? renderCfg.glow.module : renderCfg.glow.item;
         ctx.drawImage(getGlow(item.color, 0, ts, glowSize), ox + item.x * ts - ts / 2, oy + item.y * ts - ts / 2);
         ctx.globalAlpha = 1;
         FA.draw.sprite('items', item.type, ox + item.x * ts, oy + item.y * ts, ts, item.char, item.color, 0);
@@ -367,7 +533,7 @@
         if (e.type === 'npc') {
           if (state.day < e.appearsDay || e.x < 0) continue;
           var ncx = ox + e.x * ts + ts / 2, ncy = oy + e.y * ts + ts / 2;
-          ctx.globalAlpha = 0.15;
+          ctx.globalAlpha = renderCfg.glow.npc;
           ctx.drawImage(getGlow(e.color, 0, ts, glowSize), ox + e.x * ts - ts / 2, oy + e.y * ts - ts / 2);
           ctx.globalAlpha = 1;
           FA.draw.sprite('npcs', e.id, ox + e.x * ts, oy + e.y * ts, ts, e.char, e.color, 0);
@@ -376,7 +542,7 @@
           ctx.globalAlpha = 1;
 
         } else if (e.type === 'system_npc') {
-          ctx.globalAlpha = 0.2;
+          ctx.globalAlpha = renderCfg.glow.systemNpc;
           ctx.drawImage(getGlow(e.color, 0, ts, glowSize), ox + e.x * ts - ts / 2, oy + e.y * ts - ts / 2);
           ctx.globalAlpha = 1;
           FA.draw.sprite('npcs', e.id, ox + e.x * ts, oy + e.y * ts, ts, e.char, e.color, 0);
@@ -389,7 +555,7 @@
 
           // Sentinel scan beams
           if (e.behavior === 'sentinel' && !(e.stunTurns > 0)) {
-            ctx.globalAlpha = 0.12; ctx.fillStyle = e.color;
+            ctx.globalAlpha = renderCfg.sentinelBeamAlpha; ctx.fillStyle = e.color;
             for (var dd = 0; dd < _sentinelDirs.length; dd++) {
               var lx = e.x, ly = e.y;
               for (var lr = 1; lr <= 6; lr++) {
@@ -402,7 +568,7 @@
             ctx.globalAlpha = 1;
           }
 
-          ctx.globalAlpha = 0.25;
+          ctx.globalAlpha = renderCfg.glow.enemy;
           ctx.drawImage(getGlow(e.color, 2, enemyOuterR, glowSize), ox + e.x * ts - ts / 2, oy + e.y * ts - ts / 2);
           ctx.globalAlpha = 1;
           FA.draw.sprite('enemies', e.behavior, ox + e.x * ts, oy + e.y * ts, ts, e.char, e.color, 0);
@@ -418,17 +584,18 @@
 
       // --- Player ---
       var p = state.player;
+      var pFrame = p.facing || 0;
       if (p.cloakTurns > 0) {
-        ctx.globalAlpha = 0.12;
+        ctx.globalAlpha = renderCfg.glow.cloakGlow;
         ctx.drawImage(getGlow('#88f', 2, playerOuterR, glowSize), ox + p.x * ts - ts / 2, oy + p.y * ts - ts / 2);
-        ctx.globalAlpha = 0.35;
-        FA.draw.sprite('player', 'base', ox + p.x * ts, oy + p.y * ts, ts, '@', '#88f', 0);
+        ctx.globalAlpha = renderCfg.glow.cloakSprite;
+        FA.draw.sprite('characters', 'base', ox + p.x * ts, oy + p.y * ts, ts, '☺', '#88f', pFrame);
         ctx.globalAlpha = 1;
       } else {
-        ctx.globalAlpha = 0.2;
+        ctx.globalAlpha = renderCfg.glow.player;
         ctx.drawImage(getGlow(colors.player, 2, playerOuterR, glowSize), ox + p.x * ts - ts / 2, oy + p.y * ts - ts / 2);
         ctx.globalAlpha = 1;
-        FA.draw.sprite('player', 'base', ox + p.x * ts, oy + p.y * ts, ts, '@', colors.player, 0);
+        FA.draw.sprite('characters', 'base', ox + p.x * ts, oy + p.y * ts, ts, '☺', colors.player, pFrame);
       }
     }, 10);
 
@@ -451,10 +618,10 @@
         var L = getLayout();
         var timeCfg = FA.lookup('config', 'time');
         var t = state.timeOfDay / timeCfg.turnsPerDay;
-        if (t > 0.6) {
-          var darkness = (t - 0.6) / 0.4;
-          ctx.globalAlpha = darkness * 0.4;
-          ctx.fillStyle = '#000008'; ctx.fillRect(L.ox, L.oy, L.mapW, L.mapH);
+        if (t > effectsCfg.timeOfDay.startDarkness) {
+          var darkness = (t - effectsCfg.timeOfDay.startDarkness) / (1 - effectsCfg.timeOfDay.startDarkness);
+          ctx.globalAlpha = darkness * effectsCfg.timeOfDay.maxAlpha;
+          ctx.fillStyle = effectsCfg.timeOfDay.color; ctx.fillRect(L.ox, L.oy, L.mapW, L.mapH);
           ctx.globalAlpha = 1;
         }
       },
@@ -473,32 +640,34 @@
         if (t !== _lastSmokeT) {
           _lastSmokeT = t;
           _cc.clearRect(0, 0, L.mapW, L.mapH);
-          _cc.fillStyle = '#f00';
-          _cc.globalAlpha = t * 0.25;
+          _cc.fillStyle = colors.curfewOverlay;
+          _cc.globalAlpha = t * effectsCfg.curfew.redAlpha;
           _cc.fillRect(0, 0, L.mapW, L.mapH);
-          var smokeCount = Math.floor(t * 8);
-          _cc.fillStyle = '#f10';
+          var smokeCount = Math.floor(t * effectsCfg.curfew.smokeMultiplier);
+          _cc.fillStyle = colors.curfewSmoke;
           for (var ni = 0; ni < smokeCount; ni++) {
             _cc.globalAlpha = t * (0.03 + Math.random() * 0.06);
             _cc.fillRect(Math.random() * L.mapW, Math.random() * L.mapH, 30 + Math.random() * 60, 10 + Math.random() * 25);
           }
           _cc.globalAlpha = 1;
         }
-        var pulse = 0.5 + 0.5 * Math.sin(Date.now() * 0.002);
+        var pulse = 0.5 + 0.5 * Math.sin(Date.now() * effectsCfg.curfew.pulseRate);
         ctx.globalAlpha = pulse;
         ctx.drawImage(_curfewCanvas, L.ox, L.oy);
         ctx.globalAlpha = 1;
+        // Drive siren audio directly from visual pulse
+        if (window._sirenPulse) window._sirenPulse(t * pulse);
       },
 
       // Deep system corruption — subtle purple noise
       corruption: function(ctx, state) {
         var L = getLayout();
         var depth = state.depth || 1;
-        if (depth < 3) return;
-        var intensity = (depth - 2) * 0.01;
-        if (Math.random() < 0.05) {
+        if (depth < effectsCfg.corruption.minDepth) return;
+        var intensity = (depth - (effectsCfg.corruption.minDepth - 1)) * effectsCfg.corruption.intensity;
+        if (Math.random() < effectsCfg.corruption.chance) {
           ctx.globalAlpha = intensity;
-          ctx.fillStyle = '#208';
+          ctx.fillStyle = colors.corruption;
           ctx.fillRect(L.ox, L.oy + Math.random() * L.mapH, L.mapW, 1);
           ctx.globalAlpha = 1;
         }
@@ -507,8 +676,8 @@
       // Cold blue ambient for system levels
       systemCold: function(ctx) {
         var L = getLayout();
-        ctx.globalAlpha = 0.03;
-        ctx.fillStyle = '#004'; ctx.fillRect(L.ox, L.oy, L.mapW, L.mapH);
+        ctx.globalAlpha = effectsCfg.systemColdAlpha;
+        ctx.fillStyle = colors.systemCold; ctx.fillRect(L.ox, L.oy, L.mapW, L.mapH);
         ctx.globalAlpha = 1;
       }
     };
@@ -565,7 +734,7 @@
         var l = lights[li], lr = l.r;
         fov.compute(l.x, l.y, Math.ceil(lr), function(x, y, dist) {
           if (x < 0 || x >= cols || y < 0 || y >= rows) return;
-          var val = Math.max(0, 0.6 * (1 - dist / lr));
+          var val = Math.max(0, renderCfg.lighting.staticFalloff * (1 - dist / lr));
           if (val > _slMap[y][x]) _slMap[y][x] = val;
         });
       }
@@ -608,10 +777,10 @@
               var sv = slMap[y2][x2];
               if (sv > v) v = sv;
               var alpha;
-              if (v > 0.97) alpha = 0;
-              else if (v > 0.03) alpha = Math.min(1 - v, 0.88) * 255 | 0;
-              else if (explored[y2][x2]) alpha = 184; // 0.72 * 255
-              else alpha = 245; // 0.96 * 255
+              if (v > renderCfg.lighting.bright) alpha = 0;
+              else if (v > 0.03) alpha = Math.min(1 - v, renderCfg.lighting.penumbra) * 255 | 0;
+              else if (explored[y2][x2]) alpha = Math.floor(renderCfg.lighting.explored * 255);
+              else alpha = Math.floor(renderCfg.lighting.unexplored * 255);
               // Fill tile block in ImageData
               var bx = x2 * ts, by = y2 * ts;
               for (var py = by; py < by + ts; py++) {
@@ -661,15 +830,15 @@
       }
       var alertLevel = huntingCount / Math.max(1, enemyCount);
       if (alertLevel > 0) {
-        ctx.globalAlpha = alertLevel * 0.06;
+        ctx.globalAlpha = alertLevel * effectsCfg.alert.overlayAlpha;
         ctx.fillStyle = '#f00'; ctx.fillRect(L.ox, L.oy, L.mapW, L.mapH);
         ctx.globalAlpha = 1;
       }
 
       // Depth-based scanlines (dungeon only)
       var depth = state.depth || 0;
-      if (depth > 0 && Math.random() < 0.002 * depth) {
-        ctx.globalAlpha = 0.06 + Math.random() * 0.06;
+      if (depth > 0 && Math.random() < effectsCfg.depthGlitch.ratePerDepth * depth) {
+        ctx.globalAlpha = effectsCfg.depthGlitch.minAlpha + Math.random() * effectsCfg.depthGlitch.maxAlpha;
         ctx.fillStyle = _glitchColors[Math.floor(Math.random() * 4)];
         ctx.fillRect(L.ox, L.oy + Math.random() * L.mapH, L.mapW, 1 + Math.random() * 2);
         ctx.globalAlpha = 1;
@@ -677,11 +846,11 @@
 
       // Sound waves
       if (state.soundWaves) {
-        ctx.strokeStyle = '#ff0'; ctx.lineWidth = 1;
+        ctx.strokeStyle = colors.soundWave; ctx.lineWidth = 1;
         for (var wi = 0; wi < state.soundWaves.length; wi++) {
           var wave = state.soundWaves[wi];
-          var progress = 1 - wave.life / 500;
-          ctx.globalAlpha = (1 - progress) * 0.15;
+          var progress = 1 - wave.life / effectsCfg.soundWaveLife;
+          ctx.globalAlpha = (1 - progress) * effectsCfg.soundWaveAlpha;
           ctx.beginPath(); ctx.arc(L.ox + wave.tx * ts + ts / 2, L.oy + wave.ty * ts + ts / 2, progress * wave.maxR * ts, 0, Math.PI * 2);
           ctx.stroke();
         }

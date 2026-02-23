@@ -9,6 +9,7 @@
     "game.js",
     "render.js",
     "render-ui.js",
+    "audio.js",
     "main.js"
   ],
   "slug": "deep-protocol",

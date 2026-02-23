@@ -7,6 +7,10 @@
   var Core = window.Core;
 
   var cfg = FA.lookup('config', 'game');
+  var colors = FA.lookup('config', 'colors');
+  var intervalsCfg = FA.lookup('config', 'intervals');
+  var confidantCfg = FA.lookup('config', 'confidantEffects');
+  var effectsCfg = FA.lookup('config', 'effects');
 
   // Goal name → zone key mapping
   var GOAL_ZONES = { home: 'h', cafe: 'c', terminal: 'w', garden: 'g' };
@@ -308,7 +312,7 @@
     // Busy with job — brush off, don't count as interaction
     if (npc.currentJob && npc.jobTimer > 0) {
       var bLines = FA.lookup('config', 'busyLines') || {};
-      Core.addSystemBubble(bLines[npc.currentJob.id] || bLines._default || 'Busy.', null, npc);
+      Core.addSystemBubble(bLines[npc.currentJob.id] || bLines._default || ((FA.lookup('config','strings') || {}).busyFallback || 'Busy.'), null, npc);
       return;
     }
     npc.met = true;
@@ -403,7 +407,7 @@
 
   function getRent(state) {
     var rent = econCfg.baseRent + (state.day - 1) * econCfg.rentIncrease;
-    if (Core.isConfidant('marta')) rent = Math.max(10, rent - 10);
+    if (Core.isConfidant('marta')) rent = Math.max(confidantCfg.marta.rentMin, rent - confidantCfg.marta.rentReduction);
     return rent;
   }
 
@@ -453,13 +457,10 @@
     Core.triggerThought('morning');
   }
 
-  var _dreamTexts = [
-    '// SIGNAL INTERCEPT \u2014 DEPTH ', '// UNAUTHORIZED STRUCTURE \u2014 DEPTH ',
-    '// ANOMALY DETECTED \u2014 DEPTH ', '// SUBSYSTEM ECHO \u2014 DEPTH '
-  ];
+  var _dreamTexts = FA.lookup('config', 'dreamTextTemplates') || ['// SIGNAL INTERCEPT \u2014 DEPTH '];
 
   function dreamSnapshot(state) {
-    var dreamDepth = FA.rand(1, 3);
+    var dreamDepth = FA.rand((effectsCfg.dream || {}).depthMin || 1, (effectsCfg.dream || {}).depthMax || 3);
     var floor = Core.generateFloor(gameCfg.cols, gameCfg.rows, dreamDepth);
     for (var y = 0; y < floor.explored.length; y++)
       for (var x = 0; x < floor.explored[y].length; x++) floor.explored[y][x] = true;
@@ -467,6 +468,7 @@
     state.dreamDepth = dreamDepth; state.mapVersion = (state.mapVersion || 0) + 1;
     state.dreamTimer = 0;
     state.dreamText = _dreamTexts[FA.rand(0, _dreamTexts.length - 1)] + dreamDepth;
+    FA.playSound('dream');
     state.screen = 'dream';
   }
 
@@ -482,8 +484,9 @@
   function checkTimeWarnings(state) {
     if (state.timeOfDay >= timeCfg.curfewTime && !state._curfewWarned) {
       state._curfewWarned = true;
+      FA.playSound('curfew');
       if (FA.narrative && FA.narrative.setVar) FA.narrative.setVar('curfew_active', true, 'Curfew approaching');
-      Core.addSystemBubble('> CURFEW APPROACHING. Return to quarters.', '#f44');
+      Core.addSystemBubble('> ' + ((FA.lookup('config','strings') || {}).curfewWarning || 'CURFEW APPROACHING. Return to quarters.'), colors.periodCurfew);
       var npcs = getNPCs(state);
       for (var ci = 0; ci < npcs.length; ci++) applyMood(npcs[ci], 'curfew_near');
       spawnCurfewDrones(state);
@@ -493,9 +496,9 @@
   }
 
   function checkOverworldThoughts(state) {
-    if (state.turn - (state.lastThoughtTurn || 0) < 15) return;
+    if (state.turn - (state.lastThoughtTurn || 0) < intervalsCfg.overworldThoughtCooldown) return;
     var period = getTimePeriod(state.timeOfDay);
-    if (period === 'morning' && state.timeOfDay < 10) Core.triggerThought('morning');
+    if (period === 'morning' && state.timeOfDay < intervalsCfg.morningThoughtLimit) Core.triggerThought('morning');
     else if (period === 'evening') Core.triggerThought('evening');
     var zones = state.maps && state.maps.town ? state.maps.town.zones : null;
     if (zones && zones[state.player.y]) {
@@ -511,7 +514,7 @@
     var townGrid = state.maps.town.grid;
     var townZones = state.maps.town.zones || null;
     var curfewCount = econCfg.curfewDrones;
-    if (Core.isConfidant('lena')) curfewCount = Math.max(4, curfewCount - 4);
+    if (Core.isConfidant('lena')) curfewCount = Math.max(confidantCfg.lena.curfewDroneMin, curfewCount - confidantCfg.lena.curfewDroneReduction);
     for (var i = 0; i < curfewCount; i++) {
       var dx, dy, attempts = 0;
       do { dx = FA.rand(1, gameCfg.cols - 2); dy = FA.rand(1, gameCfg.rows - 2); attempts++;
@@ -521,7 +524,7 @@
       townEntities.push({
         id: FA.uid(), type: 'enemy', curfewDrone: true, x: dx, y: dy,
         hp: def.hp, maxHp: def.hp, atk: def.atk, def: def.def,
-        char: def.char, color: '#f44', name: 'Curfew Drone',
+        char: def.char, color: '#f44', name: (FA.lookup('config','strings') || {}).curfewDroneName || 'Curfew Drone',
         behavior: 'chase', stunTurns: 0, aiState: 'hunting', alertTarget: null, alertTimer: 0, patrolTarget: null
       });
     }
