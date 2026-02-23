@@ -1,6 +1,16 @@
 {
   "template": "roguelike",
-  "engineFiles": ["fa-engine.js", "fa-renderer.js", "fa-input.js", "fa-ui.js", "fa-audio.js", "fa-textfx.js", "fa-narrative.js", "lib/rot.min.js", "skins/cyber.js"],
+  "engineFiles": [
+    "fa-engine.js",
+    "fa-renderer.js",
+    "fa-input.js",
+    "fa-ui.js",
+    "fa-audio.js",
+    "fa-textfx.js",
+    "fa-narrative.js",
+    "lib/rot.min.js",
+    "skins/cyber.js"
+  ],
   "gameFiles": [
     "data.js",
     "core.js",
@@ -14,13 +24,19 @@
   ],
   "slug": "deep-protocol",
   "title": "Deep Protocol",
-  "currentVersion": 3,
+  "currentVersion": 4,
   "versions": [
     {
       "version": 3,
       "date": "2026-02-16",
       "issue": null,
-      "description": "Unified rot.js engine — ROT.Map.Digger, ROT.Path.AStar, ROT.FOV.PreciseShadowcasting"
+      "description": "Unified rot.js engine \u2014 ROT.Map.Digger, ROT.Path.AStar, ROT.FOV.PreciseShadowcasting"
+    },
+    {
+      "version": 4,
+      "date": "2026-02-23",
+      "issue": null,
+      "description": "Published v4"
     }
   ],
   "sdkVersion": 1,
