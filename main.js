@@ -9,7 +9,7 @@
   var canvasEl = document.getElementById('game');
   FA.initCanvas('game', canvasEl.width || 800, canvasEl.height || 600);
 
-  // Keybindings
+  // Keybindings (still needed for FA.isAction/isHeld in update loop)
   FA.bindKey('up',    ['ArrowUp',    'w']);
   FA.bindKey('down',  ['ArrowDown',  's']);
   FA.bindKey('left',  ['ArrowLeft',  'a']);
@@ -20,47 +20,44 @@
   FA.bindKey('mod2', ['2']);
   FA.bindKey('mod3', ['3']);
 
-  // Input handling
-  FA.on('input:action', function(data) {
+  // Input — direct keydown (FA event bus broken on platform)
+  var _keyMap = {
+    'ArrowUp': 'up', 'w': 'up',
+    'ArrowDown': 'down', 's': 'down',
+    'ArrowLeft': 'left', 'a': 'left',
+    'ArrowRight': 'right', 'd': 'right',
+    ' ': 'start', 'Enter': 'start',
+    'r': 'restart',
+    '1': 'mod1', '2': 'mod2', '3': 'mod3'
+  };
+
+  document.addEventListener('keydown', function(e) {
+    var action = _keyMap[e.key];
+    if (!action) return;
     var state = FA.getState();
 
-    // Start screen
-    if (state.screen === 'start' && data.action === 'start') {
-      Game.begin();
-      return;
+    if (state.screen === 'start' && action === 'start') {
+      e.preventDefault(); Game.begin(); return;
     }
-
-    // Cutscene — Space to skip/dismiss
-    if (state.screen === 'cutscene' && data.action === 'start') {
-      Game.dismissCutscene();
-      return;
+    if (state.screen === 'cutscene' && action === 'start') {
+      e.preventDefault(); Game.dismissCutscene(); return;
     }
-
-    // Dream — Space to dismiss
-    if (state.screen === 'dream' && data.action === 'start') {
-      Game.dismissDream();
-      return;
+    if (state.screen === 'dream' && action === 'start') {
+      e.preventDefault(); Game.dismissDream(); return;
     }
-
-    // Game over screens
-    if ((state.screen === 'victory' || state.screen === 'shutdown') && data.action === 'restart') {
-      Game.start();
-      return;
+    if ((state.screen === 'victory' || state.screen === 'shutdown') && action === 'restart') {
+      e.preventDefault(); Game.start(); return;
     }
-
-    // All gameplay (town + dungeon)
     if (state.screen !== 'playing') return;
+    e.preventDefault();
 
-    // Choice menu active — W/S navigate, Space confirms
     if (state.choiceMenu) {
-      if (data.action === 'up') { Game.choiceUp(); return; }
-      if (data.action === 'down') { Game.choiceDown(); return; }
-      if (data.action === 'start') { Game.confirmChoice(); return; }
+      if (action === 'up') Game.choiceUp();
+      else if (action === 'down') Game.choiceDown();
+      else if (action === 'start') Game.confirmChoice();
       return;
     }
-
-    // Dismiss bubbles/thoughts or interact
-    if (data.action === 'start') {
+    if (action === 'start') {
       if ((state.thoughts && state.thoughts.length > 0) || state.systemBubble) {
         Game.dismissBubbles();
       } else {
@@ -68,8 +65,7 @@
       }
       return;
     }
-
-    switch (data.action) {
+    switch (action) {
       case 'up':    Game.movePlayer(0, -1); break;
       case 'down':  Game.movePlayer(0, 1);  break;
       case 'left':  Game.movePlayer(-1, 0); break;
@@ -173,12 +169,10 @@
     if (!state.maps) return;
     var mapDefs = e.detail;
     if (!mapDefs) return;
-    // Look for 'overworld' key (matches town map)
     if (mapDefs.overworld && mapDefs.overworld.grid) {
       var grid = mapDefs.overworld.grid.map(function(row) {
         return row.split('').map(Number);
       });
-      // Bake blocking objects into grid as tile 9
       var objects = mapDefs.overworld.objects || [];
       for (var bi = 0; bi < objects.length; bi++) {
         if (objects[bi].blocking) {
