@@ -5,6 +5,23 @@
   'use strict';
   var FA = window.FA;
 
+  // === LOCATION API ===
+  function _locGet(mapId) { return FA.lookup('locations', mapId) || null; }
+  var Location = {
+    get: _locGet,
+    tileset: function(m) { var l = _locGet(m); return l ? l.tileset : null; },
+    hasEffect: function(m, n) { var l = _locGet(m); if (!l || !l.effects) return false; for (var i = 0; i < l.effects.length; i++) if (l.effects[i] === n) return true; return false; },
+    hasFeature: function(m, n) { var l = _locGet(m); if (!l || !l.features) return false; for (var i = 0; i < l.features.length; i++) if (l.features[i] === n) return true; return false; },
+    depth: function(m) { if (!m) return 0; var r = m.match(/system_d(\d+)/); return r ? parseInt(r[1], 10) : 0; },
+    isSystem: function(m) { return m && m.indexOf('system_') === 0; }
+  };
+  window.Location = Location;
+
+  function isConfidant(npcId) {
+    return FA.narrative && FA.narrative.graphs['quest_' + npcId] &&
+           FA.narrative.graphs['quest_' + npcId].currentNode === 'confidant';
+  }
+
   // === CONSTANTS ===
 
   var TILES = FA.lookup('config', 'dungeonTiles') || { floor: 0, wall: 1, stairsUp: 3, terminal: 4 };
@@ -16,10 +33,6 @@
   var THOUGHT_REVEAL_SPEED = 30;
   var THOUGHT_COOLDOWN = 5;
   var SOUND_ALERT_TIMER = 8;
-
-  // ============================================================
-  //  MAP GENERATION (rot.js)
-  // ============================================================
 
   function generateFloor(cols, rows, depth) {
     var cfg = FA.lookup('config', 'game');
@@ -113,10 +126,6 @@
     return tile !== TILES.wall && tile !== TILES.blocking;
   }
 
-  // ============================================================
-  //  MAP REGISTRY
-  // ============================================================
-
   function changeMap(targetMapId, spawnX, spawnY) {
     var state = FA.getState();
     state.mapId = targetMapId;
@@ -138,10 +147,6 @@
     }
     return null;
   }
-
-  // ============================================================
-  //  FOV (rot.js)
-  // ============================================================
 
   var _fovMapVersion = -1;
   var _fovMap = null;
@@ -180,10 +185,6 @@
     return _vis;
   }
 
-  // ============================================================
-  //  PATHFINDING (rot.js)
-  // ============================================================
-
   var _pathMap = null, _pathBuf = [];
   function _passable(x, y) { return isWalkable(_pathMap, x, y); }
   function _collect(x, y) { _pathBuf.push({ x: x, y: y }); }
@@ -193,10 +194,6 @@
     new ROT.Path.AStar(toX, toY, _passable, { topology: 4 }).compute(fromX, fromY, _collect);
     return _pathBuf;
   }
-
-  // ============================================================
-  //  POPULATE FLOOR
-  // ============================================================
 
   function populateFloor(map, rooms, depth) {
     var gameCfg = FA.lookup('config', 'game');
@@ -347,10 +344,6 @@
     return { entities: entities, items: items, occupied: occupied };
   }
 
-  // ============================================================
-  //  OVERWORLD MAP PARSING
-  // ============================================================
-
   function parseOverworldMap() {
     var grid = getMapGrid('overworld');
     if (!grid) return [];
@@ -373,10 +366,6 @@
     }
     return null;
   }
-
-  // ============================================================
-  //  AI MOVEMENT HELPERS (unified collision)
-  // ============================================================
 
   function hasLOS(map, x1, y1, x2, y2) {
     var dx = Math.abs(x2 - x1), dy = Math.abs(y2 - y1);
@@ -509,10 +498,6 @@
     if (state.soundWaves) state.soundWaves.push({ tx: x, ty: y, maxR: radius, life: 500 });
   }
 
-  // ============================================================
-  //  BUBBLE / THOUGHT QUEUE SYSTEM
-  // ============================================================
-
   function _createSystemBubble(state, text, color, source) {
     var bubbleColor = source ? source.color : (color || '#4ef');
     var fullText = source ? source.name + ': "' + text + '"' : text;
@@ -573,10 +558,6 @@
     }
   }
 
-  // ============================================================
-  //  NARRATIVE HELPERS
-  // ============================================================
-
   function showNarrative(graphId, nodeId) {
     if (FA.narrative && FA.narrative.transition) FA.narrative.transition(graphId, nodeId);
     var narText = FA.lookup('narrativeText', nodeId);
@@ -614,10 +595,6 @@
     }
   }
 
-  // ============================================================
-  //  EXPORTS
-  // ============================================================
-
   window.Core = {
     // Map generation
     generateFloor: generateFloor,
@@ -649,6 +626,7 @@
     showNarrative: showNarrative,
     selectDialogue: selectDialogue,
     startCutscene: startCutscene,
-    triggerEnding: triggerEnding
+    triggerEnding: triggerEnding,
+    isConfidant: isConfidant
   };
 })();

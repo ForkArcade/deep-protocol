@@ -11,6 +11,66 @@
   var econCfg = FA.lookup('config', 'economy');
   var timeCfg = FA.lookup('config', 'time');
 
+  // --- Memories (meta-progression) ---
+  function _checkMilestones(mem) {
+    var memCfg = FA.lookup('config', 'memories');
+    if (!memCfg || !memCfg.milestones) return [];
+    var active = [];
+    for (var i = 0; i < memCfg.milestones.length; i++) {
+      var m = memCfg.milestones[i], val = mem[m.field], met = false;
+      if (m.op === 'gte') met = (typeof val === 'number') && val >= m.value;
+      else if (m.op === 'eq') met = val === m.value;
+      else if (m.op === 'has') met = Array.isArray(val) && val.indexOf(m.value) !== -1;
+      if (met) active.push(m);
+    }
+    return active;
+  }
+
+  function applyMemories(state) {
+    var memCfg = FA.lookup('config', 'memories');
+    if (!memCfg) return;
+    var mem;
+    try { mem = JSON.parse(localStorage.getItem(memCfg.storageKey)); } catch(e) { mem = null; }
+    if (!mem || !mem.totalRuns) return;
+    var active = _checkMilestones(mem);
+    if (active.length === 0) return;
+    for (var i = 0; i < active.length; i++) {
+      var bonus = active[i].bonus;
+      if (bonus.type === 'credits') state.credits += bonus.value;
+      else if (bonus.type === 'atk') state.player.atk += bonus.value;
+      else if (bonus.type === 'def') state.player.def += bonus.value;
+      else if (bonus.type === 'maxHp') { state.player.maxHp += bonus.value; state.player.hp += bonus.value; }
+      else if (bonus.type === 'relationship' && FA.narrative && FA.narrative.setVar)
+        FA.narrative.setVar(bonus.npc + '_interactions', bonus.value, bonus.npc + ' remembers');
+      else if (bonus.type === 'systemReveal') {
+        state.systemRevealed = true;
+        if (FA.narrative && FA.narrative.setVar) FA.narrative.setVar('system_revealed', true, 'Memory: system revealed');
+      }
+    }
+    state._activeMemories = active;
+    Core.addThought(memCfg.startThought);
+  }
+
+  function saveMemories(state, victory) {
+    var memCfg = FA.lookup('config', 'memories');
+    if (!memCfg) return;
+    var key = memCfg.storageKey, mem;
+    try { mem = JSON.parse(localStorage.getItem(key)) || {}; } catch(e) { mem = {}; }
+    mem.maxDepth = Math.max(mem.maxDepth || 0, state.depth || 0);
+    mem.totalRuns = (mem.totalRuns || 0) + 1;
+    mem.totalKills = (mem.totalKills || 0) + (state.totalKills || 0) + (state.player ? state.player.kills : 0);
+    if (victory && state.endingNode === 'revelation') mem.bossDefeated = true;
+    if (!mem.confidants) mem.confidants = [];
+    var npcIds = ['lena', 'victor', 'marta', 'emil'];
+    for (var i = 0; i < npcIds.length; i++) {
+      var graph = FA.narrative && FA.narrative.graphs ? FA.narrative.graphs['quest_' + npcIds[i]] : null;
+      if (graph && graph.currentNode === 'confidant' && mem.confidants.indexOf(npcIds[i]) === -1)
+        mem.confidants.push(npcIds[i]);
+    }
+    try { localStorage.setItem(key, JSON.stringify(mem)); } catch(e) {}
+    state._activeMemories = _checkMilestones(mem);
+  }
+
   function getPlayerStart() {
     if (typeof getMap === 'function') { var md = getMap('overworld'); if (md && md.playerStart) return md.playerStart; }
     return { x: 13, y: 1 };
@@ -22,10 +82,6 @@
   var _onVarChanged = null;
   var _onTransition = null;
 
-  // ============================================================
-  //  GAME START
-  // ============================================================
-
   function startGame() {
     FA.resetState({ screen: 'start' });
     FA.clearEffects();
@@ -33,31 +89,21 @@
 
   function _registerNarrative(narData) {
     FA.narrative.init(narData);
-    var id;
-    var behaviors = narData.behaviors || {};
-    for (id in behaviors) FA.register('behaviors', id, behaviors[id]);
-    var dialogues = narData.dialogues || {};
-    for (id in dialogues) FA.register('dialogues', id, dialogues[id]);
-    var thoughts = narData.thoughts || {};
-    for (id in thoughts) FA.register('thoughts', id, thoughts[id]);
-    var cutscenes = narData.cutscenes || {};
-    for (id in cutscenes) FA.register('cutscenes', id, cutscenes[id]);
+    var id, d;
+    // Dict registrations: key = registry name
+    var dicts = ['behaviors', 'dialogues', 'thoughts', 'cutscenes', 'narrativeText',
+                 'relationshipEffects', 'actors', 'locations', 'npcs', 'enemies', 'items', 'modules'];
+    for (var di = 0; di < dicts.length; di++) {
+      d = narData[dicts[di]] || {};
+      for (id in d) FA.register(dicts[di], id, d[id]);
+    }
+    // Singleton config registrations
+    var configs = ['needs', 'jobs', 'moods', 'cafe', 'garden', 'busyLines',
+                   'moodDialogues', 'memories', 'systemComms', 'terminals', 'spawner'];
+    for (var ci = 0; ci < configs.length; ci++)
+      if (narData[configs[ci]]) FA.register('config', configs[ci], narData[configs[ci]]);
     if (narData.notices) FA.register('notices', 'board', narData.notices);
     if (narData.director) FA.register('config', 'director', narData.director);
-    var narrativeText = narData.narrativeText || {};
-    for (id in narrativeText) FA.register('narrativeText', id, narrativeText[id]);
-    var relEffects = narData.relationshipEffects || {};
-    for (id in relEffects) FA.register('relationshipEffects', id, relEffects[id]);
-    var actors = narData.actors || {};
-    for (id in actors) FA.register('actors', id, actors[id]);
-    if (narData.needs) FA.register('config', 'needs', narData.needs);
-    if (narData.jobs) FA.register('config', 'jobs', narData.jobs);
-    if (narData.moods) FA.register('config', 'moods', narData.moods);
-    if (narData.cafe) FA.register('config', 'cafe', narData.cafe);
-    if (narData.garden) FA.register('config', 'garden', narData.garden);
-    if (narData.busyLines) FA.register('config', 'busyLines', narData.busyLines);
-    if (narData.moodDialogues) FA.register('config', 'moodDialogues', narData.moodDialogues);
-    if (narData.memories) FA.register('config', 'memories', narData.memories);
   }
 
   function beginPlaying() {
@@ -182,17 +228,13 @@
     FA.on('narrative:transition', _onTransition);
 
     // Apply memories from previous runs
-    Memories.apply(FA.getState());
+    applyMemories(FA.getState());
 
     NPC.updateNPCPositions(FA.getState());
     var wakeCs = FA.lookup('cutscenes', 'wake');
     if (wakeCs) Core.startCutscene(wakeCs, FA.getState());
     Core.triggerThought('morning');
   }
-
-  // ============================================================
-  //  MOVEMENT
-  // ============================================================
 
   function movePlayer(dx, dy) {
     var state = FA.getState();
@@ -237,14 +279,10 @@
     }
 
     if (tile === 3 && Location.isSystem(state.mapId)) { exitSystem('cleared'); return; }
-    if (tile === 4 && Location.isSystem(state.mapId)) Systems.hackTerminal(nx, ny, state);
+    if (tile === 4 && Location.isSystem(state.mapId)) Combat.hackTerminal(nx, ny, state);
 
     endTurn();
   }
-
-  // ============================================================
-  //  INTERACT
-  // ============================================================
 
   function interact() {
     var state = FA.getState();
@@ -266,14 +304,14 @@
       }
       state.timeOfDay += 2;
       state.turn += 2;
-      DayCycle.checkTimeWarnings(state);
+      NPC.checkTimeWarnings(state);
       return;
     }
 
     if (Location.hasFeature(state.mapId, 'objects')) {
       var obj = Core.getObjectAtPos(state.player.x, state.player.y);
       if (obj) {
-        if (obj.type === 'bed') DayCycle.showBedChoice(state);
+        if (obj.type === 'bed') NPC.showBedChoice(state);
         else if (obj.type === 'terminal') workAtTerminal(state);
         else if (obj.type === 'notice_board') readNoticeBoard(state);
         else if (obj.type === 'cafe_table') eatAtCafe(state);
@@ -285,63 +323,36 @@
       }
     } else if (Location.isSystem(state.mapId)) {
       var tile = state.map[state.player.y][state.player.x];
-      if (tile === 4) Systems.hackTerminal(state.player.x, state.player.y, state);
+      if (tile === 4) Combat.hackTerminal(state.player.x, state.player.y, state);
     }
   }
 
-  function eatAtCafe(state) {
-    var cfg = FA.lookup('config', 'cafe');
-    if (!cfg) return;
-    var cost = cfg.cost;
-    var canAfford = state.credits >= cost;
-    Game._showChoiceMenu(state, '> CAFE \u2014 Order food?', [
-      {
-        label: canAfford ? 'Eat (' + cost + ' cr)' : 'Not enough credits',
-        color: canAfford ? '#e8a040' : '#644',
-        enabled: canAfford,
-        action: function(s) {
-          s.credits -= cost;
-          s.player.hp = Math.min(s.player.maxHp, s.player.hp + cfg.hpRestore);
-          s.timeOfDay += cfg.timeCost;
-          s.turn += cfg.timeCost;
-          Core.addSystemBubble('> ' + cfg.text + ' +' + cfg.hpRestore + ' HP.', '#e8a040');
-          Core.triggerThought('cafe');
-          DayCycle.checkTimeWarnings(s);
-        }
-      },
-      {
-        label: 'Leave',
-        color: '#665',
-        enabled: true,
-        action: function() {}
-      }
+  function restAction(state, configKey, title, label, color, thought) {
+    var c = FA.lookup('config', configKey);
+    if (!c) return;
+    var cost = c.cost || 0;
+    var canAfford = !cost || state.credits >= cost;
+    Game._showChoiceMenu(state, title, [
+      { label: canAfford ? label : 'Not enough credits', color: canAfford ? color : '#644',
+        enabled: canAfford, action: function(s) {
+          if (cost) s.credits -= cost;
+          s.player.hp = Math.min(s.player.maxHp, s.player.hp + c.hpRestore);
+          s.timeOfDay += c.timeCost; s.turn += c.timeCost;
+          Core.addSystemBubble('> ' + c.text + ' +' + c.hpRestore + ' HP.', color);
+          Core.triggerThought(thought); NPC.checkTimeWarnings(s);
+        } },
+      { label: 'Leave', color: '#665', enabled: true, action: function() {} }
     ]);
   }
 
+  function eatAtCafe(state) {
+    var c = FA.lookup('config', 'cafe');
+    restAction(state, 'cafe', '> CAFE \u2014 Order food?', c ? 'Eat (' + c.cost + ' cr)' : '', '#e8a040', 'cafe');
+  }
+
   function restInGarden(state) {
-    var cfg = FA.lookup('config', 'garden');
-    if (!cfg) return;
-    Game._showChoiceMenu(state, '> GARDEN \u2014 Rest here?', [
-      {
-        label: 'Rest (+' + cfg.hpRestore + ' HP, ' + cfg.timeCost + ' turns)',
-        color: '#6a4',
-        enabled: true,
-        action: function(s) {
-          s.player.hp = Math.min(s.player.maxHp, s.player.hp + cfg.hpRestore);
-          s.timeOfDay += cfg.timeCost;
-          s.turn += cfg.timeCost;
-          Core.addSystemBubble('> ' + cfg.text + ' +' + cfg.hpRestore + ' HP.', '#6a4');
-          Core.triggerThought('garden');
-          DayCycle.checkTimeWarnings(s);
-        }
-      },
-      {
-        label: 'Leave',
-        color: '#665',
-        enabled: true,
-        action: function() {}
-      }
-    ]);
+    var c = FA.lookup('config', 'garden');
+    restAction(state, 'garden', '> GARDEN \u2014 Rest here?', c ? 'Rest (+' + c.hpRestore + ' HP, ' + c.timeCost + ' turns)' : '', '#6a4', 'garden');
   }
 
   function workAtTerminal(state) {
@@ -355,7 +366,7 @@
     state.credits += econCfg.workPay;
     Core.addSystemBubble('> Shift complete. +' + econCfg.workPay + ' credits.', '#fd0');
     Core.triggerThought('work');
-    DayCycle.checkTimeWarnings(state);
+    NPC.checkTimeWarnings(state);
   }
 
   function readNoticeBoard(state) {
@@ -366,35 +377,17 @@
     state.turn += 1;
   }
 
-  // ============================================================
-  //  CHOICE MENU
-  // ============================================================
-
   function showChoiceMenu(state, title, options) {
     state.choiceMenu = { title: title, options: options, timer: 0, selectedIndex: 0 };
   }
 
-  function choiceUp() {
+  function choiceMove(delta) {
     var state = FA.getState();
     if (!state.choiceMenu) return;
-    var menu = state.choiceMenu;
-    menu.selectedIndex = (menu.selectedIndex - 1 + menu.options.length) % menu.options.length;
-    // Skip disabled options
-    var attempts = menu.options.length;
-    while (menu.options[menu.selectedIndex].enabled === false && attempts-- > 0) {
-      menu.selectedIndex = (menu.selectedIndex - 1 + menu.options.length) % menu.options.length;
-    }
-  }
-
-  function choiceDown() {
-    var state = FA.getState();
-    if (!state.choiceMenu) return;
-    var menu = state.choiceMenu;
-    menu.selectedIndex = (menu.selectedIndex + 1) % menu.options.length;
-    var attempts = menu.options.length;
-    while (menu.options[menu.selectedIndex].enabled === false && attempts-- > 0) {
-      menu.selectedIndex = (menu.selectedIndex + 1) % menu.options.length;
-    }
+    var menu = state.choiceMenu, len = menu.options.length, attempts = len;
+    menu.selectedIndex = (menu.selectedIndex + delta + len) % len;
+    while (menu.options[menu.selectedIndex].enabled === false && attempts-- > 0)
+      menu.selectedIndex = (menu.selectedIndex + delta + len) % len;
   }
 
   function confirmChoice() {
@@ -405,10 +398,6 @@
     state.choiceMenu = null;
     if (opt.action) opt.action(state);
   }
-
-  // ============================================================
-  //  DIALOGUE CHOICE FLOW
-  // ============================================================
 
   function dismissBubblesWithChoices() {
     var state = FA.getState();
@@ -446,15 +435,10 @@
     }
   }
 
-  // ============================================================
-  //  SYSTEM ENTRY / EXIT
-  // ============================================================
-
   function enterSystem(state) {
     var depth = Math.min(state.systemVisits + 1, cfg.maxDepth);
     // Emil confidant: skip depth 1 (start at depth 2)
-    if (depth === 1 && FA.narrative && FA.narrative.graphs.quest_emil &&
-        FA.narrative.graphs.quest_emil.currentNode === 'confidant') {
+    if (depth === 1 && Core.isConfidant('emil')) {
       depth = 2;
     }
 
@@ -514,11 +498,7 @@
     state.directorMsgShown = {};
 
     var lightRadius = 10 - depth * 0.5;
-    // Victor confidant: +2 visibility radius in dungeon
-    if (FA.narrative && FA.narrative.graphs.quest_victor &&
-        FA.narrative.graphs.quest_victor.currentNode === 'confidant') {
-      lightRadius += 2;
-    }
+    if (Core.isConfidant('victor')) lightRadius += 2;
     state.visible = Core.computeVisibility(state.map, px, py, lightRadius);
 
     FA.clearEffects();
@@ -559,7 +539,7 @@
       if (ejectedCs) Core.startCutscene(ejectedCs, state);
     }
 
-    DayCycle.checkTimeWarnings(state);
+    NPC.checkTimeWarnings(state);
   }
 
   function handlePlayerDeath(state) {
@@ -569,10 +549,6 @@
       Core.triggerEnding(false, 'curfew');
     }
   }
-
-  // ============================================================
-  //  NPC COMMS (dungeon)
-  // ============================================================
 
   function npcComm(state) {
     var townEntities = state.maps.town.entities;
@@ -597,10 +573,6 @@
     if (!pool || pool.length === 0) return;
     Core.addSystemBubble('@' + npc.name + ': ' + FA.pick(pool), npc.color);
   }
-
-  // ============================================================
-  //  TURN & END GAME
-  // ============================================================
 
   function endTurn() {
     var state = FA.getState();
@@ -634,7 +606,7 @@
         }
       }
 
-      DayCycle.checkTimeWarnings(state);
+      NPC.checkTimeWarnings(state);
     }
 
     if (!hasTime) {
@@ -643,11 +615,7 @@
 
     if (state.player) {
       var lightRadius = hasTime ? 14 : 10 - (state.depth || 1) * 0.5;
-      // Victor confidant: +2 visibility in dungeon
-      if (!hasTime && FA.narrative && FA.narrative.graphs.quest_victor &&
-          FA.narrative.graphs.quest_victor.currentNode === 'confidant') {
-        lightRadius += 2;
-      }
+      if (!hasTime && Core.isConfidant('victor')) lightRadius += 2;
       state.visible = Core.computeVisibility(state.map, state.player.x, state.player.y, lightRadius);
     }
 
@@ -656,7 +624,7 @@
     if (FA.narrative.tick) FA.narrative.tick(1);
 
     if (hasTime) {
-      DayCycle.checkOverworldThoughts(state);
+      NPC.checkOverworldThoughts(state);
     } else if (state.screen === 'playing' && state.systemTurn > 0) {
       if (state.systemTurn % COMM_INTERVAL === 0) {
         npcComm(state);
@@ -681,7 +649,7 @@
       kills: kills, gold: gold, days: state.day,
       visits: state.systemVisits, credits: state.credits
     };
-    Memories.save(state, victory);
+    saveMemories(state, victory);
     FA.emit('game:over', { victory: victory, score: state.score });
   }
 
@@ -705,18 +673,10 @@
     }
   }
 
-  // ============================================================
-  //  MODULE USE (wraps Systems + endTurn)
-  // ============================================================
-
   function useModuleAndEnd(slotIdx) {
-    Systems.useModule(slotIdx);
+    Combat.useModule(slotIdx);
     endTurn();
   }
-
-  // ============================================================
-  //  EXPORTS
-  // ============================================================
 
   window.Game = {
     start: startGame,
@@ -725,10 +685,10 @@
     interact: interact,
     useModule: useModuleAndEnd,
     dismissCutscene: dismissCutscene,
-    dismissDream: DayCycle.dismissDream,
+    dismissDream: NPC.dismissDream,
     dismissBubbles: dismissBubblesWithChoices,
-    choiceUp: choiceUp,
-    choiceDown: choiceDown,
+    choiceUp: function() { choiceMove(-1); },
+    choiceDown: function() { choiceMove(1); },
     confirmChoice: confirmChoice,
     _endGame: endGame,
     _handlePlayerDeath: handlePlayerDeath,
