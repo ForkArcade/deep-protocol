@@ -1,6 +1,9 @@
 // maps.js — ForkArcade map definitions
 // Generated from _maps.json by apply_data_patch tool
 
+if (!window.FA) window.FA = {};
+if (!FA.assets) FA.assets = { spriteDefs: null, spritesheet: null, sheetCols: 16, mapDefs: null };
+
 FA.assets.mapDefs = {
   "overworld": {
     "w": 40,
