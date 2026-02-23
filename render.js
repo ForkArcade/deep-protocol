@@ -708,6 +708,10 @@
       if (state.screen !== 'playing' && state.screen !== 'victory' && state.screen !== 'shutdown') return;
       FA.drawFloats();
     }, 20);
+
+    // Init scanlines immediately so cutscene layer has them available
+    var cvs = FA.getCanvas ? FA.getCanvas() : document.getElementById('game');
+    if (cvs) ensureScanlines(cvs.width || 800, cvs.height || 600);
   }
 
   window.Render = { setup: setupLayers, scanlineCanvas: null };

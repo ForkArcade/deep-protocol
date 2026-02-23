@@ -393,8 +393,10 @@
       var cs = state.cutscene;
       var ctx = FA.getCtx();
       FA.draw.clear('#040810');
-      ctx.globalAlpha = 0.12;
-      ctx.drawImage(Render.scanlineCanvas, 0, 0);
+      if (Render.scanlineCanvas) {
+        ctx.globalAlpha = 0.12;
+        ctx.drawImage(Render.scanlineCanvas, 0, 0);
+      }
       if (Math.random() > 0.95) {
         ctx.globalAlpha = 0.015; ctx.fillStyle = cs.color;
         ctx.fillRect(0, 0, W, H);
