@@ -1,7 +1,7 @@
 // maps.js — ForkArcade map definitions
 // Generated from _maps.json by apply_data_patch tool
 
-FA.assets.mapDefs = {
+var MAP_DEFS = {
   "overworld": {
     "w": 40,
     "h": 25,
@@ -159,11 +159,11 @@ FA.assets.mapDefs = {
 }
 
 function getMap(name) {
-  return FA.assets.mapDefs[name] || null
+  return MAP_DEFS[name] || null
 }
 
 function getMapGrid(name) {
-  var m = FA.assets.mapDefs[name]
+  var m = MAP_DEFS[name]
   if (!m || !m.grid) return null
   return m.grid.map(function(row) {
     return row.split('').map(Number)
@@ -171,11 +171,11 @@ function getMapGrid(name) {
 }
 
 function getMapObjects(name) {
-  return (FA.assets.mapDefs[name] || {}).objects || []
+  return (MAP_DEFS[name] || {}).objects || []
 }
 
 function getMapZones(name) {
-  var m = FA.assets.mapDefs[name]
+  var m = MAP_DEFS[name]
   if (!m || !m.zones) return null
   return m.zones.map(function(row) {
     return row.split('')
