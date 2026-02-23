@@ -112,7 +112,7 @@
     var _startFx = { color: '#556', dimColor: '#223', size: 14, align: 'center', baseline: 'middle', duration: 80, charDelay: 8, flicker: 30 };
 
     // Invalidate start canvas when spritesheet loads so it re-renders with real sprites
-    SPRITESHEET.addEventListener('load', function() { _startCanvas = null; });
+    if (FA.assets.spritesheet) FA.assets.spritesheet.addEventListener('load', function() { _startCanvas = null; });
 
     function renderStartScene(W, H) {
       _startCanvas = document.createElement('canvas');
