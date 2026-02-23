@@ -2,10 +2,10 @@
   "template": "roguelike",
   "engineFiles": ["rot.min.js", "fa-narrative.js"],
   "gameFiles": [
-    "text-fx.js",
     "data.js",
     "core.js",
     "npc.js",
+    "combat.js",
     "game.js",
     "render.js",
     "render-ui.js",

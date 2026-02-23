@@ -193,6 +193,7 @@
 
   // Start
   Render.setup();
+  RenderUI.setup();
   Game.start();
 
   if (typeof ForkArcade !== 'undefined') {
